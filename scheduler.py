@@ -293,7 +293,9 @@ def expire_guest_devices(config):
     isn't removed before it has generated any traffic. Query-log activity is
     checked in UTC (matching stored timestamps); the grace period uses local time
     (matching how guest_since is stamped)."""
-    days = int(config.get("guest_expire_days", 3))
+    if not config.get("guest_cleanup_enabled", True):
+        return
+    days = int(config.get("guest_expire_days", 7))
     if days <= 0:
         return
     devices = config.get("devices", {})

@@ -230,13 +230,13 @@ Go to **Devices** in the top nav to label every device and set its role. **All r
 | 👤 Personal | People | ✅ | ✅ | Phones, tablets & laptops used by family members (adults or kids) — the target of Pause All and schedules |
 | 🛡️ Admin | People | — | ✅ | Same filtering as Personal, but never bulk-paused |
 | 💼 Work Device | People | — | ✅ | Filtered like any device; auto-exempt from the "activity drop / possible VPN" alert |
-| 🎮 Guest | People | — | Skipped | Visitors — filtered like anyone but hidden from reports; **auto-removed after N days of inactivity** (configurable, default 3) |
+| 🎮 Guest | People | — | Skipped | Visitors — filtered like anyone but hidden from reports; **optionally auto-removed after inactivity** (Settings → Guest Devices; default 7 days, can be turned off) |
 | 🖥️ Infrastructure | Infrastructure | — | Skipped | Routers, NAS, printers, servers |
 | 📡 Smart Device | Infrastructure | — | ✅ | TVs, cameras, doorbells, thermostats, cars |
 
 **Work Device** is for a laptop or phone that lives on a corporate VPN and does heavy video conferencing. It's filtered exactly like every other device — setting this role does **not** disable any blocking. What it does do is keep the device out of the "Pause All Personal" action and automatically exempt it from the "activity drop / possible VPN" alert (a VPN legitimately makes a device go quiet from the router's view, so that alert would otherwise fire constantly).
 
-**Guest** is for visitors' devices. It's fully filtered but kept out of your long-term summary reports, and it **auto-removes itself after a few days of inactivity** (set the window on the Devices page) — so your device list doesn't fill up with one-time visitors. A freshly-added guest gets a grace period so it isn't removed before it's been used.
+**Guest** is for visitors' devices. It's fully filtered but kept out of your long-term summary reports. Optionally, guest devices **auto-remove themselves after a period of inactivity** — a global toggle and window (3–30 days, default 7) under **Settings → Guest Devices**. Turn it off and guests stay until you remove them, which suits households with regular visitors (grandparents, kids' friends, vacation rentals). When cleanup is on, a freshly-added guest gets a grace period so it isn't removed before it's been used.
 
 ---
 

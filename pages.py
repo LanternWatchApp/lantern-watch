@@ -2788,17 +2788,18 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + _device_type_row("👤 Personal", "People", True,  "yes", "Phones, tablets &amp; laptops used by family members (adults or kids) &mdash; the target of Pause All and schedules")
         + _device_type_row("🛡️ Admin", "People", False, "yes", "Same filtering as Personal, but never bulk-paused")
         + _device_type_row("💼 Work Device",     "People", False, "yes", "Filtered like any device; auto-exempt from the VPN &ldquo;activity drop&rdquo; alert")
-        + _device_type_row("🎮 Guest",           "People", False, "skip", f"Visitors &mdash; filtered like anyone but hidden from reports; auto-removed after {int(config.get('guest_expire_days', 3))} days of inactivity")
+        + _device_type_row("🎮 Guest",           "People", False, "skip", "Visitors &mdash; filtered like anyone but hidden from reports; optional auto-cleanup after inactivity (Settings)")
         + _device_type_row("🖥️ Infrastructure",  "Infrastructure", False, "skip", "Routers, NAS, printers, servers")
         + _device_type_row("📡 Smart Device",    "Infrastructure", False, "yes", "TVs, cameras, doorbells, thermostats, cars")
         + f'</tbody></table></div>'
         + redetect_controls
         + sortfilter
         + f'<form method="POST" action="/admin/devices/save">{rows_html}'
-        + f'<div style="margin:12px 0;padding:12px 14px;background:#f8fafc;border-radius:8px;font-size:0.85em;color:#475569">'
-        + f'🎮 <b>Guest</b> devices are automatically removed after '
-        + f'<input type="number" name="guest_expire_days" value="{int(config.get("guest_expire_days", 3))}" min="1" max="90" style="width:56px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;text-align:center"> '
-        + f'days of inactivity.</div>'
+        + (f'<div style="margin:12px 0;padding:12px 14px;background:#f8fafc;border-radius:8px;font-size:0.85em;color:#475569">'
+           + (f'🎮 <b>Guest</b> devices are automatically removed after {int(config.get("guest_expire_days", 7))} days of inactivity. '
+              if config.get("guest_cleanup_enabled", True)
+              else '🎮 <b>Guest</b> auto-cleanup is off — guest devices stay until you remove them. ')
+           + 'Change this in <a href="/admin" style="color:#D97706;font-weight:600">Settings</a>.</div>')
         + f'<button type="submit" class="btn">Save All Devices</button></form></div>'
         + '<script>'
         + 'var LW_ROLE_DESC={'
@@ -3117,6 +3118,12 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         f'<label class="radio-row"><input type="radio" name="retention_days" value="{d}" {"checked" if retention_days == d else ""}> {l}</label>'
         for d, l in [(7, "7 days"), (14, "14 days (recommended)"), (30, "30 days"), (60, "60 days"), (90, "90 days")]
     )
+    guest_cleanup_on = "checked" if config.get("guest_cleanup_enabled", True) else ""
+    guest_days       = int(config.get("guest_expire_days", 7))
+    guest_day_opts   = "".join(
+        f'<option value="{d}" {"selected" if guest_days == d else ""}>{l}</option>'
+        for d, l in [(3, "3 days"), (5, "5 days"), (7, "7 days (recommended)"), (14, "14 days"), (30, "30 days")]
+    )
     portal_on  = "checked" if config.get("captive_portal") else ""
     doh_on     = "checked" if config.get("doh_blocking") else ""
     tel_on     = "checked" if config.get("telemetry_enabled") else ""
@@ -3229,6 +3236,12 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         + f'<div class="form-card"><div class="form-label">Query History</div>'
         + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:8px">How many days of DNS traffic to keep. Older records are deleted automatically each day. If storage exceeds 80%, history is trimmed to 7 days.</div>'
         + f'<div style="padding-left:4px">{retention_opts}</div></div>'
+        + f'<div class="form-card"><div class="form-label">Guest Devices</div>'
+        + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:10px">Devices you give the &#x1F3AE; Guest role can be cleaned up automatically once they stop connecting. Turn this off to keep guest devices until you remove them yourself.</div>'
+        + f'<label class="toggle-row"><input type="checkbox" name="guest_cleanup_enabled" {guest_cleanup_on}>'
+        + f'<span>Automatically remove inactive Guest devices</span></label>'
+        + f'<div style="margin-top:10px;font-size:0.85em;color:#475569">Remove after '
+        + f'<select name="guest_expire_days" style="padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px">{guest_day_opts}</select> of inactivity.</div></div>'
         + f'<div class="form-card"><div class="form-label">Network Notice (Captive Portal)</div>'
         + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:10px">When enabled, new devices see a one-time acknowledgment page before browsing. Recommended for organizations, churches, or any shared network. Not needed for personal family use.</div>'
         + f'<label class="toggle-row"><input type="checkbox" name="captive_portal" {"checked" if portal_on else ""}>'

@@ -629,6 +629,12 @@ class Handler(BaseHTTPRequestHandler):
                     "password": params.get("ag_password", [""])[0],
                 }
                 config["retention_days"] = int(params.get("retention_days", [14])[0] or "14")
+                # Guest device auto-cleanup (global)
+                config["guest_cleanup_enabled"] = "guest_cleanup_enabled" in params
+                try:
+                    config["guest_expire_days"] = max(1, min(int(params.get("guest_expire_days", ["7"])[0]), 90))
+                except (ValueError, TypeError):
+                    pass
                 # Notification settings (channels, alert types, summaries) are
                 # saved separately from the Notifications page → /notifications/save.
                 # Captive portal toggle
@@ -680,12 +686,6 @@ class Handler(BaseHTTPRequestHandler):
                             devices[name].setdefault("guest_since", datetime.now().isoformat())
                         else:
                             devices[name].pop("guest_since", None)
-                # Guest auto-expiry window (global)
-                try:
-                    gd = int(params.get("guest_expire_days", ["3"])[0])
-                    config["guest_expire_days"] = max(1, min(gd, 90))
-                except (ValueError, TypeError):
-                    pass
                 config["devices"] = devices
                 save_config(config)
                 # No device type is exempt from filtering. A work laptop's real
