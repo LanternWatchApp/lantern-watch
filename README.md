@@ -14,7 +14,7 @@ Built on top of AdGuard Home, which handles the actual DNS blocking. Lantern Wat
 - **Focus Times** — block internet during homework, chores, or meals
 - **Screen time limits** — set a daily hour limit per device; get notified when it's reached
 - **Social media profiles** — Open / Moderate / Teen / Strict / Custom, applied instantly at the DNS level
-- **Device types** — label devices as Person/Child, Parent/Admin, Work Device, Infrastructure, or Smart Device; Work Device bypasses all AdGuard filtering automatically
+- **Device types** — label devices as Person/Child, Parent/Admin, Work Device, Infrastructure, or Smart Device; controls dashboard grouping, whether Pause All applies, and reporting (every type stays fully filtered)
 - **Push notifications** — ntfy, Telegram, and Email alerts for adult content, new devices, high block rates, possible VPN use, and screen time limits
 - **Daily and weekly summaries** — sent to your phone at a time you choose
 - **Notifications log** — in-dashboard history of every alert sent, with setup guides for each channel
@@ -223,17 +223,17 @@ Changes apply instantly to every device on the network.
 
 ## Device types
 
-Go to **Devices** in the top nav to label every device and set its type.
+Go to **Devices** in the top nav to label every device and set its type. The type controls how a device is grouped, whether **Pause All Person/Child** applies to it, and whether it appears in summary reports. **Every type is filtered equally — no type bypasses AdGuard.**
 
-| Type | Behaviour |
-|---|---|
-| 👤 Person / Child | Included in Pause All Person/Child |
-| 🛡️ Parent / Admin | Never paused; full filtering applies |
-| 💼 Work Device | Never paused; **all AdGuard filtering disabled** for this device |
-| 🖥️ Infrastructure | Never paused (NAS, printer, router) |
-| 📡 Smart Device | Never paused (cameras, TV, doorbell, thermostat) |
+| Type | Shown in | Pause All | In reports | Notes |
+|---|---|:---:|:---:|---|
+| 👤 Person / Child | People | ✅ | ✅ | Kids & family devices — the target of Pause All and schedules |
+| 🛡️ Parent / Admin | People | — | ✅ | Like Person, but never bulk-paused |
+| 💼 Work Device | People | — | ✅ | Filtered like any device; auto-exempt from the "activity drop / possible VPN" alert |
+| 🖥️ Infrastructure | Infrastructure | — | Skipped | Routers, NAS, printers, servers |
+| 📡 Smart Device | Infrastructure | — | ✅ | TVs, cameras, doorbells, thermostats, cars |
 
-**Work Device** is designed for laptops or phones that need unobstructed access to corporate VPNs, video calls, and work tools. When you set a device to Work Device, Lantern Watch creates a per-client entry in AdGuard Home that disables all blocking rules for that device. Changing it back to any other type removes the entry automatically.
+**Work Device** is for a laptop or phone that lives on a corporate VPN and does heavy video conferencing. It's filtered exactly like every other device — setting this type does **not** disable any blocking. What it does do is keep the device out of the "Pause All Person/Child" action and automatically exempt it from the "activity drop / possible VPN" alert (a VPN legitimately makes a device go quiet from the router's view, so that alert would otherwise fire constantly).
 
 ---
 
