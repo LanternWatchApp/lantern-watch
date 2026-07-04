@@ -223,7 +223,7 @@ Changes apply instantly to every device on the network.
 
 ## Device roles
 
-Go to **Devices** in the top nav to label every device and set its role. The role controls how a device is grouped, whether **Pause All Personal** applies to it, and whether it appears in summary reports. **Every role is filtered equally — no role bypasses AdGuard.**
+Go to **Devices** in the top nav to label every device and set its role. **All roles receive the same AdGuard filtering** — the role only affects grouping, whether **Pause All Personal** applies, reporting, and a few alert behaviors.
 
 | Role | Shown in | Pause All | In reports | Notes |
 |---|---|:---:|:---:|---|

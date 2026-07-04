@@ -2726,14 +2726,15 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
     <div style="flex:2;min-width:140px"><div class="form-label">Name{name_hint}</div>
       <input type="text" name="label_{enc}" value="{cur_label}"></div>
     <div style="flex:1;min-width:120px"><div class="form-label">Role{type_hint}</div>
-      <select name="type_{enc}">
+      <select name="type_{enc}" onchange="lwRoleDesc(this)">
         <option value="person" {sel_person}>👤 Personal</option>
         <option value="parent" {sel_parent}>🛡️ Admin</option>
         <option value="work_device" {sel_work}>💼 Work Device</option>
         <option value="guest" {sel_guest}>🎮 Guest</option>
         <option value="infrastructure" {sel_infra}>🖥️ Infrastructure</option>
         <option value="smart_device" {sel_smart}>📡 Smart Device</option>
-      </select></div>
+      </select>
+      <div class="role-desc" style="font-size:0.72em;color:#94a3b8;margin-top:3px;line-height:1.3"></div></div>
   </div>
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;padding-top:8px;border-top:1px solid #1e293b">
     <a href="/device?name={enc}&ip={enc_ip}" style="font-size:0.75em;color:#D97706;font-weight:600">Tap to see details</a>
@@ -2772,7 +2773,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + f'{saved_msg}'
         + f'<div class="section"><h2>Manage Devices</h2>'
         + f'<div style="color:#64748b;font-size:0.85em;margin-bottom:12px">'
-        + f'Label devices and set their role. The role controls how a device is grouped, whether <b>Pause All Personal</b> affects it, and whether it appears in your summary reports. '
+        + f'Label devices and set their role. <b>All roles get the same AdGuard filtering</b> &mdash; the role only affects grouping, whether <b>Pause All Personal</b> applies, reporting, and a few alert behaviors. '
         + f'<b>Every type is filtered equally</b> &mdash; no type bypasses AdGuard.</div>'
         + f'<div style="overflow-x:auto;margin-bottom:14px">'
         + f'<table style="border-collapse:collapse;width:100%;min-width:560px;font-size:0.8em">'
@@ -2799,6 +2800,18 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + f'<input type="number" name="guest_expire_days" value="{int(config.get("guest_expire_days", 3))}" min="1" max="90" style="width:56px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;text-align:center"> '
         + f'days of inactivity.</div>'
         + f'<button type="submit" class="btn">Save All Devices</button></form></div>'
+        + '<script>'
+        + 'var LW_ROLE_DESC={'
+        + '"person":"Phones, tablets and laptops used by family members — included in Pause All and schedules.",'
+        + '"parent":"Full protection, but never affected by Pause All Personal.",'
+        + '"work_device":"Work laptop or phone — filtered normally, but skipped by the VPN activity-drop alert.",'
+        + '"guest":"Temporary visitor device — hidden from reports and auto-removed after a period of inactivity.",'
+        + '"infrastructure":"Routers, NAS, printers and servers — shown separately and kept out of reports.",'
+        + '"smart_device":"TVs, cameras, speakers, thermostats, vehicles and other connected devices."'
+        + '};'
+        + 'function lwRoleDesc(s){var d=s.nextElementSibling;if(d&&d.className=="role-desc")d.textContent=LW_ROLE_DESC[s.value]||"";}'
+        + 'document.querySelectorAll(\'select[name^="type_"]\').forEach(lwRoleDesc);'
+        + '</script>'
         + '</div></body></html>'
     )
 
