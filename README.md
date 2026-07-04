@@ -15,7 +15,7 @@ Built on top of AdGuard Home, which handles the actual DNS blocking. Lantern Wat
 - **Screen time limits** — set a daily hour limit per device; get notified when it's reached
 - **Social media profiles** — Open / Moderate / Teen / Strict / Custom, applied instantly at the DNS level
 - **Device types** — label devices as Person/Child, Parent/Admin, Work Device, Infrastructure, or Smart Device; controls dashboard grouping, whether Pause All applies, and reporting (every type stays fully filtered)
-- **Push notifications** — ntfy, Telegram, and Email alerts for adult content, new devices, high block rates, possible VPN use, and screen time limits
+- **Push notifications** — ntfy, Telegram, and Email alerts for blocked content, new devices, high block rates, possible VPN use, and screen time limits
 - **Daily and weekly summaries** — sent to your phone at a time you choose
 - **Notifications log** — in-dashboard history of every alert sent, with setup guides for each channel
 - **Query Log** — live, paginated DNS query viewer; filter by device, time window, domain search, or blocked-only; click any device to drill in; shows friendly device name and IP
@@ -242,7 +242,7 @@ Go to **Devices** in the top nav to label every device and set its type. The typ
 Lantern Watch supports three notification channels — configure any or all of them in **Settings**. Each channel has its own **Send Test** button so you can confirm it's working.
 
 You'll receive alerts for:
-- Adult content blocked
+- Content blocked
 - New device joined the network
 - A device has an unusually high block rate
 - A device went quiet (possible VPN use)
@@ -329,7 +329,7 @@ Receive alerts by email. Works with Gmail, Outlook, iCloud Mail, and any SMTP pr
 
 ## Notifications log
 
-Go to **Notifications** in the top nav to see a full history of every alert sent — adult content blocks, new devices, screen time limits, and more. The page also has step-by-step setup guides for all three notification channels.
+Go to **Notifications** in the top nav to see a full history of every alert sent — blocked content, new devices, screen time limits, and more. The page also has step-by-step setup guides for all three notification channels.
 
 ---
 
