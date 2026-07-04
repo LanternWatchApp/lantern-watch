@@ -1,0 +1,50 @@
+{
+  "first_run": true,
+  "lw_username": "admin",
+  "lw_password": "",
+  "ntfy_topic": "",
+  "extra_topics": "",
+  "dashboard_url": "http://192.168.8.1:8081",
+  "local_hostnames": ["lanternwatch", "lanternwatch.lan"],
+  "adguard": {
+    "url": "http://127.0.0.1:3000",
+    "username": "",
+    "password": ""
+  },
+  "telegram": {
+    "bot_token": "",
+    "chat_id": ""
+  },
+  "email": {
+    "smtp_host": "",
+    "smtp_port": 587,
+    "smtp_user": "",
+    "smtp_password": "",
+    "to_address": "",
+    "from_name": "Lantern Watch"
+  },
+  "alerts": {
+    "adult_content": true,
+    "new_device": true,
+    "high_block_rate": true,
+    "high_block_threshold": 50,
+    "vpn_detection": true
+  },
+  "summary": {
+    "daily": true,
+    "daily_hour": 21,
+    "weekly": false,
+    "weekly_day": 0,
+    "weekly_hour": 21
+  },
+  "devices": {},
+  "known_devices": [],
+  "vpn_whitelist": [],
+  "paused_devices": {},
+  "schedules": {},
+  "social_profile": "moderate",
+  "social_custom": {
+    "platforms": []
+  },
+  "retention_days": 14
+}

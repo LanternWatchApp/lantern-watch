@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lantern Watch — Home Network Guardian</title>
+<meta name="description" content="Free, open-source family internet safety. Runs entirely on your own router. No subscription, no cloud surveillance, no cost — ever.">
+<style>
+  :root{
+    --orange:#e8a000;
+    --orange-dark:#b87d00;
+    --ink:#1a1a1a;
+    --body:#3a3a3a;
+    --muted:#6b6b6b;
+    --line:#e8e6e0;
+    --bg:#ffffff;
+    --bg-soft:#faf8f3;
+    --bg-card:#ffffff;
+    --radius:14px;
+    --maxw:1080px;
+    --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--font);color:var(--body);background:var(--bg);line-height:1.65;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{color:var(--ink);line-height:1.2;font-weight:700;letter-spacing:-0.02em}
+  a{color:var(--orange-dark);text-decoration:none}
+  img{max-width:100%;display:block}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .btn{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:15px;padding:13px 22px;border-radius:10px;border:1.5px solid transparent;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,background .12s ease;white-space:nowrap;text-decoration:none}
+  .btn:hover{transform:translateY(-1px)}
+  .btn-primary{background:var(--orange);color:#fff;box-shadow:0 4px 14px rgba(232,160,0,.28)}
+  .btn-primary:hover{background:var(--orange-dark);box-shadow:0 6px 18px rgba(232,160,0,.36)}
+  .btn-ghost{background:#fff;color:var(--ink);border-color:var(--line)}
+  .btn-ghost:hover{border-color:var(--orange);color:var(--orange-dark)}
+
+  /* Header */
+  header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .nav{display:flex;align-items:center;justify-content:space-between;height:66px}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:700;color:var(--ink);font-size:18px;letter-spacing:-0.01em}
+  .nav-links{display:flex;align-items:center;gap:28px}
+  .nav-links a{color:var(--body);font-weight:500;font-size:15px}
+  .nav-links a:hover{color:var(--orange-dark)}
+  .nav-cta{display:flex;gap:10px;align-items:center}
+  .menu-btn{display:none;background:none;border:none;cursor:pointer;color:var(--ink)}
+
+  /* Hero */
+  .hero{padding:90px 0 70px;background:linear-gradient(180deg,#fffdf8 0%,#ffffff 100%)}
+  .hero-inner{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:#fff4dc;color:var(--orange-dark);font-weight:600;font-size:13px;padding:6px 14px;border-radius:999px;border:1px solid #f3e3b8;margin-bottom:22px}
+  .badge .dot{width:7px;height:7px;border-radius:50%;background:var(--orange)}
+  .hero h1{font-size:50px;margin-bottom:20px}
+  .hero h1 .accent{color:var(--orange)}
+  .hero p.lead{font-size:19px;color:var(--muted);margin-bottom:30px;max-width:520px}
+  .hero-cta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:22px}
+  .free-line{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);font-weight:500}
+  .free-line svg{flex:none}
+
+  /* Hero visual */
+  .hero-visual{display:flex;align-items:center;justify-content:center}
+  .lantern-card{background:var(--bg-soft);border:1px solid var(--line);border-radius:24px;padding:60px 44px;width:100%;display:flex;align-items:center;justify-content:center}
+  .lantern-card img{width:350px;height:auto;filter:drop-shadow(0 12px 32px rgba(232,160,0,.35));transition:transform .3s ease;cursor:pointer}
+  .lantern-card img:hover{transform:scale(1.08)}
+
+  /* Pills row */
+  .trust{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--bg-soft)}
+  .trust-inner{display:flex;flex-wrap:wrap;gap:14px 36px;justify-content:center;padding:22px 0}
+  .trust-item{display:flex;align-items:center;gap:9px;font-weight:600;color:var(--ink);font-size:15px}
+  .trust-item svg{color:var(--orange);flex:none}
+
+  /* Sections */
+  section{padding:78px 0}
+  .section-head{text-align:center;max-width:680px;margin:0 auto 52px}
+  .section-head .eyebrow{color:var(--orange-dark);font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px}
+  .section-head h2{font-size:36px;margin-bottom:14px}
+  .section-head p{font-size:17px;color:var(--muted)}
+
+  /* Features */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+  .card{background:var(--bg-card);border:1px solid var(--line);border-radius:var(--radius);padding:30px 26px;transition:border-color .15s ease,transform .15s ease}
+  .card:hover{border-color:var(--orange);transform:translateY(-3px)}
+  .card .ico{width:46px;height:46px;border-radius:11px;background:#fff4dc;display:flex;align-items:center;justify-content:center;color:var(--orange-dark);margin-bottom:18px}
+  .card h3{font-size:19px;margin-bottom:9px}
+  .card p{font-size:15px;color:var(--muted)}
+
+  /* How it works */
+  .how{background:var(--bg-soft)}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+  .step{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:30px 26px}
+  .step .num{width:38px;height:38px;border-radius:50%;background:var(--orange);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:17px}
+  .step h3{font-size:18px;margin-bottom:8px}
+  .step p{font-size:15px;color:var(--muted)}
+
+  /* Demo video */
+  .video{background:var(--bg-soft)}
+  .video-frame{max-width:760px;margin:0 auto;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#fff}
+  .video-frame .ph{aspect-ratio:16/9;background:#1a1a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:14px;cursor:pointer}
+  .video-frame .play{width:66px;height:66px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(232,160,0,.4)}
+  .video-frame .ph span{font-size:14px;color:#cfc8b8;font-weight:500}
+
+  /* Open source band */
+  .oss{background:linear-gradient(135deg,#fff8e8,#fff4dc);border-top:1px solid #f3e3b8;border-bottom:1px solid #f3e3b8}
+  .oss-inner{display:flex;align-items:center;justify-content:space-between;gap:30px;flex-wrap:wrap}
+  .oss h2{font-size:30px;margin-bottom:8px}
+  .oss p{color:var(--body);font-size:16px;max-width:520px}
+  .oss .actions{display:flex;gap:12px;flex-wrap:wrap}
+
+  /* Request access form */
+  .access{scroll-margin-top:70px}
+  .access-form{max-width:520px;margin:0 auto;text-align:left;display:flex;flex-direction:column;gap:18px}
+  .form-row{display:flex;flex-direction:column;gap:6px}
+  .form-row label{font-weight:600;font-size:14px;color:var(--ink)}
+  .req-star{color:var(--orange-dark)}
+  .form-row input,.form-row textarea{
+    width:100%;padding:12px 16px;
+    border:1.5px solid var(--line);border-radius:10px;
+    font-family:var(--font);font-size:15px;color:var(--ink);background:#fff;
+    transition:border-color .15s ease,box-shadow .15s ease;outline:none;
+  }
+  .form-row input:focus,.form-row textarea:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(232,160,0,.12)}
+  .form-row textarea{resize:vertical;min-height:90px}
+  .field-note{font-size:12px;color:var(--muted);margin-top:2px}
+  .form-error{background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 16px;font-size:14px;color:#b91c1c;font-weight:500}
+  .form-submit{display:flex;justify-content:center;padding-top:4px}
+  .form-success{display:none;text-align:center;padding:28px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--radius);color:#15803d;font-size:15px;max-width:520px;margin:0 auto;line-height:1.6}
+  .form-success a{color:#15803d;font-weight:600}
+
+  /* Footer */
+  footer{border-top:1px solid var(--line);padding:46px 0 36px;background:var(--bg-soft)}
+  .foot-inner{display:flex;justify-content:space-between;align-items:flex-start;gap:30px;flex-wrap:wrap}
+  .foot-brand{display:flex;align-items:center;gap:11px;font-weight:700;color:var(--ink);font-size:17px;margin-bottom:10px}
+  .foot-brand .mark{width:30px;height:30px}
+  .foot-col p{font-size:14px;color:var(--muted);max-width:300px}
+  .foot-links{display:flex;gap:40px;flex-wrap:wrap}
+  .foot-links h4{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink);margin-bottom:12px}
+  .foot-links a{display:block;color:var(--muted);font-size:14px;margin-bottom:8px}
+  .foot-links a:hover{color:var(--orange-dark)}
+  .foot-bottom{margin-top:34px;padding-top:22px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+
+  @media(max-width:880px){
+    .hero-inner{grid-template-columns:1fr;gap:36px}
+    .hero h1{font-size:38px}
+    .grid,.steps{grid-template-columns:1fr}
+    .nav-links{display:none}
+    .menu-btn{display:block}
+    .section-head h2{font-size:28px}
+    .hero{padding:56px 0 48px}
+    section{padding:56px 0}
+    .lantern-card img{width:200px}
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="wrap nav">
+    <div class="brand">Lantern Watch</div>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#demo">Demo</a>
+      <a href="https://github.com/LanternWatchApp/lantern-watch" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn btn-primary" href="#request-access">Request access</a>
+    </div>
+    <button class="menu-btn" aria-label="Menu" onclick="document.querySelector('.nav-links').style.display = document.querySelector('.nav-links').style.display==='flex'?'none':'flex'">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap hero-inner">
+    <div>
+      <div class="badge"><span class="dot"></span> Free &amp; open source — forever</div>
+      <h1>Keep your family <span class="accent">safe</span> on your own home network.</h1>
+      <p class="lead">Lantern Watch is a plug-in guardian for your home internet. Content filtering, parental controls, and screen-time limits — running entirely on your own router. No subscription. No cloud watching your kids. No cost.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#request-access">Request beta access</a>
+        <a class="btn btn-ghost" href="https://github.com/LanternWatchApp/lantern-watch" target="_blank" rel="noopener">View on GitHub</a>
+      </div>
+      <div class="free-line">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e8a000" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+        100% free for families, churches, camps &amp; missionaries
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="lantern-card">
+        <img src="assets/images/image01.svg?v=f5bc89c9" alt="Lantern Watch logo">
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TRUST PILLS -->
+<div class="trust">
+  <div class="wrap trust-inner">
+    <div class="trust-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Runs on your router</div>
+    <div class="trust-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> No cloud surveillance</div>
+    <div class="trust-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg> No subscription</div>
+    <div class="trust-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg> Fully open source</div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">What it does</div>
+      <h2>Protection that lives in your home</h2>
+      <p>Everything runs locally on a small router you own. Your family's activity never leaves the house.</p>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 010 20 15 15 0 010-20"/></svg></div>
+        <h3>Content filtering</h3>
+        <p>Blocks adult content, malware, and trackers at the DNS level for every device on the network — no app to install on each phone.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+        <h3>Screen time &amp; schedules</h3>
+        <p>Set bedtimes, focus hours, and daily limits. Pause the internet for any device with one tap when it's time for dinner.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></div>
+        <h3>Per-device control</h3>
+        <p>See every device on your network and manage each one individually — kids' tablets, the family TV, guest phones.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></div>
+        <h3>Gentle alerts</h3>
+        <p>Optional notifications to a parent's phone when something needs attention — delivered privately, never to a public feed.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>Private by design</h3>
+        <p>No accounts, no data harvesting. The only thing that ever leaves your router is an anonymous update check — nothing personal.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></div>
+        <h3>Open &amp; auditable</h3>
+        <p>Every line of code is public on GitHub. Anyone can inspect exactly what it does — and improve it. Nothing hidden.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how" class="how">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">How it works</div>
+      <h2>Up and running in minutes</h2>
+      <p>A small router sits in front of your home network. Plug it in, and every device is protected automatically.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="num">1</div>
+        <h3>Plug it in</h3>
+        <p>Connect a Lantern Watch router between your internet and your existing network. No rewiring, no technical setup.</p>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <h3>Set your rules</h3>
+        <p>A simple first-run wizard walks you through your password, filtering level, and schedules — in plain language.</p>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <h3>Everyone's protected</h3>
+        <p>Every device on your network is now filtered and managed from one friendly dashboard. That's it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DEMO -->
+<section id="demo" class="video">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">Demo</div>
+      <h2>See it in action</h2>
+      <p>A full walkthrough of the dashboard, parental controls, and setup — coming soon.</p>
+    </div>
+    <div class="video-frame">
+      <!-- When ready: replace the div below with your YouTube iframe:
+      <iframe width="100%" style="aspect-ratio:16/9;border:0"
+        src="https://www.youtube.com/embed/YOUR_VIDEO_ID"
+        title="Lantern Watch Demo" allowfullscreen></iframe>
+      -->
+      <div class="ph">
+        <div class="play">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <span style="font-size:18px;font-weight:700;color:#fff;letter-spacing:-0.01em">Coming Soon</span>
+        <span>Full demo video in production</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- OPEN SOURCE BAND -->
+<section class="oss">
+  <div class="wrap oss-inner">
+    <div>
+      <h2>Built in the open</h2>
+      <p>Lantern Watch is 100% open source under the MIT license. Inspect it, run it, improve it. Developers and testers are warmly welcome.</p>
+    </div>
+    <div class="actions">
+      <a class="btn btn-primary" href="https://github.com/LanternWatchApp/lantern-watch" target="_blank" rel="noopener">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.5.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.6 9.6 0 015 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0022 12c0-5.52-4.48-10-10-10z"/></svg>
+        Open the repo
+      </a>
+      <a class="btn btn-ghost" href="https://buymeacoffee.com/lanternwatch" target="_blank" rel="noopener">Buy me a coffee</a>
+    </div>
+  </div>
+</section>
+
+<!-- REQUEST ACCESS FORM -->
+<section id="request-access" class="access">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">Join the Beta</div>
+      <h2>Want to try Lantern Watch?</h2>
+      <p>We're in private beta. Have your GitHub username ready — that's how we send your invite. Fill in the form and we'll reach out directly.</p>
+    </div>
+    <div class="access-form" id="beta-form">
+      <div class="form-row">
+        <label for="req-github">GitHub username <span class="req-star">*</span></label>
+        <input type="text" id="req-github" placeholder="e.g. octocat" autocomplete="off">
+        <span class="field-note">We'll use this to send your collaborator invite.</span>
+      </div>
+      <div class="form-row">
+        <label for="req-name">Your name <span class="req-star">*</span></label>
+        <input type="text" id="req-name" placeholder="First and last name">
+      </div>
+      <div class="form-row">
+        <label for="req-email">Email address <span class="req-star">*</span></label>
+        <input type="email" id="req-email" placeholder="you@example.com">
+      </div>
+      <div class="form-row">
+        <label for="req-comment">Comment <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+        <textarea id="req-comment" placeholder="Which router do you have? How do you hope to use Lantern Watch?"></textarea>
+      </div>
+      <div class="form-error" id="form-error" style="display:none"></div>
+      <div class="form-submit">
+        <button type="button" id="beta-submit" class="btn btn-primary">Request beta access</button>
+      </div>
+    </div>
+    <div class="form-success" id="form-success">
+      <strong>Thanks!</strong> Your email app should open with your request ready to send.<br>
+      If it didn't open, email us directly at <a href="mailto:lanternwatchapp@gmail.com">lanternwatchapp@gmail.com</a>.
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="foot-inner">
+      <div class="foot-col">
+        <div class="foot-brand">
+          <img class="mark" src="assets/images/image01.svg?v=f5bc89c9" alt="Lantern Watch logo">
+          Lantern Watch
+        </div>
+        <p>Home Network Guardian. Free, open-source family internet safety — for every household.</p>
+      </div>
+      <div class="foot-links">
+        <div>
+          <h4>Project</h4>
+          <a href="#features">Features</a>
+          <a href="#how">How it works</a>
+          <a href="#demo">Demo</a>
+        </div>
+        <div>
+          <h4>Get involved</h4>
+          <a href="https://github.com/LanternWatchApp/lantern-watch" target="_blank" rel="noopener">GitHub</a>
+          <a href="#request-access">Request access</a>
+          <a href="https://buymeacoffee.com/lanternwatch" target="_blank" rel="noopener">Donate</a>
+        </div>
+        <div>
+          <h4>Legal</h4>
+          <a href="https://github.com/LanternWatchApp/lantern-watch/blob/main/docs/legal/terms.md" target="_blank" rel="noopener">Terms of Use</a>
+          <a href="https://github.com/LanternWatchApp/lantern-watch/blob/main/docs/legal/privacy.md" target="_blank" rel="noopener">Privacy</a>
+          <a href="https://github.com/LanternWatchApp/lantern-watch/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+        </div>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Lantern Watch. Released under the MIT License.</span>
+      <span>lanternwatch.org</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function() {
+    var btn = document.getElementById('beta-submit');
+    if (!btn) return;
+
+    btn.addEventListener('click', function() {
+      var github  = document.getElementById('req-github').value.trim();
+      var name    = document.getElementById('req-name').value.trim();
+      var email   = document.getElementById('req-email').value.trim();
+      var comment = document.getElementById('req-comment').value.trim();
+      var errEl   = document.getElementById('form-error');
+
+      errEl.style.display = 'none';
+
+      if (!github || !name || !email) {
+        errEl.textContent = 'Please fill in your GitHub username, name, and email before sending.';
+        errEl.style.display = 'block';
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errEl.textContent = 'Please enter a valid email address.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      var subject = 'Lantern Watch beta request — ' + name;
+      var body    = 'GitHub username: ' + github + '\n'
+                  + 'Name: ' + name + '\n'
+                  + 'Email: ' + email + '\n'
+                  + 'Comment: ' + (comment || '(none)');
+
+      window.location.href = 'mailto:lanternwatchapp@gmail.com'
+        + '?subject=' + encodeURIComponent(subject)
+        + '&body='    + encodeURIComponent(body);
+
+      document.getElementById('beta-form').style.display    = 'none';
+      document.getElementById('form-success').style.display = 'block';
+    });
+  })();
+</script>
+
+</body>
+</html>
