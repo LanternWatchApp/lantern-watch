@@ -1852,8 +1852,8 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
     pauseable    = [d for d in people if is_pauseable(d["client_name"], config)]
     kids_paused  = sum(1 for d in pauseable if d["client_ip"] in paused)
     kids_total   = len(pauseable)
-    pause_label  = f"Pause All Person/Child ({kids_total - kids_paused} online)" if kids_total - kids_paused else "Pause All Person/Child"
-    resume_label = f"Resume All Person/Child ({kids_paused} paused)" if kids_paused else "Resume All Person/Child"
+    pause_label  = f"Pause All Personal ({kids_total - kids_paused} online)" if kids_total - kids_paused else "Pause All Personal"
+    resume_label = f"Resume All Personal ({kids_paused} paused)" if kids_paused else "Resume All Personal"
     pause_dim    = "" if kids_total - kids_paused else "opacity:0.4;pointer-events:none;"
     resume_dim   = "" if kids_paused             else "opacity:0.4;pointer-events:none;"
     pause_bar    = (
@@ -1906,7 +1906,7 @@ def build_detail(client_name, config, client_ip_param=""):
     _disp  = demo_ident(client_name, _ident, client_ip_param or ip_address or "", config)
     _kind  = device_kind(client_name, "" if config.get("demo_mode") else label(client_name, config), _ident, None)
     _typ   = effective_type(client_name, config)
-    _TYPE_NAMES = {"person": "Person / Child", "parent": "Parent / Admin",
+    _TYPE_NAMES = {"person": "Personal", "parent": "Admin",
                    "work_device": "Work Device", "infrastructure": "Infrastructure",
                    "smart_device": "Smart Device"}
     _info_rows = []
@@ -1918,7 +1918,7 @@ def build_detail(client_name, config, client_ip_param=""):
     _info("Manufacturer", _disp["vendor"])
     if _disp["hostname"] and _disp["hostname"] != friendly:
         _info("Hostname",  _disp["hostname"])
-    _info("Type",         _TYPE_NAMES.get(_typ, _typ))
+    _info("Role",         _TYPE_NAMES.get(_typ, _typ))
     if _kind:
         _info("Best guess", f'probably {"an" if _kind[:1].lower() in "aeiou" else "a"} {_kind}')
     # "Talks to" — the device's top domains (same 7-day source as the cards;
@@ -2551,7 +2551,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
     cfg_devices  = config.get("devices", {})
     rows_html    = ""
     TYPE_ICONS   = {"person": "👤", "parent": "🛡️", "infrastructure": "🖥️", "smart_device": "📡", "work_device": "💼"}
-    TYPE_NAMES   = {"person": "Person", "parent": "Parent", "infrastructure": "Infrastructure", "smart_device": "Smart Device", "work_device": "Work Device"}
+    TYPE_NAMES   = {"person": "Personal", "parent": "Admin", "infrastructure": "Infrastructure", "smart_device": "Smart Device", "work_device": "Work Device"}
     from classify import classify_device, device_identity, label_from_domains, is_cryptic_name, device_kind
 
     # Build IP→hostname map once; used for devices whose client_name is a bare IP
@@ -2597,7 +2597,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
     sortfilter = (
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px">'
         '<span style="color:#94a3b8;font-size:0.8em">Sort:</span>'
-        + _slink("name", "Name") + _slink("type", "Type") + _slink("recent", "Recent") + _slink("queries", "Most queries")
+        + _slink("name", "Name") + _slink("type", "Role") + _slink("recent", "Recent") + _slink("queries", "Most queries")
         + '<span style="color:#94a3b8;font-size:0.8em;margin-left:10px">Show:</span>'
         + _flink("", "All") + _flink("unlabeled", "Needs a name")
         + f'<span style="color:#cbd5e1;font-size:0.78em;margin-left:auto" title="Devices with no activity in the last {DEVICE_ACTIVE_HOURS} hours are hidden until seen again">{len(all_devices)} device' + ("" if len(all_devices) == 1 else "s") + f' &middot; active in last {DEVICE_ACTIVE_HOURS}h</span>'
@@ -2724,10 +2724,10 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <div style="flex:2;min-width:140px"><div class="form-label">Name{name_hint}</div>
       <input type="text" name="label_{enc}" value="{cur_label}"></div>
-    <div style="flex:1;min-width:120px"><div class="form-label">Type{type_hint}</div>
+    <div style="flex:1;min-width:120px"><div class="form-label">Role{type_hint}</div>
       <select name="type_{enc}">
-        <option value="person" {sel_person}>👤 Person / Child</option>
-        <option value="parent" {sel_parent}>🛡️ Parent / Admin</option>
+        <option value="person" {sel_person}>👤 Personal</option>
+        <option value="parent" {sel_parent}>🛡️ Admin</option>
         <option value="work_device" {sel_work}>💼 Work Device</option>
         <option value="infrastructure" {sel_infra}>🖥️ Infrastructure</option>
         <option value="smart_device" {sel_smart}>📡 Smart Device</option>
@@ -2770,20 +2770,20 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + f'{saved_msg}'
         + f'<div class="section"><h2>Manage Devices</h2>'
         + f'<div style="color:#64748b;font-size:0.85em;margin-bottom:12px">'
-        + f'Label devices and set their type. The type controls how a device is grouped, whether <b>Pause All Person/Child</b> affects it, and whether it appears in your summary reports. '
+        + f'Label devices and set their role. The role controls how a device is grouped, whether <b>Pause All Personal</b> affects it, and whether it appears in your summary reports. '
         + f'<b>Every type is filtered equally</b> &mdash; no type bypasses AdGuard.</div>'
         + f'<div style="overflow-x:auto;margin-bottom:14px">'
         + f'<table style="border-collapse:collapse;width:100%;min-width:560px;font-size:0.8em">'
         + f'<thead><tr style="background:#f8fafc">'
-        + f'<th style="padding:7px 10px;text-align:left;border-bottom:2px solid #e2e8f0">Type</th>'
+        + f'<th style="padding:7px 10px;text-align:left;border-bottom:2px solid #e2e8f0">Role</th>'
         + f'<th style="padding:7px 10px;text-align:left;border-bottom:2px solid #e2e8f0">Shown in</th>'
         + f'<th style="padding:7px 10px;text-align:center;border-bottom:2px solid #e2e8f0">Pause&nbsp;All</th>'
         + f'<th style="padding:7px 10px;text-align:center;border-bottom:2px solid #e2e8f0">In&nbsp;reports</th>'
         + f'<th style="padding:7px 10px;text-align:center;border-bottom:2px solid #e2e8f0">Filtered</th>'
         + f'<th style="padding:7px 10px;text-align:left;border-bottom:2px solid #e2e8f0">Notes</th>'
         + f'</tr></thead><tbody>'
-        + _device_type_row("👤 Person / Child", "People", True,  "yes", "Kids &amp; family devices &mdash; the target of Pause All and schedules")
-        + _device_type_row("🛡️ Parent / Admin", "People", False, "yes", "Like Person, but never bulk-paused")
+        + _device_type_row("👤 Personal", "People", True,  "yes", "Phones, tablets &amp; laptops used by family members (adults or kids) &mdash; the target of Pause All and schedules")
+        + _device_type_row("🛡️ Admin", "People", False, "yes", "Same filtering as Personal, but never bulk-paused")
         + _device_type_row("💼 Work Device",     "People", False, "yes", "Filtered like any device; auto-exempt from the VPN &ldquo;activity drop&rdquo; alert")
         + _device_type_row("🖥️ Infrastructure",  "Infrastructure", False, "skip", "Routers, NAS, printers, servers")
         + _device_type_row("📡 Smart Device",    "Infrastructure", False, "yes", "TVs, cameras, doorbells, thermostats, cars")

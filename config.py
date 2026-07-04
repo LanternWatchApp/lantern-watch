@@ -124,7 +124,7 @@ def effective_type(name, config, domains=None):
     never-classified device), fall back to an automatic best-effort guess from
     the hostname / MAC vendor (and, when provided, the device's top `domains`)
     so new gadgets get a sensible type instead of every one defaulting to
-    Person / Child. See classify.guess_device_type."""
+    Personal. See classify.guess_device_type."""
     d = config.get("devices", {}).get(name, {})
     if "type" in d:
         return d["type"]
@@ -141,7 +141,7 @@ def is_infrastructure(name, config):
 
 
 def is_pauseable(name, config):
-    """Return True if the device should be included in Pause All Person/Child."""
+    """Return True if the device should be included in Pause All Personal."""
     return effective_type(name, config) == "person"
 
 

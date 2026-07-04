@@ -9,7 +9,7 @@ The guess is ONLY ever used as a default suggestion. The moment a user picks a
 type on the Devices page it is stored in config["devices"][name]["type"] and
 always wins (see config.effective_type). So a wrong guess is harmless — it just
 gives a sensible starting point for a new device instead of defaulting every
-gadget to "Person / Child".
+gadget to "Personal".
 
 Signals (all local, no network calls):
   - the device hostname (from /tmp/dhcp.leases) and/or its friendly label
