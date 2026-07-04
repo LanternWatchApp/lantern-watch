@@ -2523,6 +2523,27 @@ def build_social(config, saved=False, error=""):
 
 DEVICE_ACTIVE_HOURS = 48   # hide devices with no activity in this window (kept, not deleted)
 
+
+def _device_type_row(name, shown, paused, reports, notes):
+    """One row of the 'what each device type does' reference table."""
+    chk  = '<span style="color:#1d9e75;font-weight:700">&#10003;</span>'
+    dash = '<span style="color:#cbd5e1">&mdash;</span>'
+    pause_cell  = chk if paused else dash
+    report_cell = chk if reports == "yes" else '<span style="color:#94a3b8">Skipped</span>'
+    td  = 'padding:7px 10px;border-bottom:1px solid #f1f5f9'
+    tdc = td + ';text-align:center'
+    return (
+        f'<tr>'
+        f'<td style="{td};font-weight:600;color:#2c2c2a;white-space:nowrap">{name}</td>'
+        f'<td style="{td};color:#475569">{shown}</td>'
+        f'<td style="{tdc}">{pause_cell}</td>'
+        f'<td style="{tdc}">{report_cell}</td>'
+        f'<td style="{tdc}">{chk}</td>'
+        f'<td style="{td};color:#64748b">{notes}</td>'
+        f'</tr>'
+    )
+
+
 def build_devices_page(config, saved=False, redetect=False, autoname=False, sort="name", flt=""):
     # Only devices active in the last DEVICE_ACTIVE_HOURS; a stale device is hidden,
     # not deleted — it (and any saved name) returns the moment it's seen again.
@@ -2749,9 +2770,24 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + f'{saved_msg}'
         + f'<div class="section"><h2>Manage Devices</h2>'
         + f'<div style="color:#64748b;font-size:0.85em;margin-bottom:12px">'
-        + f'Label devices and set their type. <b>👤 Person/Child</b> devices are included in Pause All Person/Child. '
-        + f'<b>🛡️ Parent/Admin</b>, <b>🖥️ Infrastructure</b> (NAS, printer, router), and <b>📡 Smart Device</b> (cameras, TV, doorbell, car, thermostat) are never paused by Pause All. '
-        + f'<b>💼 Work Device</b> bypasses all AdGuard filtering — no blocking rules applied.</div>'
+        + f'Label devices and set their type. The type controls how a device is grouped, whether <b>Pause All Person/Child</b> affects it, and whether it appears in your summary reports. '
+        + f'<b>Every type is filtered equally</b> &mdash; no type bypasses AdGuard.</div>'
+        + f'<div style="overflow-x:auto;margin-bottom:14px">'
+        + f'<table style="border-collapse:collapse;width:100%;min-width:560px;font-size:0.8em">'
+        + f'<thead><tr style="background:#f8fafc">'
+        + f'<th style="padding:7px 10px;text-align:left;border-bottom:2px solid #e2e8f0">Type</th>'
+        + f'<th style="padding:7px 10px;text-align:left;border-bottom:2px solid #e2e8f0">Shown in</th>'
+        + f'<th style="padding:7px 10px;text-align:center;border-bottom:2px solid #e2e8f0">Pause&nbsp;All</th>'
+        + f'<th style="padding:7px 10px;text-align:center;border-bottom:2px solid #e2e8f0">In&nbsp;reports</th>'
+        + f'<th style="padding:7px 10px;text-align:center;border-bottom:2px solid #e2e8f0">Filtered</th>'
+        + f'<th style="padding:7px 10px;text-align:left;border-bottom:2px solid #e2e8f0">Notes</th>'
+        + f'</tr></thead><tbody>'
+        + _device_type_row("👤 Person / Child", "People", True,  "yes", "Kids &amp; family devices &mdash; the target of Pause All and schedules")
+        + _device_type_row("🛡️ Parent / Admin", "People", False, "yes", "Like Person, but never bulk-paused")
+        + _device_type_row("💼 Work Device",     "People", False, "yes", "Filtered like any device; auto-exempt from the VPN &ldquo;activity drop&rdquo; alert")
+        + _device_type_row("🖥️ Infrastructure",  "Infrastructure", False, "skip", "Routers, NAS, printers, servers")
+        + _device_type_row("📡 Smart Device",    "Infrastructure", False, "yes", "TVs, cameras, doorbells, thermostats, cars")
+        + f'</tbody></table></div>'
         + redetect_controls
         + sortfilter
         + f'<form method="POST" action="/admin/devices/save">{rows_html}'
