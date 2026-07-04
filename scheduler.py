@@ -279,10 +279,65 @@ def check_schedules():
                     send_telegram(config, msg, title)
                     send_email(config, msg, title)
 
+            expire_guest_devices(load_config())
+
         except Exception as e:
             print(f"Scheduler error: {e}")
 
         time.sleep(60)
+
+
+def expire_guest_devices(config):
+    """Auto-remove Guest-role devices that have had no activity for the configured
+    number of days. A freshly-added guest gets a grace period (guest_since) so it
+    isn't removed before it has generated any traffic. Query-log activity is
+    checked in UTC (matching stored timestamps); the grace period uses local time
+    (matching how guest_since is stamped)."""
+    days = int(config.get("guest_expire_days", 3))
+    if days <= 0:
+        return
+    devices = config.get("devices", {})
+    guests  = [n for n, c in devices.items() if c.get("type") == "guest"]
+    if not guests:
+        return
+
+    from db import DB_PATH
+    conn = sqlite3.connect(DB_PATH)
+    now  = datetime.now()
+    removed = []
+    for name in guests:
+        recent = conn.execute(
+            "SELECT COUNT(*) FROM querylog WHERE client_name=? AND ts > datetime('now', ?)",
+            (name, f"-{days} days"),
+        ).fetchone()[0]
+        if recent > 0:
+            continue                                   # still active — keep
+        gs = devices[name].get("guest_since")
+        if gs:
+            try:
+                if (now - datetime.fromisoformat(gs)).days < days:
+                    continue                           # within grace period — keep
+            except Exception:
+                pass
+        removed.append(name)
+    conn.close()
+
+    if not removed:
+        return
+    try:
+        from adguard import restore_client_global
+    except Exception:
+        restore_client_global = None
+    for name in removed:
+        devices.pop(name, None)
+        if restore_client_global:
+            try:
+                restore_client_global(config, name)
+            except Exception:
+                pass
+        print(f"[Guest] Auto-removed idle guest device: {name}")
+    config["devices"] = devices
+    save_config(config)
 
 
 def _focus_is_active(sched, current_minutes):

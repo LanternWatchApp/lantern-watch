@@ -76,6 +76,7 @@ DEFAULTS = {
         "weekly_hour": 21,
     },
     "vpn_whitelist": [],
+    "guest_expire_days": 3,
     "captive_portal": False,
     "captive_portal_acked": [],
     "social_safe_search": True,

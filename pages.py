@@ -1906,7 +1906,7 @@ def build_detail(client_name, config, client_ip_param=""):
     _disp  = demo_ident(client_name, _ident, client_ip_param or ip_address or "", config)
     _kind  = device_kind(client_name, "" if config.get("demo_mode") else label(client_name, config), _ident, None)
     _typ   = effective_type(client_name, config)
-    _TYPE_NAMES = {"person": "Personal", "parent": "Admin",
+    _TYPE_NAMES = {"person": "Personal", "parent": "Admin", "guest": "Guest",
                    "work_device": "Work Device", "infrastructure": "Infrastructure",
                    "smart_device": "Smart Device"}
     _info_rows = []
@@ -2550,8 +2550,8 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
     all_devices  = get_all_known_devices(active_hours=DEVICE_ACTIVE_HOURS, include_idle=False)
     cfg_devices  = config.get("devices", {})
     rows_html    = ""
-    TYPE_ICONS   = {"person": "👤", "parent": "🛡️", "infrastructure": "🖥️", "smart_device": "📡", "work_device": "💼"}
-    TYPE_NAMES   = {"person": "Personal", "parent": "Admin", "infrastructure": "Infrastructure", "smart_device": "Smart Device", "work_device": "Work Device"}
+    TYPE_ICONS   = {"person": "👤", "parent": "🛡️", "infrastructure": "🖥️", "smart_device": "📡", "work_device": "💼", "guest": "🎮"}
+    TYPE_NAMES   = {"person": "Personal", "parent": "Admin", "infrastructure": "Infrastructure", "smart_device": "Smart Device", "work_device": "Work Device", "guest": "Guest"}
     from classify import classify_device, device_identity, label_from_domains, is_cryptic_name, device_kind
 
     # Build IP→hostname map once; used for devices whose client_name is a bare IP
@@ -2651,6 +2651,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         sel_infra   = "selected" if cur_type == "infrastructure" else ""
         sel_smart   = "selected" if cur_type == "smart_device"   else ""
         sel_work    = "selected" if cur_type == "work_device"    else ""
+        sel_guest   = "selected" if cur_type == "guest"          else ""
         mc          = "checked"  if cur_monitor                  else ""
         sub_html    = f'<div style="font-size:0.75em;color:#94a3b8">{subtitle}</div>' if subtitle else ""
         enc_ip      = quote(d["client_ip"] or "")
@@ -2729,6 +2730,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         <option value="person" {sel_person}>👤 Personal</option>
         <option value="parent" {sel_parent}>🛡️ Admin</option>
         <option value="work_device" {sel_work}>💼 Work Device</option>
+        <option value="guest" {sel_guest}>🎮 Guest</option>
         <option value="infrastructure" {sel_infra}>🖥️ Infrastructure</option>
         <option value="smart_device" {sel_smart}>📡 Smart Device</option>
       </select></div>
@@ -2785,12 +2787,17 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + _device_type_row("👤 Personal", "People", True,  "yes", "Phones, tablets &amp; laptops used by family members (adults or kids) &mdash; the target of Pause All and schedules")
         + _device_type_row("🛡️ Admin", "People", False, "yes", "Same filtering as Personal, but never bulk-paused")
         + _device_type_row("💼 Work Device",     "People", False, "yes", "Filtered like any device; auto-exempt from the VPN &ldquo;activity drop&rdquo; alert")
+        + _device_type_row("🎮 Guest",           "People", False, "skip", f"Visitors &mdash; filtered like anyone but hidden from reports; auto-removed after {int(config.get('guest_expire_days', 3))} days of inactivity")
         + _device_type_row("🖥️ Infrastructure",  "Infrastructure", False, "skip", "Routers, NAS, printers, servers")
         + _device_type_row("📡 Smart Device",    "Infrastructure", False, "yes", "TVs, cameras, doorbells, thermostats, cars")
         + f'</tbody></table></div>'
         + redetect_controls
         + sortfilter
         + f'<form method="POST" action="/admin/devices/save">{rows_html}'
+        + f'<div style="margin:12px 0;padding:12px 14px;background:#f8fafc;border-radius:8px;font-size:0.85em;color:#475569">'
+        + f'🎮 <b>Guest</b> devices are automatically removed after '
+        + f'<input type="number" name="guest_expire_days" value="{int(config.get("guest_expire_days", 3))}" min="1" max="90" style="width:56px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;text-align:center"> '
+        + f'days of inactivity.</div>'
         + f'<button type="submit" class="btn">Save All Devices</button></form></div>'
         + '</div></body></html>'
     )

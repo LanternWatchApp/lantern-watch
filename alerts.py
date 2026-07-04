@@ -584,7 +584,7 @@ def send_weekly_summary(config):
     conn.close()
 
     cfg_devices = config.get("devices", {})
-    skip        = {cfg.get("label", name) for name, cfg in cfg_devices.items() if cfg.get("type") == "infrastructure"}
+    skip        = {cfg.get("label", name) for name, cfg in cfg_devices.items() if cfg.get("type") in ("infrastructure", "guest")}
     total_q = totals["total"] or 0
     total_b = totals["blocked"] or 0
     pct     = round((total_b / total_q * 100) if total_q > 0 else 0, 1)

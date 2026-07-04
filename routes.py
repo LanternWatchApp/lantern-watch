@@ -11,6 +11,7 @@ import socket
 import struct
 import sqlite3
 import urllib.request
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote, unquote
 
@@ -670,8 +671,21 @@ class Handler(BaseHTTPRequestHandler):
                         # overwrite the real label (type/monitor still save normally).
                         if not config.get("demo_mode"):
                             devices[name]["label"] = params[key][0]
-                        devices[name]["type"]    = params.get(f"type_{enc_name}",    ["person"])[0]
+                        new_type = params.get(f"type_{enc_name}", ["person"])[0]
+                        devices[name]["type"]    = new_type
                         devices[name]["monitor"] = f"monitor_{enc_name}" in params
+                        # Stamp/clear the guest grace-period marker so a freshly
+                        # added guest isn't auto-expired before it sees any traffic.
+                        if new_type == "guest":
+                            devices[name].setdefault("guest_since", datetime.now().isoformat())
+                        else:
+                            devices[name].pop("guest_since", None)
+                # Guest auto-expiry window (global)
+                try:
+                    gd = int(params.get("guest_expire_days", ["3"])[0])
+                    config["guest_expire_days"] = max(1, min(gd, 90))
+                except (ValueError, TypeError):
+                    pass
                 config["devices"] = devices
                 save_config(config)
                 # No device type is exempt from filtering. A work laptop's real
