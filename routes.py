@@ -629,7 +629,8 @@ class Handler(BaseHTTPRequestHandler):
                     "password": params.get("ag_password", [""])[0],
                 }
                 config["retention_days"] = int(params.get("retention_days", [14])[0] or "14")
-                # Guest device auto-cleanup (global)
+                # Guest mode + auto-cleanup (global)
+                config["guest_mode_enabled"] = "guest_mode_enabled" in params
                 config["guest_cleanup_enabled"] = "guest_cleanup_enabled" in params
                 try:
                     config["guest_expire_days"] = max(1, min(int(params.get("guest_expire_days", ["7"])[0]), 90))

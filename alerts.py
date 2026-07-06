@@ -375,7 +375,7 @@ def check_new_devices(config):
         # role is presumed a visitor → auto-mark it Guest. The admin can
         # reclassify it in one tap; it's filtered exactly like any other device.
         is_guest = False
-        if post_window and not devices.get(name, {}).get("type"):
+        if config.get("guest_mode_enabled", True) and post_window and not devices.get(name, {}).get("type"):
             entry = devices.setdefault(name, {})
             entry["type"]        = "guest"
             entry["guest_since"] = now.isoformat()
@@ -495,6 +495,49 @@ def check_vpn_suspected(config):
 
 # ── Summaries ─────────────────────────────────────────────────────────────────
 
+def _guests_pending_removal(config):
+    """Friendly names of Guest devices that are idle and within ~a day of the
+    auto-cleanup threshold. Empty if cleanup is off or nothing is pending."""
+    if not config.get("guest_cleanup_enabled", True):
+        return []
+    days = int(config.get("guest_expire_days", 7))
+    warn = max(1, days - 1)                      # idle this long => gone within ~a day
+    devices = config.get("devices", {})
+    guests  = [n for n, c in devices.items() if c.get("type") == "guest"]
+    if not guests:
+        return []
+    conn = sqlite3.connect(DB_PATH)
+    now  = datetime.now()
+    out  = []
+    for name in guests:
+        recent = conn.execute(
+            "SELECT COUNT(*) FROM querylog WHERE client_name=? AND ts > datetime('now', ?)",
+            (name, f"-{warn} days")).fetchone()[0]
+        if recent:
+            continue
+        gs = devices[name].get("guest_since")
+        if gs:
+            try:
+                if (now - datetime.fromisoformat(gs)).days < warn:
+                    continue                    # still inside grace period
+            except Exception:
+                pass
+        out.append(_friendly(name, config))
+    conn.close()
+    return out
+
+
+def _guest_pending_line(config):
+    """One summary line about guests about to be auto-removed, or '' if none."""
+    pending = _guests_pending_removal(config)
+    if not pending:
+        return ""
+    shown = ", ".join(pending[:5])
+    extra = f" (+{len(pending) - 5} more)" if len(pending) > 5 else ""
+    return (f"🎮 {len(pending)} guest device(s) inactive — will be auto-removed soon: "
+            f"{shown}{extra}. Open Devices and set a role to keep any.")
+
+
 def _build_daily_narrative(config):
     """Turn today's query log into a short, parent-friendly recap — the
     'Timmy's iPad blocked 12 scam sites' moment — using templated sentences
@@ -576,6 +619,10 @@ def _build_daily_narrative(config):
             dpct = round((r["b"] or 0) / t * 100) if t else 0
             lines.append(f"  {nm(r['client_name'])}: {t:,} queries, {dpct}% blocked")
 
+    guest_line = _guest_pending_line(config)
+    if guest_line:
+        lines += ["", guest_line]
+
     return "\n".join(lines)
 
 
@@ -638,6 +685,10 @@ def send_weekly_summary(config):
         lines += ["", "Top blocked domains:"]
         for r in top_blocked:
             lines.append(f"  {r['domain']}: {r['hits']} times")
+
+    guest_line = _guest_pending_line(config)
+    if guest_line:
+        lines += ["", guest_line]
 
     message = _append_url("\n".join(lines), config)
     topics  = [config.get("ntfy_topic", "")]

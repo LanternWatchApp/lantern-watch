@@ -76,6 +76,7 @@ DEFAULTS = {
         "weekly_hour": 21,
     },
     "vpn_whitelist": [],
+    "guest_mode_enabled": True,    # auto-tag new devices as Guest (after learning window)
     "setup_window_days": 3,        # new devices seen within this window = household
     "setup_started": "",           # stamped on first run
     "guest_cleanup_enabled": True,
