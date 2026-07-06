@@ -375,7 +375,7 @@ def check_new_devices(config):
         # role is presumed a visitor → auto-mark it Guest. The admin can
         # reclassify it in one tap; it's filtered exactly like any other device.
         is_guest = False
-        if config.get("guest_mode_enabled", True) and post_window and not devices.get(name, {}).get("type"):
+        if config.get("guest_mode_enabled", False) and post_window and not devices.get(name, {}).get("type"):
             entry = devices.setdefault(name, {})
             entry["type"]        = "guest"
             entry["guest_since"] = now.isoformat()

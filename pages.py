@@ -3120,7 +3120,7 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         f'<label class="radio-row"><input type="radio" name="retention_days" value="{d}" {"checked" if retention_days == d else ""}> {l}</label>'
         for d, l in [(7, "7 days"), (14, "14 days (recommended)"), (30, "30 days"), (60, "60 days"), (90, "90 days")]
     )
-    guest_mode_on    = "checked" if config.get("guest_mode_enabled", True) else ""
+    guest_mode_on    = "checked" if config.get("guest_mode_enabled", False) else ""
     guest_cleanup_on = "checked" if config.get("guest_cleanup_enabled", True) else ""
     guest_days       = int(config.get("guest_expire_days", 7))
     setup_days       = int(config.get("setup_window_days", 3))
@@ -3241,7 +3241,7 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:8px">How many days of DNS traffic to keep. Older records are deleted automatically each day. If storage exceeds 80%, history is trimmed to 7 days.</div>'
         + f'<div style="padding-left:4px">{retention_opts}</div></div>'
         + f'<div class="form-card"><div class="form-label">Guest Devices</div>'
-        + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:10px">With <b>Guest Mode</b> on, a newly-joined device (after the learning window) is automatically tagged &#x1F3AE; Guest and you get a notification to confirm or keep it. Turn it on for an event like a family reunion so visitors are tagged right away, then off afterwards. Guests are filtered normally and shown in reports.</div>'
+        + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:10px"><b>Guest Mode is off by default.</b> Turn it on for an event like a family reunion &mdash; while it&rsquo;s on, a newly-joined device (after the learning window) is automatically tagged &#x1F3AE; Guest and you get a notification to confirm or keep it. Turn it off again afterwards and new devices go back to normal roles. Guests are filtered normally and shown in reports.</div>'
         + f'<label class="toggle-row"><input type="checkbox" name="guest_mode_enabled" {guest_mode_on}>'
         + f'<span>Guest Mode &mdash; auto-tag new devices as Guest</span></label>'
         + f'<div style="margin-top:10px;font-size:0.85em;color:#475569">Treat new devices as household for the first '
