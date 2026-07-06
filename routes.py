@@ -635,6 +635,10 @@ class Handler(BaseHTTPRequestHandler):
                     config["guest_expire_days"] = max(1, min(int(params.get("guest_expire_days", ["7"])[0]), 90))
                 except (ValueError, TypeError):
                     pass
+                try:
+                    config["setup_window_days"] = max(1, min(int(params.get("setup_window_days", ["3"])[0]), 30))
+                except (ValueError, TypeError):
+                    pass
                 # Notification settings (channels, alert types, summaries) are
                 # saved separately from the Notifications page → /notifications/save.
                 # Captive portal toggle
@@ -686,6 +690,8 @@ class Handler(BaseHTTPRequestHandler):
                             devices[name].setdefault("guest_since", datetime.now().isoformat())
                         else:
                             devices[name].pop("guest_since", None)
+                        # Admin has reviewed this device — drop the "new/auto" marker.
+                        devices[name].pop("auto_guest", None)
                 config["devices"] = devices
                 save_config(config)
                 # No device type is exempt from filtering. A work laptop's real

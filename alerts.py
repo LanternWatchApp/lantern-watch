@@ -8,7 +8,7 @@ import sqlite3
 import urllib.request
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import quote
 
 DB_PATH     = "/root/lantern-watch/lanternwatch.db"
@@ -343,29 +343,61 @@ def check_adult_content(config):
 
 
 def check_new_devices(config):
-    if not config["alerts"].get("new_device"):
-        return
+    now = datetime.now()
+    # Stamp the setup/learning window on the very first run.
+    if not config.get("setup_started"):
+        config["setup_started"] = now.isoformat()
+        save_config(config)
+    try:
+        window_end = (datetime.fromisoformat(config["setup_started"])
+                      + timedelta(days=int(config.get("setup_window_days", 3))))
+    except Exception:
+        window_end = now                              # malformed -> treat window as over
+    post_window = now >= window_end
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     rows = conn.execute("""
         SELECT DISTINCT client_name FROM querylog
-        WHERE ts > datetime('now', '-2 minutes')
+        WHERE ts > datetime('now', '-2 minutes') AND client_name != ''
     """).fetchall()
     conn.close()
-    known = set(config.get("known_devices", []))
+
+    known   = set(config.get("known_devices", []))
+    devices = config.get("devices", {})
+    notify  = config["alerts"].get("new_device")
     for row in rows:
         name = row["client_name"]
-        if name not in known:
-            known.add(name)
-            config["known_devices"] = list(known)
-            save_config(config)
-            friendly = _friendly(name, config)
-            ip_suffix = f" ({name})" if (_IS_IP.match(name) and friendly != name) else ""
+        if name in known:
+            continue
+        known.add(name)
+        # After the learning window, a brand-new device with no manually-set
+        # role is presumed a visitor → auto-mark it Guest. The admin can
+        # reclassify it in one tap; it's filtered exactly like any other device.
+        is_guest = False
+        if post_window and not devices.get(name, {}).get("type"):
+            entry = devices.setdefault(name, {})
+            entry["type"]        = "guest"
+            entry["guest_since"] = now.isoformat()
+            entry["auto_guest"]  = True
+            is_guest = True
+        config["known_devices"] = list(known)
+        config["devices"]       = devices
+        save_config(config)
+        if not notify:
+            continue
+        friendly  = _friendly(name, config)
+        ip_suffix = f" ({name})" if (_IS_IP.match(name) and friendly != name) else ""
+        if is_guest:
+            msg = _append_url(
+                f"New device joined: {friendly}{ip_suffix} — marked as Guest. "
+                f"If it's a household device, open Devices to set its role.", config)
+        else:
             msg = _append_url(f"New device joined: {friendly}{ip_suffix}", config)
-            send_alert(config["ntfy_topic"], msg, title="New Device Detected", priority="default", tags="bell",
-                       click_url=_dash_url(config))
-            send_telegram(config, msg, "New Device Detected")
-            send_email(config, msg, "New Device Detected")
+        send_alert(config["ntfy_topic"], msg, title="New Device Detected", priority="default", tags="bell",
+                   click_url=_dash_url(config))
+        send_telegram(config, msg, "New Device Detected")
+        send_email(config, msg, "New Device Detected")
 
 
 def check_high_block_rate(config):
@@ -584,7 +616,7 @@ def send_weekly_summary(config):
     conn.close()
 
     cfg_devices = config.get("devices", {})
-    skip        = {cfg.get("label", name) for name, cfg in cfg_devices.items() if cfg.get("type") in ("infrastructure", "guest")}
+    skip        = {cfg.get("label", name) for name, cfg in cfg_devices.items() if cfg.get("type") == "infrastructure"}
     total_q = totals["total"] or 0
     total_b = totals["blocked"] or 0
     pct     = round((total_b / total_q * 100) if total_q > 0 else 0, 1)

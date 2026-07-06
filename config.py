@@ -76,6 +76,8 @@ DEFAULTS = {
         "weekly_hour": 21,
     },
     "vpn_whitelist": [],
+    "setup_window_days": 3,        # new devices seen within this window = household
+    "setup_started": "",           # stamped on first run
     "guest_cleanup_enabled": True,
     "guest_expire_days": 7,
     "captive_portal": False,

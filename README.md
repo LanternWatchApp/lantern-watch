@@ -14,7 +14,7 @@ Built on top of AdGuard Home, which handles the actual DNS blocking. Lantern Wat
 - **Focus Times** — block internet during homework, chores, or meals
 - **Screen time limits** — set a daily hour limit per device; get notified when it's reached
 - **Social media profiles** — Open / Moderate / Teen / Strict / Custom, applied instantly at the DNS level
-- **Device roles** — label devices as Personal, Admin, Work Device, Guest, Infrastructure, or Smart Device; controls dashboard grouping, whether Pause All applies, and reporting (every role stays fully filtered). Guest devices auto-expire after a few days of inactivity
+- **Device roles** — label devices as Personal, Admin, Work Device, Guest, Infrastructure, or Smart Device; controls dashboard grouping, whether Pause All applies, and reporting (every role stays fully filtered). New devices are auto-tagged Guest after a setup learning window and can auto-expire after inactivity
 - **Push notifications** — ntfy, Telegram, and Email alerts for blocked content, new devices, high block rates, possible VPN use, and screen time limits
 - **Daily and weekly summaries** — sent to your phone at a time you choose
 - **Notifications log** — in-dashboard history of every alert sent, with setup guides for each channel
@@ -230,13 +230,13 @@ Go to **Devices** in the top nav to label every device and set its role. **All r
 | 👤 Personal | People | ✅ | ✅ | Phones, tablets & laptops used by family members (adults or kids) — the target of Pause All and schedules |
 | 🛡️ Admin | People | — | ✅ | Same filtering as Personal, but never bulk-paused |
 | 💼 Work Device | People | — | ✅ | Filtered like any device; auto-exempt from the "activity drop / possible VPN" alert |
-| 🎮 Guest | People | — | Skipped | Visitors — filtered like anyone but hidden from reports; **optionally auto-removed after inactivity** (Settings → Guest Devices; default 7 days, can be turned off) |
+| 🎮 Guest | People | — | ✅ | Visitors — **auto-tagged when they join after the setup window**; filtered and shown in reports; **optionally auto-removed after inactivity** (Settings → Guest Devices) |
 | 🖥️ Infrastructure | Infrastructure | — | Skipped | Routers, NAS, printers, servers |
 | 📡 Smart Device | Infrastructure | — | ✅ | TVs, cameras, doorbells, thermostats, cars |
 
 **Work Device** is for a laptop or phone that lives on a corporate VPN and does heavy video conferencing. It's filtered exactly like every other device — setting this role does **not** disable any blocking. What it does do is keep the device out of the "Pause All Personal" action and automatically exempt it from the "activity drop / possible VPN" alert (a VPN legitimately makes a device go quiet from the router's view, so that alert would otherwise fire constantly).
 
-**Guest** is for visitors' devices. It's fully filtered but kept out of your long-term summary reports. Optionally, guest devices **auto-remove themselves after a period of inactivity** — a global toggle and window (3–30 days, default 7) under **Settings → Guest Devices**. Turn it off and guests stay until you remove them, which suits households with regular visitors (grandparents, kids' friends, vacation rentals). When cleanup is on, a freshly-added guest gets a grace period so it isn't removed before it's been used.
+**Guest** is for visitors' devices, and it's largely automatic. For the first few days after setup — the **learning window** (default 3 days, set in Settings) — every new device is treated as household. After that, a newly-joined device is **automatically tagged Guest**, and you get a "new device joined — marked as Guest" notification so you can confirm it or give it a permanent role in one tap. Guests are filtered exactly like any other device and **do appear in your daily/weekly summaries**, so you always see visitor activity. Optionally, guest devices **auto-remove themselves after a period of inactivity** (Settings → Guest Devices; toggle plus a 3–30 day window, default 7) — turn it off for households with regular visitors (grandparents, kids' friends, vacation rentals). Active guests never expire, and a grace period protects freshly-tagged ones.
 
 ---
 

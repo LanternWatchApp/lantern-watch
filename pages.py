@@ -2618,8 +2618,10 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         else:
             cur_type   = effective_type(name, config, _doms)
             auto_typed = "type" not in cfg        # no saved choice → guessed
-        # Hint shown next to the Type field
-        if redetect and stored_type and stored_type != cur_type:
+        # Hint shown next to the Role field
+        if cfg.get("auto_guest") and not redetect:
+            type_hint = ' <span style="color:#e8a000;font-weight:600">· new — confirm role</span>'
+        elif redetect and stored_type and stored_type != cur_type:
             type_hint = f' <span style="color:#e8a000;font-weight:600">· suggested (was {TYPE_NAMES.get(stored_type, stored_type)})</span>'
         elif redetect:
             type_hint = ' <span style="color:#94a3b8;font-weight:400">· suggested</span>'
@@ -2788,7 +2790,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + _device_type_row("👤 Personal", "People", True,  "yes", "Phones, tablets &amp; laptops used by family members (adults or kids) &mdash; the target of Pause All and schedules")
         + _device_type_row("🛡️ Admin", "People", False, "yes", "Same filtering as Personal, but never bulk-paused")
         + _device_type_row("💼 Work Device",     "People", False, "yes", "Filtered like any device; auto-exempt from the VPN &ldquo;activity drop&rdquo; alert")
-        + _device_type_row("🎮 Guest",           "People", False, "skip", "Visitors &mdash; filtered like anyone but hidden from reports; optional auto-cleanup after inactivity (Settings)")
+        + _device_type_row("🎮 Guest",           "People", False, "yes", "Visitors &mdash; auto-tagged when they join after setup; filtered and shown in reports; optional auto-cleanup after inactivity (Settings)")
         + _device_type_row("🖥️ Infrastructure",  "Infrastructure", False, "skip", "Routers, NAS, printers, servers")
         + _device_type_row("📡 Smart Device",    "Infrastructure", False, "yes", "TVs, cameras, doorbells, thermostats, cars")
         + f'</tbody></table></div>'
@@ -2806,7 +2808,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + '"person":"Phones, tablets and laptops used by family members — included in Pause All and schedules.",'
         + '"parent":"Full protection, but never affected by Pause All Personal.",'
         + '"work_device":"Work laptop or phone — filtered normally, but skipped by the VPN activity-drop alert.",'
-        + '"guest":"Temporary visitor device — hidden from reports and auto-removed after a period of inactivity.",'
+        + '"guest":"Temporary visitor device — auto-tagged when it joins after the setup window; optionally auto-removed after inactivity.",'
         + '"infrastructure":"Routers, NAS, printers and servers — shown separately and kept out of reports.",'
         + '"smart_device":"TVs, cameras, speakers, thermostats, vehicles and other connected devices."'
         + '};'
@@ -3120,6 +3122,7 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
     )
     guest_cleanup_on = "checked" if config.get("guest_cleanup_enabled", True) else ""
     guest_days       = int(config.get("guest_expire_days", 7))
+    setup_days       = int(config.get("setup_window_days", 3))
     guest_day_opts   = "".join(
         f'<option value="{d}" {"selected" if guest_days == d else ""}>{l}</option>'
         for d, l in [(3, "3 days"), (5, "5 days"), (7, "7 days (recommended)"), (14, "14 days"), (30, "30 days")]
@@ -3237,7 +3240,9 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:8px">How many days of DNS traffic to keep. Older records are deleted automatically each day. If storage exceeds 80%, history is trimmed to 7 days.</div>'
         + f'<div style="padding-left:4px">{retention_opts}</div></div>'
         + f'<div class="form-card"><div class="form-label">Guest Devices</div>'
-        + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:10px">Devices you give the &#x1F3AE; Guest role can be cleaned up automatically once they stop connecting. Turn this off to keep guest devices until you remove them yourself.</div>'
+        + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:10px">During setup, new devices are treated as your household. After the learning window below, a newly-joined device is automatically tagged &#x1F3AE; Guest (you get a notification to confirm or keep it). Guests are filtered normally and shown in reports.</div>'
+        + f'<div style="font-size:0.85em;color:#475569;margin-bottom:12px">Treat new devices as household for the first '
+        + f'<input type="number" name="setup_window_days" value="{setup_days}" min="1" max="30" style="width:54px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;text-align:center"> days after setup.</div>'
         + f'<label class="toggle-row"><input type="checkbox" name="guest_cleanup_enabled" {guest_cleanup_on}>'
         + f'<span>Automatically remove inactive Guest devices</span></label>'
         + f'<div style="margin-top:10px;font-size:0.85em;color:#475569">Remove after '
