@@ -227,10 +227,10 @@ Go to **Devices** in the top nav to label every device and set its role. **All r
 
 | Role | Shown in | Pause All | In reports | Notes |
 |---|---|:---:|:---:|---|
-| 👤 Personal | People | ✅ | ✅ | Phones, tablets & laptops used by family members (adults or kids) — the target of Pause All and schedules |
-| 🛡️ Admin | People | — | ✅ | Same filtering as Personal, but never bulk-paused |
-| 💼 Work Device | People | — | ✅ | Filtered like any device; auto-exempt from the "activity drop / possible VPN" alert |
-| 🎮 Guest | People | — | ✅ | Visitors — **auto-tagged when they join after the setup window**; filtered and shown in reports; **optionally auto-removed after inactivity** (Settings → Guest Devices) |
+| 👤 Personal | Devices | ✅ | ✅ | Phones, tablets & laptops used by family members (adults or kids) — the target of Pause All and schedules |
+| 🛡️ Admin | Devices | — | ✅ | Same filtering as Personal, but never bulk-paused |
+| 💼 Work Device | Devices | — | ✅ | Filtered like any device; auto-exempt from the "activity drop / possible VPN" alert |
+| 🎮 Guest | Devices | — | ✅ | Visitors — **auto-tagged when they join after the setup window**; filtered and shown in reports; **optionally auto-removed after inactivity** (Settings → Guest Devices) |
 | 🖥️ Infrastructure | Infrastructure | — | Skipped | Routers, NAS, printers, servers |
 | 📡 Smart Device | Infrastructure | — | ✅ | TVs, cameras, doorbells, thermostats, cars |
 

@@ -1877,7 +1877,7 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
     body = (
         stats_bar
         + adult_section + ag_html
-        + f'<div class="section"><h2>People (Last 24h)</h2>{pause_bar}{people_cards}</div>'
+        + f'<div class="section"><h2>Devices (Last 24h)</h2>{pause_bar}{people_cards}</div>'
         + f'<div class="section infra-section"><h2>Infrastructure</h2>{infra_cards}</div>'
         + f'<div class="section"><h2>Top Blocked Domains</h2><div class="domain-list">{blocked_html}</div></div>'
         + f'<div class="section"><h2>Top Allowed Domains</h2><div class="domain-list">{allowed_html}</div></div>'
@@ -2787,10 +2787,10 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + f'<th style="padding:7px 10px;text-align:center;border-bottom:2px solid #e2e8f0">Filtered</th>'
         + f'<th style="padding:7px 10px;text-align:left;border-bottom:2px solid #e2e8f0">Notes</th>'
         + f'</tr></thead><tbody>'
-        + _device_type_row("👤 Personal", "People", True,  "yes", "Phones, tablets &amp; laptops used by family members (adults or kids) &mdash; the target of Pause All and schedules")
-        + _device_type_row("🛡️ Admin", "People", False, "yes", "Same filtering as Personal, but never bulk-paused")
-        + _device_type_row("💼 Work Device",     "People", False, "yes", "Filtered like any device; auto-exempt from the VPN &ldquo;activity drop&rdquo; alert")
-        + _device_type_row("🎮 Guest",           "People", False, "yes", "Visitors &mdash; auto-tagged when they join after setup; filtered and shown in reports; optional auto-cleanup after inactivity (Settings)")
+        + _device_type_row("👤 Personal", "Devices", True,  "yes", "Phones, tablets &amp; laptops used by family members (adults or kids) &mdash; the target of Pause All and schedules")
+        + _device_type_row("🛡️ Admin", "Devices", False, "yes", "Same filtering as Personal, but never bulk-paused")
+        + _device_type_row("💼 Work Device",     "Devices", False, "yes", "Filtered like any device; auto-exempt from the VPN &ldquo;activity drop&rdquo; alert")
+        + _device_type_row("🎮 Guest",           "Devices", False, "yes", "Visitors &mdash; auto-tagged when they join after setup; filtered and shown in reports; optional auto-cleanup after inactivity (Settings)")
         + _device_type_row("🖥️ Infrastructure",  "Infrastructure", False, "skip", "Routers, NAS, printers, servers")
         + _device_type_row("📡 Smart Device",    "Infrastructure", False, "yes", "TVs, cameras, doorbells, thermostats, cars")
         + f'</tbody></table></div>'
