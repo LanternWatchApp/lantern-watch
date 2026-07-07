@@ -751,13 +751,14 @@ CATEGORY_PACKS = {
         ],
     },
     "Dating": {
+        # Tinder, OnlyFans and Plenty of Fish are intentionally omitted — AdGuard
+        # already covers those as built-in services (the "Dating / Adult" group).
+        # Packs only add what AdGuard's built-in list doesn't.
         "sites": [
-            ("Tinder",         ["tinder.com"]),
             ("Hinge",          ["hinge.co"]),
             ("Bumble",         ["bumble.com"]),
             ("Match.com",      ["match.com"]),
             ("OkCupid",        ["okcupid.com"]),
-            ("Plenty of Fish", ["pof.com"]),
             ("eharmony",       ["eharmony.com"]),
             ("Grindr",         ["grindr.com"]),
             ("Badoo",          ["badoo.com"]),
