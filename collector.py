@@ -160,7 +160,7 @@ def trim_querylog(config):
 
     print(f"[{time.strftime('%H:%M:%S')}] Storage: {free}MB free of {total}MB ({pct_used}%) | DB: {db_size:.1f}MB | USB: {usb_path or 'none'}")
 
-    days = int(config.get("retention_days", 14))
+    days = int(config.get("retention_days", 60))
     # Storage pressure override: >80% used → force 7-day window
     if pct_used > 80:
         days = min(days, 7)

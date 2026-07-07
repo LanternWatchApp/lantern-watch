@@ -628,7 +628,7 @@ class Handler(BaseHTTPRequestHandler):
                     "username": params.get("ag_username", [""])[0],
                     "password": params.get("ag_password", [""])[0],
                 }
-                config["retention_days"] = int(params.get("retention_days", [14])[0] or "14")
+                config["retention_days"] = int(params.get("retention_days", [60])[0] or "60")
                 # Notification settings (channels, alert types, summaries) are
                 # saved separately from the Notifications page → /notifications/save.
                 # Captive portal toggle
@@ -740,7 +740,7 @@ class Handler(BaseHTTPRequestHandler):
                 config["alerts"]["high_block_rate"] = "alert_highblock" in params
                 config["alerts"]["vpn_detection"]   = "alert_vpn"       in params
                 config["summary"]["daily"]          = "daily_summary"   in params
-                config["summary"]["daily_hour"]     = int(params.get("daily_hour", [21])[0])
+                config["summary"]["daily_hour"]     = int(params.get("daily_hour", [20])[0])
                 config["summary"]["weekly"]         = "weekly_summary"  in params
                 config["summary"]["weekly_day"]     = int(params.get("weekly_day", [0])[0])
                 wl = params.get("vpn_whitelist", [""])[0]

@@ -3104,10 +3104,10 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
                 confirm_clear=False, confirm_clear_all=False,
                 adguard_applied=False, adguard_apply_error=""):
     ag         = config.get("adguard", {})
-    retention_days = int(config.get("retention_days", 14))
+    retention_days = int(config.get("retention_days", 60))
     retention_opts = "".join(
         f'<label class="radio-row"><input type="radio" name="retention_days" value="{d}" {"checked" if retention_days == d else ""}> {l}</label>'
-        for d, l in [(7, "7 days"), (14, "14 days (recommended)"), (30, "30 days"), (60, "60 days"), (90, "90 days")]
+        for d, l in [(7, "7 days"), (14, "14 days"), (30, "30 days"), (60, "60 days (recommended)"), (90, "90 days")]
     )
     portal_on  = "checked" if config.get("captive_portal") else ""
     doh_on     = "checked" if config.get("doh_blocking") else ""
@@ -3476,7 +3476,7 @@ def build_notifications(config, cleared=False, saved=False,
     _vpn      = "checked" if _alerts.get("vpn_detection", True)  else ""
     _daily    = "checked" if _summary.get("daily")              else ""
     _weekly   = "checked" if _summary.get("weekly")             else ""
-    _daily_hr = _summary.get("daily_hour", 21)
+    _daily_hr = _summary.get("daily_hour", 20)
     _weekly_d = _summary.get("weekly_day", 0)
     _vpn_wl   = ", ".join(config.get("vpn_whitelist", []))
     _time_opts = "".join(

@@ -32,10 +32,10 @@
   },
   "summary": {
     "daily": true,
-    "daily_hour": 21,
+    "daily_hour": 20,
     "weekly": false,
     "weekly_day": 0,
-    "weekly_hour": 21
+    "weekly_hour": 20
   },
   "devices": {},
   "known_devices": [],
@@ -46,5 +46,5 @@
   "social_custom": {
     "platforms": []
   },
-  "retention_days": 14
+  "retention_days": 60
 }

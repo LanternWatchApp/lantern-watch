@@ -20,7 +20,7 @@ Built on top of AdGuard Home, which handles the actual DNS blocking. Lantern Wat
 - **Notifications log** — in-dashboard history of every alert sent, with setup guides for each channel
 - **Query Log** — live, paginated DNS query viewer; filter by device, time window, domain search, or blocked-only; click any device to drill in; shows friendly device name and IP
 - **Router Health card** — live RAM, storage, CPU load, uptime, and DB size in Settings
-- **Query history retention** — configurable 7, 14, or 30-day log window; auto-trims daily with storage-pressure override
+- **Query history retention** — configurable 7 / 14 / 30 / 60 / 90-day log window (default 60); auto-trims daily with storage-pressure override
 - **AdGuard first-run wizard** — adult content filters, malware blocking, and safe search applied in one click during setup
 - **Password recovery** — forgot your password? Request a one-time code sent to your ntfy/Telegram/email
 - **Blocked page** — when a blocked domain is visited, users land on a branded Lantern Watch page instead of a browser error; works for both HTTP and HTTPS (HTTPS triggers a Chrome warning then falls back to the blocked page)
@@ -348,7 +348,7 @@ Go to **Settings → Router Health** to see a live snapshot of your router's res
 
 ## Query history retention
 
-Go to **Settings → Query History** to choose how many days of DNS traffic Lantern Watch keeps: **7**, **14** (default), or **30** days. Old records are deleted automatically once per day.
+Go to **Settings → Query History** to choose how many days of DNS traffic Lantern Watch keeps: **7**, **14**, **30**, **60** (default), or **90** days. Old records are deleted automatically once per day.
 
 If flash storage exceeds 80% full, the retention window is automatically reduced to 7 days regardless of your setting to protect the router from running out of space.
 
