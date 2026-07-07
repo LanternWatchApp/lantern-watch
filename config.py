@@ -76,11 +76,6 @@ DEFAULTS = {
         "weekly_hour": 21,
     },
     "vpn_whitelist": [],
-    "guest_mode_enabled": False,   # auto-tag new devices as Guest (off by default; on for events)
-    "setup_window_days": 3,        # new devices seen within this window = household
-    "setup_started": "",           # stamped on first run
-    "guest_cleanup_enabled": True,
-    "guest_expire_days": 7,
     "captive_portal": False,
     "captive_portal_acked": [],
     "social_safe_search": True,

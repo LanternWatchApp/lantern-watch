@@ -343,61 +343,29 @@ def check_adult_content(config):
 
 
 def check_new_devices(config):
-    now = datetime.now()
-    # Stamp the setup/learning window on the very first run.
-    if not config.get("setup_started"):
-        config["setup_started"] = now.isoformat()
-        save_config(config)
-    try:
-        window_end = (datetime.fromisoformat(config["setup_started"])
-                      + timedelta(days=int(config.get("setup_window_days", 3))))
-    except Exception:
-        window_end = now                              # malformed -> treat window as over
-    post_window = now >= window_end
-
+    if not config["alerts"].get("new_device"):
+        return
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     rows = conn.execute("""
         SELECT DISTINCT client_name FROM querylog
-        WHERE ts > datetime('now', '-2 minutes') AND client_name != ''
+        WHERE ts > datetime('now', '-2 minutes')
     """).fetchall()
     conn.close()
-
-    known   = set(config.get("known_devices", []))
-    devices = config.get("devices", {})
-    notify  = config["alerts"].get("new_device")
+    known = set(config.get("known_devices", []))
     for row in rows:
         name = row["client_name"]
-        if name in known:
-            continue
-        known.add(name)
-        # After the learning window, a brand-new device with no manually-set
-        # role is presumed a visitor → auto-mark it Guest. The admin can
-        # reclassify it in one tap; it's filtered exactly like any other device.
-        is_guest = False
-        if config.get("guest_mode_enabled", False) and post_window and not devices.get(name, {}).get("type"):
-            entry = devices.setdefault(name, {})
-            entry["type"]        = "guest"
-            entry["guest_since"] = now.isoformat()
-            entry["auto_guest"]  = True
-            is_guest = True
-        config["known_devices"] = list(known)
-        config["devices"]       = devices
-        save_config(config)
-        if not notify:
-            continue
-        friendly  = _friendly(name, config)
-        ip_suffix = f" ({name})" if (_IS_IP.match(name) and friendly != name) else ""
-        if is_guest:
-            msg = _append_url(
-                f"New device joined: {friendly}{ip_suffix} — marked as Guest. "
-                f"If it's a household device, open Devices to set its role.", config)
-        else:
+        if name not in known:
+            known.add(name)
+            config["known_devices"] = list(known)
+            save_config(config)
+            friendly = _friendly(name, config)
+            ip_suffix = f" ({name})" if (_IS_IP.match(name) and friendly != name) else ""
             msg = _append_url(f"New device joined: {friendly}{ip_suffix}", config)
-        send_alert(config["ntfy_topic"], msg, title="New Device Detected", priority="default", tags="bell",
-                   click_url=_dash_url(config))
-        send_telegram(config, msg, "New Device Detected")
-        send_email(config, msg, "New Device Detected")
+            send_alert(config["ntfy_topic"], msg, title="New Device Detected", priority="default", tags="bell",
+                       click_url=_dash_url(config))
+            send_telegram(config, msg, "New Device Detected")
+            send_email(config, msg, "New Device Detected")
 
 
 def check_high_block_rate(config):
@@ -495,49 +463,6 @@ def check_vpn_suspected(config):
 
 # ── Summaries ─────────────────────────────────────────────────────────────────
 
-def _guests_pending_removal(config):
-    """Friendly names of Guest devices that are idle and within ~a day of the
-    auto-cleanup threshold. Empty if cleanup is off or nothing is pending."""
-    if not config.get("guest_cleanup_enabled", True):
-        return []
-    days = int(config.get("guest_expire_days", 7))
-    warn = max(1, days - 1)                      # idle this long => gone within ~a day
-    devices = config.get("devices", {})
-    guests  = [n for n, c in devices.items() if c.get("type") == "guest"]
-    if not guests:
-        return []
-    conn = sqlite3.connect(DB_PATH)
-    now  = datetime.now()
-    out  = []
-    for name in guests:
-        recent = conn.execute(
-            "SELECT COUNT(*) FROM querylog WHERE client_name=? AND ts > datetime('now', ?)",
-            (name, f"-{warn} days")).fetchone()[0]
-        if recent:
-            continue
-        gs = devices[name].get("guest_since")
-        if gs:
-            try:
-                if (now - datetime.fromisoformat(gs)).days < warn:
-                    continue                    # still inside grace period
-            except Exception:
-                pass
-        out.append(_friendly(name, config))
-    conn.close()
-    return out
-
-
-def _guest_pending_line(config):
-    """One summary line about guests about to be auto-removed, or '' if none."""
-    pending = _guests_pending_removal(config)
-    if not pending:
-        return ""
-    shown = ", ".join(pending[:5])
-    extra = f" (+{len(pending) - 5} more)" if len(pending) > 5 else ""
-    return (f"🎮 {len(pending)} guest device(s) inactive — will be auto-removed soon: "
-            f"{shown}{extra}. Open Devices and set a role to keep any.")
-
-
 def _build_daily_narrative(config):
     """Turn today's query log into a short, parent-friendly recap — the
     'Timmy's iPad blocked 12 scam sites' moment — using templated sentences
@@ -619,10 +544,6 @@ def _build_daily_narrative(config):
             dpct = round((r["b"] or 0) / t * 100) if t else 0
             lines.append(f"  {nm(r['client_name'])}: {t:,} queries, {dpct}% blocked")
 
-    guest_line = _guest_pending_line(config)
-    if guest_line:
-        lines += ["", guest_line]
-
     return "\n".join(lines)
 
 
@@ -685,10 +606,6 @@ def send_weekly_summary(config):
         lines += ["", "Top blocked domains:"]
         for r in top_blocked:
             lines.append(f"  {r['domain']}: {r['hits']} times")
-
-    guest_line = _guest_pending_line(config)
-    if guest_line:
-        lines += ["", guest_line]
 
     message = _append_url("\n".join(lines), config)
     topics  = [config.get("ntfy_topic", "")]

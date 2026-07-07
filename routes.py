@@ -629,17 +629,6 @@ class Handler(BaseHTTPRequestHandler):
                     "password": params.get("ag_password", [""])[0],
                 }
                 config["retention_days"] = int(params.get("retention_days", [14])[0] or "14")
-                # Guest mode + auto-cleanup (global)
-                config["guest_mode_enabled"] = "guest_mode_enabled" in params
-                config["guest_cleanup_enabled"] = "guest_cleanup_enabled" in params
-                try:
-                    config["guest_expire_days"] = max(1, min(int(params.get("guest_expire_days", ["7"])[0]), 90))
-                except (ValueError, TypeError):
-                    pass
-                try:
-                    config["setup_window_days"] = max(1, min(int(params.get("setup_window_days", ["3"])[0]), 30))
-                except (ValueError, TypeError):
-                    pass
                 # Notification settings (channels, alert types, summaries) are
                 # saved separately from the Notifications page → /notifications/save.
                 # Captive portal toggle
@@ -682,17 +671,8 @@ class Handler(BaseHTTPRequestHandler):
                         # overwrite the real label (type/monitor still save normally).
                         if not config.get("demo_mode"):
                             devices[name]["label"] = params[key][0]
-                        new_type = params.get(f"type_{enc_name}", ["person"])[0]
-                        devices[name]["type"]    = new_type
+                        devices[name]["type"]    = params.get(f"type_{enc_name}", ["person"])[0]
                         devices[name]["monitor"] = f"monitor_{enc_name}" in params
-                        # Stamp/clear the guest grace-period marker so a freshly
-                        # added guest isn't auto-expired before it sees any traffic.
-                        if new_type == "guest":
-                            devices[name].setdefault("guest_since", datetime.now().isoformat())
-                        else:
-                            devices[name].pop("guest_since", None)
-                        # Admin has reviewed this device — drop the "new/auto" marker.
-                        devices[name].pop("auto_guest", None)
                 config["devices"] = devices
                 save_config(config)
                 # No device type is exempt from filtering. A work laptop's real

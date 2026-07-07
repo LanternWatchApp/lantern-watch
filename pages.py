@@ -1906,7 +1906,7 @@ def build_detail(client_name, config, client_ip_param=""):
     _disp  = demo_ident(client_name, _ident, client_ip_param or ip_address or "", config)
     _kind  = device_kind(client_name, "" if config.get("demo_mode") else label(client_name, config), _ident, None)
     _typ   = effective_type(client_name, config)
-    _TYPE_NAMES = {"person": "Personal", "parent": "Admin", "guest": "Guest",
+    _TYPE_NAMES = {"person": "Personal", "parent": "Admin",
                    "work_device": "Work Device", "infrastructure": "Infrastructure",
                    "smart_device": "Smart Device"}
     _info_rows = []
@@ -2550,8 +2550,8 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
     all_devices  = get_all_known_devices(active_hours=DEVICE_ACTIVE_HOURS, include_idle=False)
     cfg_devices  = config.get("devices", {})
     rows_html    = ""
-    TYPE_ICONS   = {"person": "👤", "parent": "🛡️", "infrastructure": "🖥️", "smart_device": "📡", "work_device": "💼", "guest": "🎮"}
-    TYPE_NAMES   = {"person": "Personal", "parent": "Admin", "infrastructure": "Infrastructure", "smart_device": "Smart Device", "work_device": "Work Device", "guest": "Guest"}
+    TYPE_ICONS   = {"person": "👤", "parent": "🛡️", "infrastructure": "🖥️", "smart_device": "📡", "work_device": "💼"}
+    TYPE_NAMES   = {"person": "Personal", "parent": "Admin", "infrastructure": "Infrastructure", "smart_device": "Smart Device", "work_device": "Work Device"}
     from classify import classify_device, device_identity, label_from_domains, is_cryptic_name, device_kind
 
     # Build IP→hostname map once; used for devices whose client_name is a bare IP
@@ -2619,9 +2619,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
             cur_type   = effective_type(name, config, _doms)
             auto_typed = "type" not in cfg        # no saved choice → guessed
         # Hint shown next to the Role field
-        if cfg.get("auto_guest") and not redetect:
-            type_hint = ' <span style="color:#e8a000;font-weight:600">· new — confirm role</span>'
-        elif redetect and stored_type and stored_type != cur_type:
+        if redetect and stored_type and stored_type != cur_type:
             type_hint = f' <span style="color:#e8a000;font-weight:600">· suggested (was {TYPE_NAMES.get(stored_type, stored_type)})</span>'
         elif redetect:
             type_hint = ' <span style="color:#94a3b8;font-weight:400">· suggested</span>'
@@ -2653,7 +2651,6 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         sel_infra   = "selected" if cur_type == "infrastructure" else ""
         sel_smart   = "selected" if cur_type == "smart_device"   else ""
         sel_work    = "selected" if cur_type == "work_device"    else ""
-        sel_guest   = "selected" if cur_type == "guest"          else ""
         mc          = "checked"  if cur_monitor                  else ""
         sub_html    = f'<div style="font-size:0.75em;color:#94a3b8">{subtitle}</div>' if subtitle else ""
         enc_ip      = quote(d["client_ip"] or "")
@@ -2732,7 +2729,6 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         <option value="person" {sel_person}>👤 Personal</option>
         <option value="parent" {sel_parent}>🛡️ Admin</option>
         <option value="work_device" {sel_work}>💼 Work Device</option>
-        <option value="guest" {sel_guest}>🎮 Guest</option>
         <option value="infrastructure" {sel_infra}>🖥️ Infrastructure</option>
         <option value="smart_device" {sel_smart}>📡 Smart Device</option>
       </select>
@@ -2790,25 +2786,18 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + _device_type_row("👤 Personal", "Devices", True,  "yes", "Phones, tablets &amp; laptops used by family members (adults or kids) &mdash; the target of Pause All and schedules")
         + _device_type_row("🛡️ Admin", "Devices", False, "yes", "Same filtering as Personal, but never bulk-paused")
         + _device_type_row("💼 Work Device",     "Devices", False, "yes", "Filtered like any device; auto-exempt from the VPN &ldquo;activity drop&rdquo; alert")
-        + _device_type_row("🎮 Guest",           "Devices", False, "yes", "Visitors &mdash; auto-tagged when they join after setup; filtered and shown in reports; optional auto-cleanup after inactivity (Settings)")
         + _device_type_row("🖥️ Infrastructure",  "Infrastructure", False, "skip", "Routers, NAS, printers, servers")
         + _device_type_row("📡 Smart Device",    "Infrastructure", False, "yes", "TVs, cameras, doorbells, thermostats, cars")
         + f'</tbody></table></div>'
         + redetect_controls
         + sortfilter
         + f'<form method="POST" action="/admin/devices/save">{rows_html}'
-        + (f'<div style="margin:12px 0;padding:12px 14px;background:#f8fafc;border-radius:8px;font-size:0.85em;color:#475569">'
-           + (f'🎮 <b>Guest</b> devices are automatically removed after {int(config.get("guest_expire_days", 7))} days of inactivity. '
-              if config.get("guest_cleanup_enabled", True)
-              else '🎮 <b>Guest</b> auto-cleanup is off — guest devices stay until you remove them. ')
-           + 'Change this in <a href="/admin" style="color:#D97706;font-weight:600">Settings</a>.</div>')
         + f'<button type="submit" class="btn">Save All Devices</button></form></div>'
         + '<script>'
         + 'var LW_ROLE_DESC={'
         + '"person":"Phones, tablets and laptops used by family members — included in Pause All and schedules.",'
         + '"parent":"Full protection, but never affected by Pause All Personal.",'
         + '"work_device":"Work laptop or phone — filtered normally, but skipped by the VPN activity-drop alert.",'
-        + '"guest":"Temporary visitor device — auto-tagged when it joins after the setup window; optionally auto-removed after inactivity.",'
         + '"infrastructure":"Routers, NAS, printers and servers — shown separately and kept out of reports.",'
         + '"smart_device":"TVs, cameras, speakers, thermostats, vehicles and other connected devices."'
         + '};'
@@ -3120,14 +3109,6 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         f'<label class="radio-row"><input type="radio" name="retention_days" value="{d}" {"checked" if retention_days == d else ""}> {l}</label>'
         for d, l in [(7, "7 days"), (14, "14 days (recommended)"), (30, "30 days"), (60, "60 days"), (90, "90 days")]
     )
-    guest_mode_on    = "checked" if config.get("guest_mode_enabled", False) else ""
-    guest_cleanup_on = "checked" if config.get("guest_cleanup_enabled", True) else ""
-    guest_days       = int(config.get("guest_expire_days", 7))
-    setup_days       = int(config.get("setup_window_days", 3))
-    guest_day_opts   = "".join(
-        f'<option value="{d}" {"selected" if guest_days == d else ""}>{l}</option>'
-        for d, l in [(3, "3 days"), (5, "5 days"), (7, "7 days (recommended)"), (14, "14 days"), (30, "30 days")]
-    )
     portal_on  = "checked" if config.get("captive_portal") else ""
     doh_on     = "checked" if config.get("doh_blocking") else ""
     tel_on     = "checked" if config.get("telemetry_enabled") else ""
@@ -3240,16 +3221,6 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         + f'<div class="form-card"><div class="form-label">Query History</div>'
         + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:8px">How many days of DNS traffic to keep. Older records are deleted automatically each day. If storage exceeds 80%, history is trimmed to 7 days.</div>'
         + f'<div style="padding-left:4px">{retention_opts}</div></div>'
-        + f'<div class="form-card"><div class="form-label">Guest Devices</div>'
-        + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:10px"><b>Guest Mode is off by default.</b> Turn it on for an event like a family reunion &mdash; while it&rsquo;s on, a newly-joined device (after the learning window) is automatically tagged &#x1F3AE; Guest and you get a notification to confirm or keep it. Turn it off again afterwards and new devices go back to normal roles. Guests are filtered normally and shown in reports.</div>'
-        + f'<label class="toggle-row"><input type="checkbox" name="guest_mode_enabled" {guest_mode_on}>'
-        + f'<span>Guest Mode &mdash; auto-tag new devices as Guest</span></label>'
-        + f'<div style="margin-top:10px;font-size:0.85em;color:#475569">Treat new devices as household for the first '
-        + f'<input type="number" name="setup_window_days" value="{setup_days}" min="1" max="30" style="width:54px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;text-align:center"> days after setup.</div>'
-        + f'<label class="toggle-row" style="margin-top:12px"><input type="checkbox" name="guest_cleanup_enabled" {guest_cleanup_on}>'
-        + f'<span>Automatically remove inactive Guest devices</span></label>'
-        + f'<div style="margin-top:10px;font-size:0.85em;color:#475569">Remove after '
-        + f'<select name="guest_expire_days" style="padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px">{guest_day_opts}</select> of inactivity.</div></div>'
         + f'<div class="form-card"><div class="form-label">Network Notice (Captive Portal)</div>'
         + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:10px">When enabled, new devices see a one-time acknowledgment page before browsing. Recommended for organizations, churches, or any shared network. Not needed for personal family use.</div>'
         + f'<label class="toggle-row"><input type="checkbox" name="captive_portal" {"checked" if portal_on else ""}>'

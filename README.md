@@ -14,7 +14,7 @@ Built on top of AdGuard Home, which handles the actual DNS blocking. Lantern Wat
 - **Focus Times** — block internet during homework, chores, or meals
 - **Screen time limits** — set a daily hour limit per device; get notified when it's reached
 - **Social media profiles** — Open / Moderate / Teen / Strict / Custom, applied instantly at the DNS level
-- **Device roles** — label devices as Personal, Admin, Work Device, Guest, Infrastructure, or Smart Device; controls dashboard grouping, whether Pause All applies, and reporting (every role stays fully filtered). An optional **Guest Mode** auto-tags new devices as Guest while you're hosting, and guests can auto-expire after inactivity
+- **Device roles** — label devices as Personal, Admin, Work Device, Infrastructure, or Smart Device; controls dashboard grouping, whether Pause All applies, and reporting (every role stays fully filtered)
 - **Push notifications** — ntfy, Telegram, and Email alerts for blocked content, new devices, high block rates, possible VPN use, and screen time limits
 - **Daily and weekly summaries** — sent to your phone at a time you choose
 - **Notifications log** — in-dashboard history of every alert sent, with setup guides for each channel
@@ -230,13 +230,10 @@ Go to **Devices** in the top nav to label every device and set its role. **All r
 | 👤 Personal | Devices | ✅ | ✅ | Phones, tablets & laptops used by family members (adults or kids) — the target of Pause All and schedules |
 | 🛡️ Admin | Devices | — | ✅ | Same filtering as Personal, but never bulk-paused |
 | 💼 Work Device | Devices | — | ✅ | Filtered like any device; auto-exempt from the "activity drop / possible VPN" alert |
-| 🎮 Guest | Devices | — | ✅ | Visitors — **auto-tagged when they join after the setup window**; filtered and shown in reports; **optionally auto-removed after inactivity** (Settings → Guest Devices) |
 | 🖥️ Infrastructure | Infrastructure | — | Skipped | Routers, NAS, printers, servers |
 | 📡 Smart Device | Infrastructure | — | ✅ | TVs, cameras, doorbells, thermostats, cars |
 
 **Work Device** is for a laptop or phone that lives on a corporate VPN and does heavy video conferencing. It's filtered exactly like every other device — setting this role does **not** disable any blocking. What it does do is keep the device out of the "Pause All Personal" action and automatically exempt it from the "activity drop / possible VPN" alert (a VPN legitimately makes a device go quiet from the router's view, so that alert would otherwise fire constantly).
-
-**Guest** is for visitors' devices. **Guest Mode** (Settings → Guest Devices) is an on-demand switch, **off by default**: flip it on when you're hosting — a family reunion or party — and any newly-joined device is auto-tagged Guest right away, then flip it off afterwards and new devices go back to normal roles. (Prefer it always-on so visitors are always caught? Just leave it on.) A **learning window** (default 3 days) protects initial setup, so your own devices connecting for the first time are treated as household, not guests. When a device is auto-tagged you get a "new device joined — marked as Guest" notification, so you can confirm it or assign a permanent role in one tap. Guests are filtered exactly like any other device and **do appear in your daily/weekly summaries**. Optionally, idle guests **auto-remove themselves** (toggle plus a 3–30 day window, default 7); your summaries flag any that are about to be removed so you can keep them. Active guests never expire, and a grace period protects freshly-tagged ones.
 
 ---
 
