@@ -1843,9 +1843,15 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
             '</div></div>'
         )
 
-    ag_adult = ag.get("blocked_adult", 0) if ag else 0
-    ag_ads   = ag.get("blocked_filtering", 0) if ag else 0
-    bw_mb    = ag_ads * 25 / 1024  # 25 KB per blocked request
+    # Total blocked across every category AdGuard reports. Most blocks land in
+    # "filtering" (blocklists + custom rules + packs); parental/malware stay ~0
+    # on a well-listed setup because the blocklists catch those domains first as
+    # FilteredBlackList. So the headline "Blocked" number must sum them, not read
+    # the (near-always-zero) parental counter alone.
+    ag_blocked = (ag.get("blocked_filtering", 0)
+                  + ag.get("blocked_malware", 0)
+                  + ag.get("blocked_adult", 0)) if ag else 0
+    bw_mb    = ag_blocked * 25 / 1024  # ~25 KB saved per blocked request
     bandwidth_str = f"{bw_mb / 1024:.1f}GB" if bw_mb > 1024 else f"{round(bw_mb)}MB"
 
 
@@ -1869,10 +1875,10 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
         f'<div class="stat-card"><div class="num blue">{total_q:,}</div><div class="label">Queries Today</div></div>'
         f'<div class="stat-card"><div class="num green">{block_pct}%</div><div class="label">Block Rate</div></div>'
         f'<div class="stat-card"><div class="num blue">{len(people)}</div><div class="label">Devices</div></div>'
-        f'<div class="stat-card"><div class="num red">{ag_adult:,}</div><div class="label">Blocked</div></div>'
-        f'<div class="stat-card"><div class="num green">{ag_ads:,}</div><div class="label">Ads Blocked</div>'
-        f'<div style="font-size:0.65em;color:#94a3b8;margin-top:2px">since {get_oldest_log_date()}</div>'
-        f'<div style="font-size:0.7em;color:#1d9e75;margin-top:1px">{bandwidth_str} saved</div></div>'
+        f'<div class="stat-card"><div class="num red">{ag_blocked:,}</div><div class="label">Blocked</div>'
+        f'<div style="font-size:0.65em;color:#94a3b8;margin-top:2px">since {get_oldest_log_date()}</div></div>'
+        f'<div class="stat-card"><div class="num green">{bandwidth_str}</div><div class="label">Data Saved</div>'
+        f'<div style="font-size:0.7em;color:#1d9e75;margin-top:2px">~{ag_blocked:,} requests</div></div>'
         f'</div>'
     )
     body = (
