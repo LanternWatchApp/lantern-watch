@@ -137,59 +137,54 @@ def get_blocked_platforms(config):
 
 def setup_block_page(config):
     """
-    On every boot, configure how blocked domains fail for clients.
+    On every boot, route blocked domains to the Lantern Watch block page — a
+    compassionate notice ("This site has been blocked…", scripture, and a
+    prominent Find Help link), part of the mission to help those who are
+    struggling find a way out.
 
-    We use AdGuard Home's NXDOMAIN blocking mode: a blocked lookup answers
-    "this domain does not exist," so the device fails instantly ("server not
-    found") with no TCP connection to a fake IP and no waiting/timeout lag.
+    How it works: AdGuard answers a blocked lookup with our block-page virtual
+    IP (BLOCK_PAGE_IP, 192.168.8.2). iptables then redirects that IP's traffic:
+      • :80  → the dashboard (:8081), which serves /blocked
+      • :443 → the local HTTPS block server (:8444), which serves /blocked
+    The .2 virtual IP keeps the router's own :80/:443 (GL.iNet UI / nginx)
+    completely untouched.
 
-    Why not draw a custom splash page over the connection? A splash can only be
-    rendered for plain-HTTP sites, which are essentially extinct. The modern web
-    is HTTPS, and a browser will not accept our TLS certificate for someone
-    else's domain — HSTS-preloaded sites (google.com, amazon.com, youtube.com)
-    refuse plain HTTP outright and won't fall back. Intercepting HTTPS to show a
-    page would require installing a trusted root CA on every device and MITM-ing
-    all TLS — far too invasive for a family product. So rather than a
-    half-working redirect that lags or hangs on HTTPS, we fail fast and clean.
-
-    The Lantern Watch block notice still lives at
-        http://192.168.8.1:8081/blocked
-    as a real dashboard page — for direct presentation, demos, and status
-    checks. It is simply not forced over hijacked TLS connections.
-
-    This also tears down any legacy block-page infrastructure (the 192.168.8.2
-    virtual IP and the :80→8081 / :443→8444 nat redirects) left by older
-    versions, so an in-place upgrade converges without needing a reboot.
+    HTTPS reality: we cannot hold a valid TLS certificate for someone else's
+    domain, so a blocked HTTPS site shows a browser certificate warning first;
+    on click-through the visitor lands on the block page. HSTS-preloaded sites
+    won't allow the click-through — that's an unavoidable browser limitation,
+    not a blocking failure (the site is still fully blocked either way).
+    Plain-HTTP blocked sites land on the page cleanly.
     """
-    # 1. AdGuard: blocked domains → NXDOMAIN (instant, clean failure).
-    #    blocking_ipv4/ipv6 are ignored in nxdomain mode but kept in the payload
-    #    so the GL.iNet AGH build always sees a complete, valid object.
+    # 1. AdGuard: blocked domains → the block-page IP (custom_ip mode).
     try:
         payload = json.dumps({
-            "blocking_mode": "nxdomain",
+            "blocking_mode": "custom_ip",
             "blocking_ipv4": BLOCK_PAGE_IP,
             "blocking_ipv6": "::",
         }).encode()
         req = _ag_request(config, "/control/dns_config", payload)
         urllib.request.urlopen(req, timeout=5)
-        print("[BlockPage] AGH blocking_mode → nxdomain")
+        print(f"[BlockPage] AGH blocking_mode → custom_ip {BLOCK_PAGE_IP}")
     except Exception as e:
         print(f"[BlockPage] AGH config error: {e}")
 
-    # 2. Tear down legacy splash-redirect infra from older versions (idempotent).
-    #    On fresh installs these don't exist, so every delete simply no-ops.
+    # 2. Claim the block-page virtual IP on the LAN bridge (idempotent).
+    subprocess.run(
+        ["ip", "addr", "add", f"{BLOCK_PAGE_IP}/32", "dev", "br-lan"],
+        capture_output=True,
+    )
+
+    # 3. Redirect the block-page IP's web ports to our servers. Delete any
+    #    existing copies first (idempotent), then add exactly one of each.
     for rule in (
         ["PREROUTING", "-p", "tcp", "--dport", "80",  "-d", BLOCK_PAGE_IP, "-j", "REDIRECT", "--to-port", "8081"],
         ["PREROUTING", "-p", "tcp", "--dport", "443", "-d", BLOCK_PAGE_IP, "-j", "REDIRECT", "--to-port", "8444"],
     ):
-        # Remove every duplicate copy of the rule (older builds could -I twice).
         while subprocess.run(["iptables", "-t", "nat", "-D"] + rule, capture_output=True).returncode == 0:
             pass
-    subprocess.run(
-        ["ip", "addr", "del", f"{BLOCK_PAGE_IP}/32", "dev", "br-lan"],
-        capture_output=True,
-    )
-    print("[BlockPage] blocked domains return NXDOMAIN; legacy redirect infra removed")
+        subprocess.run(["iptables", "-t", "nat", "-A"] + rule, capture_output=True)
+    print("[BlockPage] blocked domains → block page (HTTP :80→8081, HTTPS :443→8444)")
 
 
 # ── Recommended blocklists for initial setup ──────────────────────────────────

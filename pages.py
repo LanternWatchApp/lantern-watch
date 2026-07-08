@@ -1375,6 +1375,7 @@ lw-label{{display:block;font-size:13px;font-weight:500;color:#6b6b6b;margin-bott
     <button type="submit" class="lw-btn" id="loginBtn">Sign In</button>
     </form>
     <button class="lw-btn-ghost" id="forgotBtn">Forgot password?</button>
+    <a href="/findhelp" style="display:block;text-align:center;margin-top:10px;color:#e8a000;font-weight:600;font-size:0.9em;text-decoration:none">Struggling with something? You're not alone — find help &rarr;</a>
     {first_run_hint}
   </div>
 

@@ -36,6 +36,10 @@ if __name__ == "__main__":
         print("[Boot] DoH iptables rules restored")
     # Set AGH blocking IP + iptables for block page (virtual IP, port 80 + 443)
     setup_block_page(config)
+    # HTTPS block-page server (serves /blocked over TLS on :8444 for blocked
+    # HTTPS sites, after the browser cert warning)
+    from blockserver import start_block_server
+    start_block_server()
     # Re-setup captive portal iptables chain if enabled
     restore_captive_portal(config)
     start_scheduler()

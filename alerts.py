@@ -318,16 +318,18 @@ def check_adult_content(config):
         return
     newest_ts = max(r["latest"] for r in rows)
     base_url  = _dash_url(config)
+    help_url  = base_url.rstrip("/") + "/findhelp"
+    help_line = f"\n\nIf you or someone at home is struggling, you're not alone — help is here: {help_url}"
     for row in rows:
         device = label(row["client_name"], config)
         domain = row["domain"]
         send_alert(
             config["ntfy_topic"],
-            _append_url(f"{device} tried to access: {domain}", config),
+            _append_url(f"{device} tried to access: {domain}.{help_line}", config),
             title="Blocked Content",
             priority="high",
             tags="warning",
-            click_url=base_url,
+            click_url=help_url,
         )
     # Single combined message for Telegram / Email
     if len(rows) == 1:
@@ -335,7 +337,7 @@ def check_adult_content(config):
     else:
         lines    = [f"• {label(r['client_name'], config)}: {r['domain']}" for r in rows]
         combined = f"{len(rows)} sites blocked:\n" + "\n".join(lines)
-    combined = _append_url(combined, config)
+    combined = _append_url(combined + help_line, config)
     send_telegram(config, combined, "Blocked Content")
     send_email(config, combined, "Blocked Content")
     config["last_adult_alert"] = newest_ts
