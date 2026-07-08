@@ -782,14 +782,17 @@ def send_telemetry(config):
 
 
 def send_install_ping(config):
-    """One-time anonymous install record — fires ONCE on first boot regardless of
-    the opt-in toggle, so installs can be counted. Minimal payload: a random
+    """One-time anonymous install record — fires regardless of the opt-in toggle,
+    so installs can be counted. Retried until it succeeds (see main), so a
+    boot-time network hiccup can't silently lose the count. Minimal payload: a
     hardware-derived ID, version, router model, OpenWrt version. No usage,
-    device, or personal data. Disclosed in the installer + README."""
+    device, or personal data. Disclosed in the installer + README.
+
+    Returns True only when the endpoint confirms receipt, False otherwise."""
     try:
         from config import TELEMETRY_URL
         if not TELEMETRY_URL:
-            return
+            return False
         p = _telemetry_payload(config)
         ping = {
             "event":           "install",
@@ -801,10 +804,14 @@ def send_install_ping(config):
         data = json.dumps(ping).encode()
         req  = urllib.request.Request(TELEMETRY_URL, data=data,
                                       headers={"Content-Type": "application/json"})
-        urllib.request.urlopen(req, timeout=10)
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Anonymous install recorded")
+        resp = urllib.request.urlopen(req, timeout=10)
+        ok = 200 <= getattr(resp, "status", 200) < 300
+        if ok:
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Anonymous install recorded")
+        return ok
     except Exception as e:
-        print(f"Install ping error: {e}")
+        print(f"Install ping error (will retry): {e}")
+        return False
 
 
 def main():
@@ -813,12 +820,9 @@ def main():
     _ensure_oui_db()
     _ensure_doh_blocking()
 
-    # One-time anonymous install record (fires once; ongoing stats stay opt-in).
-    _cfg = load_config()
-    if not _cfg.get("install_recorded"):
-        send_install_ping(_cfg)
-        _cfg["install_recorded"] = True
-        save_config(_cfg)
+    # The one-time install record is attempted inside the loop below (after the
+    # network has had time to come up) and retried until it actually lands, so a
+    # boot-time hiccup can't lose the count.
 
     print("Waiting 5 minutes before alerting to allow devices to reconnect...")
     time.sleep(300)
@@ -841,6 +845,14 @@ def main():
         try:
             config = load_config()
             now    = datetime.now()
+
+            # One-time anonymous install record — retried every cycle until the
+            # endpoint confirms it, so a boot-time network hiccup can't silently
+            # lose the count. Fires regardless of the opt-in toggle (counting only).
+            if not config.get("install_recorded"):
+                if send_install_ping(config):
+                    config["install_recorded"] = True
+                    save_config(config)
 
             # Opt-in anonymous stats — once a day, at THIS install's jittered slot
             # (no-op unless enabled in Settings).
