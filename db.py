@@ -332,6 +332,39 @@ def get_device_detail(client_name):
     return totals, clean_sites, blocked_sites, hourly, secs, all_time, peak_hour, top_category, ip_address, hostname
 
 
+def get_notable_blocks(explicit_domains, limit=10):
+    """Recent 'notable' blocked domains for the dashboard Blocked Content section:
+    adult content, blocked services (social/gaming), and admin-chosen blocks
+    (custom + category packs) — NOT the ambient ad/tracker blocklist noise.
+    `explicit_domains` is the set of custom-block + pack domains used to tell a
+    parent-chosen FilteredBlackList hit from ad-list noise."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    since = today_start()
+    rows = conn.execute("""
+        SELECT domain, COUNT(*) as hits, MAX(ts) as last_seen,
+               GROUP_CONCAT(DISTINCT reason) as reasons
+        FROM querylog
+        WHERE blocked=1 AND ts > ?
+          AND (reason LIKE '%Parental%' OR reason = 'FilteredBlockedService'
+               OR reason = 'FilteredBlackList')
+        GROUP BY domain ORDER BY MAX(ts) DESC
+    """, (since,)).fetchall()
+    conn.close()
+    exp = set(explicit_domains or [])
+    out = []
+    for r in rows:
+        reasons = r["reasons"] or ""
+        dom = (r["domain"] or "").lower()
+        if ("Parental" in reasons or "FilteredBlockedService" in reasons
+                or ("FilteredBlackList" in reasons
+                    and any(dom == e or dom.endswith("." + e) for e in exp))):
+            out.append(r)
+            if len(out) >= limit:
+                break
+    return out
+
+
 # ── Domain detail ─────────────────────────────────────────────────────────────
 
 def get_domain_detail(domain):

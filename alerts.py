@@ -301,47 +301,103 @@ def _append_url(message, config):
 
 # ── Alert checks ──────────────────────────────────────────────────────────────
 
-def check_adult_content(config):
+def _explicit_block_domains(config):
+    """Domains the admin has explicitly chosen to block (custom blocks + category
+    packs). Lets us tell a parent-chosen block from ambient ad/tracker noise —
+    both land in the querylog as FilteredBlackList."""
+    try:
+        from adguard import get_custom_blocks, get_blocked_pack_domains
+        return set(get_custom_blocks(config)) | set(get_blocked_pack_domains(config))
+    except Exception:
+        return set()
+
+
+def _is_notable_block(domain, reasons, explicit):
+    """True if a block is worth notifying about: adult content, a blocked service
+    (social/gaming), or an FilteredBlackList hit on a domain the admin explicitly
+    blocked. Excludes the high-volume ad/tracker blocklist noise."""
+    reasons = reasons or ""
+    if "Parental" in reasons or "FilteredBlockedService" in reasons:
+        return True
+    if "FilteredBlackList" in reasons:
+        d = (domain or "").lower()
+        return any(d == e or d.endswith("." + e) for e in explicit)
+    return False
+
+
+def check_blocked_content(config):
+    """Notify when a device hits a site the admin actually blocks — adult content,
+    blocked services, custom blocks, and category packs — NOT the thousands of
+    ambient ad/tracker blocks. De-duplicated per device+site so a repeatedly-hit
+    site (or a chatty background app) notifies at most once per cooldown window."""
     if not config["alerts"].get("adult_content"):
         return
     last_alerted = config.get("last_adult_alert", "2000-01-01T00:00:00Z")
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     rows = conn.execute("""
-        SELECT client_name, domain, MAX(ts) as latest, COUNT(*) as hits
+        SELECT client_name, domain, MAX(ts) as latest, COUNT(*) as hits,
+               GROUP_CONCAT(DISTINCT reason) as reasons
         FROM querylog
-        WHERE reason LIKE '%Parental%' AND ts > ?
-        GROUP BY client_name, domain ORDER BY hits DESC
+        WHERE blocked=1 AND ts > ?
+          AND (reason LIKE '%Parental%' OR reason = 'FilteredBlockedService'
+               OR reason = 'FilteredBlackList')
+        GROUP BY client_name, domain ORDER BY MAX(ts) DESC
     """, (last_alerted,)).fetchall()
     conn.close()
     if not rows:
         return
     newest_ts = max(r["latest"] for r in rows)
+    explicit  = _explicit_block_domains(config)
+
+    now        = datetime.now()
+    cooldown_h = int(config.get("blocked_notify_cooldown_h", 6))
+    cooldowns  = config.get("blocked_content_cooldowns", {})
+    fresh = []
+    for r in rows:
+        if not _is_notable_block(r["domain"], r["reasons"], explicit):
+            continue
+        key  = f"{r['client_name']}|{r['domain']}"
+        prev = cooldowns.get(key, "2000-01-01T00:00:00")
+        try:
+            if (now - datetime.fromisoformat(prev)).total_seconds() < cooldown_h * 3600:
+                continue                                   # still within cooldown — skip
+        except Exception:
+            pass
+        cooldowns[key] = now.isoformat()
+        fresh.append((r["client_name"], r["domain"]))
+
+    # Advance the watermark and prune expired cooldowns every run.
+    config["last_adult_alert"] = newest_ts
+    cutoff = now - timedelta(hours=cooldown_h)
+    kept = {}
+    for k, v in cooldowns.items():
+        try:
+            if datetime.fromisoformat(v) > cutoff:
+                kept[k] = v
+        except Exception:
+            pass
+    config["blocked_content_cooldowns"] = kept
+    save_config(config)
+
+    if not fresh:
+        return
+
     base_url  = _dash_url(config)
     help_url  = base_url.rstrip("/") + "/findhelp"
     help_line = f"\n\nIf you or someone at home is struggling, you're not alone — help is here: {help_url}"
-    for row in rows:
-        device = label(row["client_name"], config)
-        domain = row["domain"]
-        send_alert(
-            config["ntfy_topic"],
-            _append_url(f"{device} tried to access: {domain}.{help_line}", config),
-            title="Blocked Content",
-            priority="high",
-            tags="warning",
-            click_url=help_url,
-        )
-    # Single combined message for Telegram / Email
-    if len(rows) == 1:
-        combined = f"{label(rows[0]['client_name'], config)} tried to access: {rows[0]['domain']}"
+    if len(fresh) == 1:
+        c, d = fresh[0]
+        body = f"{label(c, config)} tried to reach a blocked site: {d}"
     else:
-        lines    = [f"• {label(r['client_name'], config)}: {r['domain']}" for r in rows]
-        combined = f"{len(rows)} sites blocked:\n" + "\n".join(lines)
-    combined = _append_url(combined + help_line, config)
-    send_telegram(config, combined, "Blocked Content")
-    send_email(config, combined, "Blocked Content")
-    config["last_adult_alert"] = newest_ts
-    save_config(config)
+        lines = [f"• {label(c, config)}: {d}" for c, d in fresh]
+        body  = f"{len(fresh)} blocked-site attempts:\n" + "\n".join(lines)
+    msg = _append_url(body + help_line, config)
+    if config.get("ntfy_topic"):
+        send_alert(config["ntfy_topic"], msg, title="Blocked Content",
+                   priority="high", tags="warning", click_url=help_url)
+    send_telegram(config, msg, "Blocked Content")
+    send_email(config, msg, "Blocked Content")
 
 
 def check_new_devices(config):
@@ -793,7 +849,7 @@ def main():
                 send_telemetry(config)
                 last_telemetry = now
 
-            check_adult_content(config)
+            check_blocked_content(config)
             check_new_devices(config)
             check_high_block_rate(config)
             check_vpn_suspected(config)

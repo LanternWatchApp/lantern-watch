@@ -1816,15 +1816,23 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
         for r in top_domains
     ) or '<div class="domain-item"><span class="domain-name">No data</span></div>'
 
-    # Adult section
-    if adult_domains:
-        adult_rows    = "".join(make_adult_link(r) for r in adult_domains)
+    # Blocked Content section — the sites you actually block (adult, blocked
+    # services, custom blocks, category packs), not the ambient ad/tracker noise.
+    from db import get_notable_blocks
+    try:
+        from adguard import get_custom_blocks, get_blocked_pack_domains
+        _explicit = set(get_custom_blocks(config)) | set(get_blocked_pack_domains(config))
+    except Exception:
+        _explicit = set()
+    notable = get_notable_blocks(_explicit)
+    if notable:
+        adult_rows    = "".join(make_adult_link(r) for r in notable)
         adult_section = ('<div class="section"><h2 class="alert">Blocked Content</h2>'
-                         '<div class="alert-box-red">Websites blocked on your network. Tap to see details.</div>'
+                         '<div class="alert-box-red">Sites you block that were attempted today. Tap any to see who and when.</div>'
                          f'<div class="domain-list" style="margin-top:10px">{adult_rows}</div></div>')
     else:
         adult_section = ('<div class="section"><h2 class="alert">Blocked Content</h2>'
-                         '<div class="alert-box-green">No websites blocked in the last 24 hours.</div></div>')
+                         '<div class="alert-box-green">No attempts on your blocked sites today &mdash; ads &amp; trackers are still being filtered quietly in the background.</div></div>')
 
     # AdGuard stats
     ag     = get_adguard_stats(config)
