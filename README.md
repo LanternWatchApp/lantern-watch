@@ -243,7 +243,7 @@ Go to **Devices** in the top nav to label every device and set its role. **All r
 Lantern Watch supports three notification channels — configure any or all of them in **Settings**. Each channel has its own **Send Test** button so you can confirm it's working.
 
 You'll receive alerts for:
-- Content blocked
+- **Blocked content attempted** — when someone tries to reach a site you block (adult, dating, social, a category pack, or your own custom blocks). Grouped, with a Find Help link, and rate-limited per site/device so you're never spammed. Everyday ad and tracker blocking stays quiet in the background.
 - New device joined the network
 - A device has an unusually high block rate
 - A device went quiet (possible VPN use)
