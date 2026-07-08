@@ -23,7 +23,7 @@ Built on top of AdGuard Home, which handles the actual DNS blocking. Lantern Wat
 - **Query history retention** — configurable 7 / 14 / 30 / 60 / 90-day log window (default 60); auto-trims daily with storage-pressure override
 - **AdGuard first-run wizard** — adult content filters, malware blocking, and safe search applied in one click during setup
 - **Password recovery** — forgot your password? Request a one-time code sent to your ntfy/Telegram/email
-- **Blocked page** — when a blocked domain is visited, users land on a branded Lantern Watch page instead of a browser error; works for both HTTP and HTTPS (HTTPS triggers a Chrome warning then falls back to the blocked page)
+- **Fast, clean blocking** — blocked sites (HTTP **and** HTTPS) are cut off at the DNS layer and fail instantly with a clean "site can't be reached" response (NXDOMAIN) — no lag, no dead-end hang, no fake page. A branded block-notice page is viewable at `/blocked` for demos and reference. *(Blocking works fully on HTTPS; no DNS filter can render a custom page over an HTTPS connection without installing a root certificate on every device, so a blocked site simply shows the browser's own error — expected, not a failure to block.)*
 - **Network Notice** — opt-in captive portal: show new devices an acceptable-use notice before granting internet access; Settings toggle shows how many devices have acknowledged and includes a one-click reset; designed for organizations, schools, camps, and families who want explicit consent
 
 ---
