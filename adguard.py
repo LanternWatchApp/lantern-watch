@@ -246,6 +246,11 @@ RECOMMENDED_LISTS = [
 # Curated so parents get meaningful choice without the footgun of the raw
 # 60-list collection. Each maps to one vetted list behind a friendly label.
 OPTIONAL_LISTS = [
+    {"id": "nsfw", "name": "Adult / Pornography Blocklist",
+     "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/nsfw.txt",
+     "label": "Block adult / pornography sites",
+     "desc": "A large, actively-maintained adult-content blocklist (HaGeZi NSFW) — "
+             "much stronger than AdGuard's built-in heuristic alone. ~107K sites."},
     {"id": "gambling", "name": "Gambling Blocklist",
      "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/gambling.txt",
      "label": "Block gambling sites",
@@ -300,12 +305,14 @@ def apply_optional_lists(config, enabled_ids):
     return enabled
 
 
-# Optional lists that ship ON for a fresh install. Kept tiny on purpose:
-# smart-TV tracking is only ~162 rules (negligible cost, clear privacy win).
-# Gambling (~289K rules) and OISD Small (~55K) stay OFF by default — they'd blow
-# the rule budget on low-RAM GL.iNet routers and (OISD) largely duplicate the
-# AdGuard DNS filter already installed.
-DEFAULT_OPTIONAL_IDS = ["smart_tv"]
+# Optional lists that ship ON for a fresh install, chosen to fit the rule budget
+# on low-RAM GL.iNet routers (base lists are ~345K; the crash zone is ~500K):
+#   - nsfw (~107K): adult-content blocking is THE core parental feature, and
+#     base + nsfw (~450K) still clears the ceiling. Toggleable if not wanted.
+#   - smart_tv (~162 rules): negligible cost, clear privacy win.
+# Gambling (~289K) and OISD Small (~55K) stay OFF — either would push a fresh
+# install over the budget (and OISD largely duplicates the AdGuard DNS filter).
+DEFAULT_OPTIONAL_IDS = ["nsfw", "smart_tv"]
 
 
 def install_default_optional_lists(config):
