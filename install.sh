@@ -624,11 +624,19 @@ AGH_SETUP_RESULT=$(python3 - <<PYEOF
 import json, sys
 sys.path.insert(0, "$INSTALL_DIR")
 try:
-    from adguard import apply_adguard_setup, RECOMMENDED_LISTS
+    from adguard import (apply_adguard_setup, RECOMMENDED_LISTS,
+                         install_default_optional_lists, apply_doh_dns_mitigation)
     with open("$CONFIG") as f:
         config = json.load(f)
     list_ids = [l["id"] for l in RECOMMENDED_LISTS]
     added, errors = apply_adguard_setup(config, list_ids, enable_sb=True, enable_parental=True, enable_ss=True)
+    # Default-on optional lists (smart-TV tracking) + always-on gentle DoH
+    # mitigation (Firefox canary + DoH provider hostnames).
+    try:
+        install_default_optional_lists(config)
+        apply_doh_dns_mitigation(config)
+    except Exception as e:
+        print("  optional/DoH defaults skipped: " + str(e), file=sys.stderr)
     if errors:
         for e in errors:
             print("  WARNING: " + str(e), file=sys.stderr)

@@ -300,6 +300,27 @@ def apply_optional_lists(config, enabled_ids):
     return enabled
 
 
+# Optional lists that ship ON for a fresh install. Kept tiny on purpose:
+# smart-TV tracking is only ~162 rules (negligible cost, clear privacy win).
+# Gambling (~289K rules) and OISD Small (~55K) stay OFF by default — they'd blow
+# the rule budget on low-RAM GL.iNet routers and (OISD) largely duplicate the
+# AdGuard DNS filter already installed.
+DEFAULT_OPTIONAL_IDS = ["smart_tv"]
+
+
+def install_default_optional_lists(config):
+    """Add the optional blocklists that are ON by default on a fresh install.
+    Add-only: never removes a list the user later chose to turn off."""
+    active = get_active_filter_urls(config)
+    for lst in OPTIONAL_LISTS:
+        if lst["id"] in DEFAULT_OPTIONAL_IDS and lst["url"] not in active:
+            try:
+                _add_filter_url(config, lst["name"], lst["url"])
+                print(f"[Filters] default optional list added: {lst['id']}")
+            except Exception as e:
+                print(f"[Filters] could not add default '{lst['id']}': {e}")
+
+
 def remove_dead_lists(config):
     """Remove known-dead/redundant blocklists (safe no-op if not present)."""
     active = get_active_filter_urls(config)
@@ -876,10 +897,23 @@ def get_doh_blocking_status(config):
     return any(_DOH_MARKER in r for r in get_custom_rules(config))
 
 
-def apply_doh_blocking(config, enabled):
-    """
-    Add or remove DoH-blocking rules in AGH custom rules, preserving all other rules.
-    Returns True on success.
+# Firefox (and Chrome-family) look up this canary domain before enabling their
+# own DoH. If it fails to resolve (NXDOMAIN), the browser leaves DoH OFF and uses
+# our filtered DNS — the gentle, no-breakage way to keep browsers on our filter.
+DOH_CANARY_DOMAIN = "use-application-dns.net"
+
+
+def apply_doh_dns_mitigation(config):
+    """Always-on, low-breakage DoH mitigation applied purely at the DNS level
+    (no firewall, no touching port 443/853 or resolver IPs, so it can't break
+    ordinary sites or devices):
+      • answer the Firefox canary (use-application-dns.net) with NXDOMAIN, so
+        Firefox voluntarily disables its own DoH and uses our filtered DNS;
+      • block the well-known public DoH provider hostnames, so apps/browsers that
+        hardcode them fall back to normal DNS.
+    The stricter enforcement (blocking DoT :853 + known DoH resolver IPs via
+    iptables) stays behind the opt-in `doh_blocking` toggle — see
+    apply_doh_iptables. Idempotent; safe to call on every boot/setup.
     """
     with _rules_lock:
         current = get_custom_rules(config)
@@ -894,11 +928,11 @@ def apply_doh_blocking(config, enabled):
             in_doh = False
             cleaned.append(line)
 
-        if enabled:
-            doh_rules = ["", _DOH_MARKER] + [f"||{d}^$important" for d in DOH_BLOCK_DOMAINS]
-            new_rules = cleaned + doh_rules
-        else:
-            new_rules = cleaned
+        doh_rules = (
+            ["", _DOH_MARKER, f"||{DOH_CANARY_DOMAIN}^$dnsrewrite=NXDOMAIN"]
+            + [f"||{d}^$important" for d in DOH_BLOCK_DOMAINS]
+        )
+        new_rules = cleaned + doh_rules
 
         # Collapse multiple blank lines
         final, prev_blank = [], False

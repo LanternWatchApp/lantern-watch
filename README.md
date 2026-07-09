@@ -22,6 +22,8 @@ Built on top of AdGuard Home, which handles the actual DNS blocking. Lantern Wat
 - **Router Health card** — live RAM, storage, CPU load, uptime, and DB size in Settings
 - **Query history retention** — configurable 7 / 14 / 30 / 60 / 90-day log window (default 60); auto-trims daily with storage-pressure override
 - **AdGuard first-run wizard** — adult content filters, malware blocking, and safe search applied in one click during setup
+- **Encrypted-DNS bypass protection** — keeps browsers on your filter automatically: it tells Firefox to disable its own DoH (via the standard `use-application-dns.net` canary) and blocks common public DoH providers, with no setup and no breakage. An optional **strict mode** adds DoT (port 853) + resolver-IP firewall blocking for determined bypassers
+- **Smart-TV tracking blocked by default** — stops smart TVs from phoning home about what you watch; optional gambling and extra ad/tracker lists are one tap away in Settings
 - **Password recovery** — forgot your password? Request a one-time code sent to your ntfy/Telegram/email
 - **Block page with Find Help** — a blocked site lands on a branded Lantern Watch page carrying a prominent **Find Help** link, part of the mission to help anyone struggling find a way out. Plain-HTTP sites show it instantly; HTTPS sites show the browser's certificate warning first, then the page on click-through (HSTS-preloaded sites can't display it, but are still fully blocked either way). The "Blocked Content" notification and the login page also link to Find Help.
 - **Find Help** — a curated page of recovery and support resources, reachable any time at `/findhelp` and surfaced right where someone hits a wall

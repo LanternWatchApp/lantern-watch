@@ -12,7 +12,7 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
 from config import load_config
-from adguard import apply_social_profile, get_blocked_platforms, apply_doh_iptables, setup_block_page
+from adguard import apply_social_profile, get_blocked_platforms, apply_doh_iptables, apply_doh_dns_mitigation, setup_block_page
 from portal import restore_captive_portal
 from db import get_or_create_install_id
 from scheduler import restore_paused_on_boot, start_scheduler
@@ -30,7 +30,13 @@ if __name__ == "__main__":
         custom  = config.get("social_custom", {}).get("platforms")
         apply_social_profile(profile, config, custom_platforms=custom)
         print(f"[Boot] Social profile '{profile}' restored")
-    # Re-apply DoH iptables rules (cleared on reboot)
+    # Always-on gentle DoH mitigation (Firefox canary + DoH hostnames) at DNS
+    # level — no breakage. Idempotent; also covers existing installs on upgrade.
+    try:
+        apply_doh_dns_mitigation(config)
+    except Exception as _e:
+        print(f"[Boot] DoH DNS mitigation error: {_e}")
+    # Re-apply the stricter DoH iptables rules (cleared on reboot) only if opted in
     if config.get("doh_blocking"):
         apply_doh_iptables(True)
         print("[Boot] DoH iptables rules restored")

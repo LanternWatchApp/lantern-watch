@@ -539,6 +539,14 @@ class Handler(BaseHTTPRequestHandler):
                         config, all_ids,
                         enable_sb=True, enable_parental=True, enable_ss=True,
                     )
+                    # Default-on optional lists (smart-TV tracking) + always-on
+                    # gentle DoH mitigation (Firefox canary + DoH hostnames).
+                    from adguard import install_default_optional_lists, apply_doh_dns_mitigation
+                    try:
+                        install_default_optional_lists(config)
+                        apply_doh_dns_mitigation(config)
+                    except Exception as _e:
+                        print(f"[Setup] optional/DoH defaults error: {_e}")
                     config["adguard_setup_complete"] = True
                     save_config(config)
                     print(f"[Setup] AdGuard setup complete — {added} lists added, {len(errors)} errors: {errors}")
@@ -651,9 +659,11 @@ class Handler(BaseHTTPRequestHandler):
                 elif not new_portal and old_portal:
                     teardown_captive_portal()
                 if new_doh != old_doh:
-                    from adguard import apply_doh_blocking, apply_doh_iptables
+                    # The gentle DNS-level mitigation (Firefox canary + DoH
+                    # hostnames) is always on; this toggle only controls the
+                    # stricter iptables enforcement (DoT :853 + DoH resolver IPs).
+                    from adguard import apply_doh_iptables
                     try:
-                        apply_doh_blocking(config, new_doh)
                         apply_doh_iptables(new_doh)
                     except Exception as _e:
                         print(f"[DoH] toggle error: {_e}")
