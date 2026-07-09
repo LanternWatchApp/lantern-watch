@@ -2994,17 +2994,22 @@ def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg=
                 f'<span style="font-size:0.88em;color:#2c2c2a">{label}</span></label>'
             )
 
-        def _cat_block(title, entries, cat_idx, field, notify_on=False):
+        def _cat_block(title, entries, cat_idx, field, notify_on=False, show_notify=False):
             # entries: list of (value, label, checked)
             n_blocked = sum(1 for _, _, c in entries if c)
             rows = "".join(_checkbox(v, lb, cat_idx, field, c) for v, lb, c in entries)
-            notify_chk = "checked" if notify_on else ""
-            notify_lbl = (
-                f'<label title="Notify me / show on the dashboard when a device tries a blocked service in this group" '
-                f'style="display:flex;align-items:center;gap:4px;font-size:0.72em;color:#64748b;cursor:pointer;white-space:nowrap">'
-                f'<input type="checkbox" name="svcnotify" value="{title}" {notify_chk} '
-                f'style="width:14px;height:14px;accent-color:#e8a000">&#x1F514; Notify</label>'
-            )
+            # The Notify toggle only applies to AdGuard service groups. Category
+            # packs are explicit family blocks that always notify, so they get no
+            # toggle (and aren't in service_notify, so a toggle wouldn't persist).
+            notify_lbl = ""
+            if show_notify:
+                notify_chk = "checked" if notify_on else ""
+                notify_lbl = (
+                    f'<label title="Notify me / show on the dashboard when a device tries a blocked service in this group" '
+                    f'style="display:flex;align-items:center;gap:4px;font-size:0.72em;color:#64748b;cursor:pointer;white-space:nowrap">'
+                    f'<input type="checkbox" name="svcnotify" value="{title}" {notify_chk} '
+                    f'style="width:14px;height:14px;accent-color:#e8a000">&#x1F514; Notify</label>'
+                )
             return (
                 f'<div style="margin-bottom:18px">'
                 f'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;'
@@ -3027,12 +3032,14 @@ def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg=
             if not present:
                 continue
             used.update(i for i, _, _ in present)
-            cat_blocks += _cat_block(cat, present, cat_idx, "svc", service_notify_enabled(cat, config))
+            cat_blocks += _cat_block(cat, present, cat_idx, "svc",
+                                     service_notify_enabled(cat, config), show_notify=True)
             cat_idx += 1
         # AGH services not in any named group
         leftovers = [(s["id"], s["name"], s["id"] in blocked_ids) for s in all_svcs if s["id"] not in used]
         if leftovers:
-            cat_blocks += _cat_block("Other", leftovers, cat_idx, "svc", service_notify_enabled("Other", config))
+            cat_blocks += _cat_block("Other", leftovers, cat_idx, "svc",
+                                     service_notify_enabled("Other", config), show_notify=True)
             cat_idx += 1
 
         # Curated packs — individual sites, so a parent can block ChatGPT but keep
