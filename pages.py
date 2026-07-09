@@ -3155,7 +3155,7 @@ def _blocklist_manager_html(config):
             return ("#1d9e75", "Light &mdash; comfortable on any supported router")
         if n < 600000:
             return ("#e8a000", "Moderate &mdash; fine on 512&nbsp;MB+ routers")
-        return ("#DC6B5F", "Heavy &mdash; best on 1&nbsp;GB routers (MT6000/MT5000); may strain 256&nbsp;MB models")
+        return ("#DC6B5F", "Heavy &mdash; best on 1&nbsp;GB routers; may strain 256&nbsp;MB models")
     bcol, blab = band(total)
 
     note = {
@@ -3194,7 +3194,7 @@ def _blocklist_manager_html(config):
           "var col,lab;"
           "if(t<400000){col='#1d9e75';lab='Light \\u2014 comfortable on any supported router';}"
           "else if(t<600000){col='#e8a000';lab='Moderate \\u2014 fine on 512\\u00a0MB+ routers';}"
-          "else{col='#DC6B5F';lab='Heavy \\u2014 best on 1\\u00a0GB routers (MT6000/MT5000); may strain 256\\u00a0MB models';}"
+          "else{col='#DC6B5F';lab='Heavy \\u2014 best on 1\\u00a0GB routers; may strain 256\\u00a0MB models';}"
           "var tt=document.getElementById('bl-total');tt.textContent=t.toLocaleString();tt.style.color=col;"
           "var bb=document.getElementById('bl-band');bb.textContent=lab;bb.style.color=col;}"
           "document.querySelectorAll('.bl-toggle').forEach(function(c){c.addEventListener('change',upd);});"
@@ -3203,7 +3203,11 @@ def _blocklist_manager_html(config):
     return (f'<div class="section"><h2>DNS Blocklists</h2>'
             f'<div class="form-card" style="margin-bottom:10px"><div style="font-size:0.82em;color:#64748b">'
             f'Turn lists on or off to balance protection against router load &mdash; more rules block more, but use more memory and a little speed. '
-            f'Changes apply in a few seconds. The number on the right is each list\'s rule count.</div></div>'
+            f'Changes apply in a few seconds. The number on the right is each list\'s rule count. '
+            f'Lists refresh automatically every day.</div>'
+            f'<form method="POST" action="/admin/blocklists/refresh" style="margin-top:10px">'
+            f'<button type="submit" class="btn btn-secondary" style="width:auto;padding:6px 14px;font-size:0.8em;margin-bottom:0">Check for updates now</button>'
+            f'</form></div>'
             f'{meter}'
             f'<form method="POST" action="/admin/blocklists/save">'
             f'<div class="form-card">{rows}'
@@ -3214,7 +3218,7 @@ def _blocklist_manager_html(config):
 
 def build_admin(config, saved=False, cleared=False, cleared_all=False,
                 confirm_clear=False, confirm_clear_all=False,
-                adguard_applied=False, adguard_apply_error=""):
+                adguard_applied=False, adguard_apply_error="", refreshed=False):
     ag         = config.get("adguard", {})
     retention_days = int(config.get("retention_days", 60))
     retention_opts = "".join(
@@ -3227,6 +3231,7 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
     acked_count = len(config.get("captive_portal_acked", []))
 
     saved_msg   = '<div class="success">Settings saved!</div>'       if saved       else ""
+    refreshed_msg = '<div class="success">Checking for blocklist updates &mdash; any new rules apply in a moment.</div>' if refreshed else ""
     cleared_msg = '<div class="success">Traffic data cleared!</div>' if cleared     else (
                   '<div class="success">All data cleared!</div>'     if cleared_all else "")
     if adguard_applied:
@@ -3265,7 +3270,7 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         + build_header("Settings", config=config)
         + '<div class="page-wrap">'
         +''
-        + f'{saved_msg}{tested_msg}{cleared_msg}{confirm_msg}{adguard_msg}'
+        + f'{saved_msg}{refreshed_msg}{tested_msg}{cleared_msg}{confirm_msg}{adguard_msg}'
         + f'<div class="section"><h2>Software</h2>'
         + f'<div class="form-card" style="display:flex;align-items:center;gap:12px">'
         + f'<div style="flex:1"><div style="font-weight:700;color:#2c2c2a">Lantern Watch</div>'
@@ -3300,6 +3305,7 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         + '}'
         + '</script>'
         + build_security_checklist_card(compute_safety_score(config))
+        + _build_health_card()
         + _blocklist_manager_html(config)
         + f'<div class="section"><h2>Settings</h2><form method="POST" action="/admin/save" id="admin-settings">'
         # Login
@@ -3366,7 +3372,6 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         )
         + '<script>function togglePwd(id,cb){var el=document.getElementById(id);if(el)el.type=cb.checked?"text":"password";}</script>'
         + f'</div>'
-        + _build_health_card()
         + _build_recovery_status(config)
         # Demo Mode lives at the very bottom (white, low-key). The form= attribute
         # ties it to the Settings form above so it still saves with the rest.

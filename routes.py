@@ -764,6 +764,12 @@ class Handler(BaseHTTPRequestHandler):
                 print(f"[Blocklists] {changed} list(s) toggled")
                 html = build_admin(config, saved=True)
 
+            elif parsed.path == "/admin/blocklists/refresh":
+                # Manual "update now" — AGH also auto-updates every 24h.
+                from adguard import refresh_filters
+                refresh_filters(config)
+                html = build_admin(config, refreshed=True)
+
             elif parsed.path == "/notifications/save":
                 config.setdefault("alerts", {})
                 config.setdefault("summary", {})
