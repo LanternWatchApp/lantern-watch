@@ -263,6 +263,12 @@ OPTIONAL_LISTS = [
      "url": "https://small.oisd.nl/",
      "label": "Extra ad &amp; tracker blocking",
      "desc": "A balanced extra ad/tracker list, tuned for low false positives."},
+    {"id": "bypass", "name": "VPN / Proxy / DoH Bypass Blocklist",
+     "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/doh-vpn-proxy-bypass.txt",
+     "label": "Block VPN, proxy &amp; DNS-bypass tools",
+     "desc": "Stops VPN, proxy, and encrypted-DNS services commonly used to get "
+             "around the filter (HaGeZi). Strong anti-bypass, but may interrupt a "
+             "legitimate work VPN — leave off if someone at home relies on one."},
 ]
 
 # Known-dead / redundant lists to clear out (e.g. a GL.iNet AdAway default that
@@ -795,21 +801,9 @@ CATEGORY_PACKS = {
             ("Lindy",         ["lindy.ai"]),
         ],
     },
-    "Dating": {
-        # Tinder, OnlyFans and Plenty of Fish are intentionally omitted — AdGuard
-        # already covers those as built-in services (the "Dating / Adult" group).
-        # Packs only add what AdGuard's built-in list doesn't.
-        "sites": [
-            ("Hinge",          ["hinge.co"]),
-            ("Bumble",         ["bumble.com"]),
-            ("Match.com",      ["match.com"]),
-            ("OkCupid",        ["okcupid.com"]),
-            ("eharmony",       ["eharmony.com"]),
-            ("Grindr",         ["grindr.com"]),
-            ("Badoo",          ["badoo.com"]),
-            ("MeetMe",         ["meetme.com"]),
-        ],
-    },
+    # (The "Dating" pack was removed 2026-07-09 — every site in it is already
+    #  blocked by the default-on ShadowWhisperer Dating List, which is far more
+    #  comprehensive, so the pack was pure redundancy.)
     "Lingerie": {
         "sites": [
             ("Victoria's Secret",        ["victoriassecret.com"]),
