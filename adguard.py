@@ -803,9 +803,8 @@ CATEGORY_PACKS = {
             ("MeetMe",         ["meetme.com"]),
         ],
     },
-    "Lingerie & Swimwear": {
+    "Lingerie": {
         "sites": [
-            # ── Lingerie brands ──
             ("Victoria's Secret",        ["victoriassecret.com"]),
             ("Victoria's Secret PINK",   ["pink.com"]),
             ("Adore Me",                 ["adoreme.com"]),
@@ -882,7 +881,10 @@ CATEGORY_PACKS = {
             ("Addition Elle",            ["additionelle.com"]),
             ("Penningtons",              ["penningtons.com"]),
             ("Lilianne Lingerie",        ["liliannelingerie.com"]),
-            # ── Swimwear brands ──
+        ],
+    },
+    "Swimwear": {
+        "sites": [
             ("Cupshe",                   ["cupshe.com"]),
             ("Swimsuits For All",        ["swimsuitsforall.com"]),
             ("Andie Swim",               ["andieswim.com"]),
@@ -952,8 +954,11 @@ CATEGORY_PACKS = {
             ("Hurley",                   ["hurley.ca"]),
             ("Beach Bunny",             ["beachbunnyswimwear.com"]),
             ("SwimOutlet",              ["swimoutlet.com"]),
-            # ── Major retailers — these block the WHOLE site, not just the
-            #    lingerie/swim section. Left individually tickable on purpose. ──
+        ],
+    },
+    # These block the WHOLE retailer site, not just its lingerie/swim section.
+    "Retailers (Lingerie & Swim)": {
+        "sites": [
             ("J.Crew",                   ["jcrew.com"]),
             ("Target",                   ["target.com"]),
             ("SHEIN",                    ["shein.com"]),
