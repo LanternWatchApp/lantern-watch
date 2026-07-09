@@ -76,6 +76,21 @@ DEFAULTS = {
         "weekly_hour": 20,
     },
     "retention_days": 60,
+    # Per-category notifications for AdGuard "Blocked Services". Intentional-
+    # navigation categories notify; chatty background telemetry (gaming,
+    # streaming, shopping, relay) stays quiet. Editable per group on
+    # /blocked-services. Runtime falls back to SERVICE_NOTIFY_DEFAULTS if absent.
+    "service_notify": {
+        "Social Media": True,
+        "Messaging & Chat": True,
+        "Dating / Adult": True,
+        "Gambling": True,
+        "Gaming": False,
+        "Streaming & Music": False,
+        "Shopping": False,
+        "Privacy Bypass": False,
+        "Other": False,
+    },
     "vpn_whitelist": [],
     "captive_portal": False,
     "captive_portal_acked": [],

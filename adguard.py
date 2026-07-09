@@ -1110,6 +1110,98 @@ AGH_SERVICE_GROUPS = {
     ],
 }
 
+# Which blocked-service CATEGORIES notify / show in the dashboard "Blocked
+# Content" by default. Intentional-navigation categories are on; chatty
+# background-telemetry categories (gaming, streaming, shopping, relay) are off,
+# so a parent isn't buried in Smart-TV / GeForce / Game Pass telemetry. Every
+# category is a per-group checkbox on /blocked-services, so this is only the
+# starting point. "Other" = AGH services we don't group (default quiet).
+SERVICE_NOTIFY_DEFAULTS = {
+    "Social Media":       True,
+    "Messaging & Chat":   True,
+    "Dating / Adult":     True,
+    "Gambling":           True,
+    "Gaming":             False,
+    "Streaming & Music":  False,
+    "Shopping":           False,
+    "Privacy Bypass":     False,
+    "Other":              False,
+}
+
+
+def service_notify_enabled(category, config):
+    """Whether blocked-service hits in this category should notify + appear in
+    Blocked Content. Falls back to the smart defaults when unset (existing
+    configs predate the setting, and load_config does not merge defaults)."""
+    if not category:
+        return False
+    prefs = (config or {}).get("service_notify") or {}
+    if category in prefs:
+        return bool(prefs[category])
+    return SERVICE_NOTIFY_DEFAULTS.get(category, False)
+
+
+def _service_rule_domain(rule):
+    """Extract a base domain from an AGH blocked-service rule like '||tiktok.com^'."""
+    r = (rule or "").strip()
+    if not r or r.startswith("!") or r.startswith("@@"):
+        return None
+    if r.startswith("||"):
+        r = r[2:]
+    for sep in ("^", "$", "/"):
+        r = r.split(sep, 1)[0]
+    r = r.lstrip("*.").lower().strip(".")
+    return r if ("." in r and " " not in r) else None
+
+
+_SVC_CAT_CACHE = {"ts": 0.0, "index": None}
+
+
+def _service_domain_category_index(config):
+    """base-domain -> service category, built from AGH's own service rules and
+    AGH_SERVICE_GROUPS. Cached ~1h (the service catalog is effectively static)."""
+    import time
+    now = time.time()
+    if _SVC_CAT_CACHE["index"] is not None and (now - _SVC_CAT_CACHE["ts"] < 3600):
+        return _SVC_CAT_CACHE["index"]
+    sid_cat = {}
+    for cat, ids in AGH_SERVICE_GROUPS.items():
+        for sid in ids:
+            sid_cat[sid] = cat
+    try:
+        raw = urllib.request.urlopen(
+            _ag_request(config, "/control/blocked_services/all"), timeout=8).read().decode()
+        d = json.loads(raw)
+        svcs = d.get("blocked_services", d) if isinstance(d, dict) else d
+        index = {}
+        for s in (svcs or []):
+            cat = sid_cat.get(s.get("id"), "Other")
+            for rule in s.get("rules", []):
+                dom = _service_rule_domain(rule)
+                if dom:
+                    index[dom] = cat
+        _SVC_CAT_CACHE.update(ts=now, index=index)
+    except Exception as e:
+        print(f"[Services] category index error: {e}")
+    return _SVC_CAT_CACHE["index"] or {}
+
+
+def service_category_for_domain(domain, config):
+    """Category of the blocked SERVICE a domain belongs to (walking up the domain
+    for subdomains), or None if it isn't a known blocked-service domain."""
+    idx = _service_domain_category_index(config)
+    if not idx:
+        return None
+    d = (domain or "").lower().strip(".")
+    while d:
+        if d in idx:
+            return idx[d]
+        if "." not in d:
+            break
+        d = d.split(".", 1)[1]
+    return None
+
+
 AGH_SERVICE_LABELS = {
     "xboxlive":             "Xbox Live",
     "battle_net":           "Battle.net",

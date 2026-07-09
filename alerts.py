@@ -312,16 +312,21 @@ def _explicit_block_domains(config):
         return set()
 
 
-def _is_notable_block(domain, reasons, explicit):
-    """True if a block is worth notifying about: adult content, a blocked service
-    (social/gaming), or an FilteredBlackList hit on a domain the admin explicitly
-    blocked. Excludes the high-volume ad/tracker blocklist noise."""
+def _is_notable_block(domain, reasons, explicit, config):
+    """True if a block is worth notifying about: adult content, a FilteredBlackList
+    hit on a domain the admin explicitly blocked, or a blocked SERVICE whose
+    category the parent chose to be notified about (social/dating/gambling on by
+    default; gaming/streaming/shopping telemetry off). Excludes the high-volume
+    ad/tracker blocklist noise."""
     reasons = reasons or ""
-    if "Parental" in reasons or "FilteredBlockedService" in reasons:
+    d = (domain or "").lower()
+    if "Parental" in reasons:
         return True
-    if "FilteredBlackList" in reasons:
-        d = (domain or "").lower()
-        return any(d == e or d.endswith("." + e) for e in explicit)
+    if "FilteredBlackList" in reasons and any(d == e or d.endswith("." + e) for e in explicit):
+        return True
+    if "FilteredBlockedService" in reasons:
+        from adguard import service_category_for_domain, service_notify_enabled
+        return service_notify_enabled(service_category_for_domain(domain, config), config)
     return False
 
 
@@ -355,7 +360,7 @@ def check_blocked_content(config):
     cooldowns  = config.get("blocked_content_cooldowns", {})
     fresh = []
     for r in rows:
-        if not _is_notable_block(r["domain"], r["reasons"], explicit):
+        if not _is_notable_block(r["domain"], r["reasons"], explicit, config):
             continue
         key  = f"{r['client_name']}|{r['domain']}"
         prev = cooldowns.get(key, "2000-01-01T00:00:00")

@@ -1820,11 +1820,13 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
     # services, custom blocks, category packs), not the ambient ad/tracker noise.
     from db import get_notable_blocks
     try:
-        from adguard import get_custom_blocks, get_blocked_pack_domains
+        from adguard import (get_custom_blocks, get_blocked_pack_domains,
+                             service_category_for_domain, service_notify_enabled)
         _explicit = set(get_custom_blocks(config)) | set(get_blocked_pack_domains(config))
+        _svc_ok = lambda d: service_notify_enabled(service_category_for_domain(d, config), config)
     except Exception:
-        _explicit = set()
-    notable = get_notable_blocks(_explicit)
+        _explicit, _svc_ok = set(), None
+    notable = get_notable_blocks(_explicit, is_notable_service=_svc_ok)
     if notable:
         adult_rows    = "".join(make_adult_link(r) for r in notable)
         adult_section = ('<div class="section"><h2 class="alert">Blocked Content</h2>'
@@ -2978,7 +2980,8 @@ def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg=
     if not all_svcs:
         body = '<div class="section"><p style="color:#94a3b8;font-size:0.9em">Could not load service list from AdGuard. Check AdGuard is running and credentials are correct.</p></div>'
     else:
-        from adguard import AGH_SERVICE_GROUPS, CATEGORY_PACKS, get_blocked_pack_domains
+        from adguard import (AGH_SERVICE_GROUPS, CATEGORY_PACKS,
+                             get_blocked_pack_domains, service_notify_enabled)
         checked_count = len(blocked_ids)
         id_to_name = {s["id"]: s["name"] for s in all_svcs}
 
@@ -2991,20 +2994,29 @@ def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg=
                 f'<span style="font-size:0.88em;color:#2c2c2a">{label}</span></label>'
             )
 
-        def _cat_block(title, entries, cat_idx, field):
+        def _cat_block(title, entries, cat_idx, field, notify_on=False):
             # entries: list of (value, label, checked)
             n_blocked = sum(1 for _, _, c in entries if c)
             rows = "".join(_checkbox(v, lb, cat_idx, field, c) for v, lb, c in entries)
+            notify_chk = "checked" if notify_on else ""
+            notify_lbl = (
+                f'<label title="Notify me / show on the dashboard when a device tries a blocked service in this group" '
+                f'style="display:flex;align-items:center;gap:4px;font-size:0.72em;color:#64748b;cursor:pointer;white-space:nowrap">'
+                f'<input type="checkbox" name="svcnotify" value="{title}" {notify_chk} '
+                f'style="width:14px;height:14px;accent-color:#e8a000">&#x1F514; Notify</label>'
+            )
             return (
                 f'<div style="margin-bottom:18px">'
-                f'<div style="display:flex;align-items:center;justify-content:space-between;'
+                f'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;'
                 f'border-bottom:2px solid #f0f0ee;padding-bottom:4px;margin-bottom:6px">'
                 f'<span style="font-weight:700;color:#2c2c2a;font-size:0.9em">{title} '
                 f'<span style="color:#94a3b8;font-weight:500;font-size:0.85em">({n_blocked}/{len(entries)})</span></span>'
+                f'<span style="display:flex;gap:10px;align-items:center">'
+                f'{notify_lbl}'
                 f'<span style="display:flex;gap:6px">'
                 f'<button type="button" onclick="catAll({cat_idx},true)" class="btn btn-secondary" style="font-size:0.72em;padding:3px 9px">All</button>'
                 f'<button type="button" onclick="catAll({cat_idx},false)" class="btn btn-secondary" style="font-size:0.72em;padding:3px 9px">None</button>'
-                f'</span></div>'
+                f'</span></span></div>'
                 f'<div style="columns:2;column-gap:16px">{rows}</div>'
                 f'</div>'
             )
@@ -3015,12 +3027,12 @@ def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg=
             if not present:
                 continue
             used.update(i for i, _, _ in present)
-            cat_blocks += _cat_block(cat, present, cat_idx, "svc")
+            cat_blocks += _cat_block(cat, present, cat_idx, "svc", service_notify_enabled(cat, config))
             cat_idx += 1
         # AGH services not in any named group
         leftovers = [(s["id"], s["name"], s["id"] in blocked_ids) for s in all_svcs if s["id"] not in used]
         if leftovers:
-            cat_blocks += _cat_block("Other", leftovers, cat_idx, "svc")
+            cat_blocks += _cat_block("Other", leftovers, cat_idx, "svc", service_notify_enabled("Other", config))
             cat_idx += 1
 
         # Curated packs — individual sites, so a parent can block ChatGPT but keep

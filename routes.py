@@ -839,6 +839,14 @@ class Handler(BaseHTTPRequestHandler):
                     set_blocked_pack_domains(config, doms)
                 except Exception as e:
                     print(f"[BlockedServices] packs save error: {e}")
+                try:
+                    from adguard import SERVICE_NOTIFY_DEFAULTS
+                    notify_on = set(params.get("svcnotify", []))
+                    config["service_notify"] = {cat: (cat in notify_on)
+                                                for cat in SERVICE_NOTIFY_DEFAULTS}
+                    save_config(config)
+                except Exception as e:
+                    print(f"[BlockedServices] notify prefs save error: {e}")
                 self._redirect("/blocked-services?saved=1")
                 return
 
