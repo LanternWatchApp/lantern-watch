@@ -713,23 +713,31 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             elif parsed.path == "/admin/clear":
+                # Clear AdGuard's own query log FIRST — otherwise the collector
+                # re-imports the entries we're about to delete within a minute.
+                from adguard import clear_adguard_querylog
+                clear_adguard_querylog(config)
                 conn = sqlite3.connect(DB_PATH)
                 conn.execute("DELETE FROM querylog")
                 conn.commit()
                 conn.close()
-                config["last_adult_alert"] = "2000-01-01T00:00:00Z"
+                config["last_adult_alert"] = datetime.utcnow().isoformat() + "Z"
+                config["blocked_content_cooldowns"] = {}
                 save_config(config)
                 reset_adguard_stats(config)
                 html = build_admin(config, cleared=True)
 
             elif parsed.path == "/admin/clear_all":
+                from adguard import clear_adguard_querylog
+                clear_adguard_querylog(config)
                 conn = sqlite3.connect(DB_PATH)
                 conn.execute("DELETE FROM querylog")
                 conn.commit()
                 conn.close()
                 config["devices"] = {}
                 config["schedules"] = {}
-                config["last_adult_alert"] = "2000-01-01T00:00:00Z"
+                config["last_adult_alert"] = datetime.utcnow().isoformat() + "Z"
+                config["blocked_content_cooldowns"] = {}
                 save_config(config)
                 reset_adguard_stats(config)
                 html = build_admin(config, cleared_all=True)

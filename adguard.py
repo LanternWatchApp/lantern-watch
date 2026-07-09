@@ -600,6 +600,28 @@ def reset_adguard_stats(config):
     _STATS_CACHE = {"data": None, "ts": 0.0}
 
 
+def clear_adguard_querylog(config):
+    """Clear AdGuard Home's own query log. Without this, clearing Lantern Watch's
+    query history is undone within a minute — the collector mirrors AGH's log,
+    so any entries still in AGH get re-imported. Returns True on success."""
+    try:
+        ag   = config.get("adguard", {})
+        url  = ag.get("url", "http://127.0.0.1:3000")
+        user = ag.get("username", "")
+        pwd  = ag.get("password", "")
+        auth = base64.b64encode(f"{user}:{pwd}".encode()).decode()
+        req  = urllib.request.Request(
+            f"{url}/control/querylog_clear",
+            method="POST",
+            headers={"Authorization": f"Basic {auth}"},
+        )
+        urllib.request.urlopen(req, timeout=8)
+        return True
+    except Exception as e:
+        print(f"[AdGuard] querylog_clear error: {e}")
+        return False
+
+
 def get_adguard_stats(config):
     now = time.time()
     if _STATS_CACHE["data"] is not None and now - _STATS_CACHE["ts"] < _CACHE_TTL:
