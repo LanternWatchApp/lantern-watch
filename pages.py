@@ -3136,6 +3136,82 @@ def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg=
     )
 
 
+def _blocklist_manager_html(config):
+    """Settings -> DNS Blocklists: per-list on/off toggles with rule counts and a
+    live 'rule budget' meter, so a low-RAM router owner can trim weight."""
+    try:
+        from adguard import get_all_filter_lists
+        lists = get_all_filter_lists(config)
+    except Exception:
+        lists = []
+    if not lists:
+        return ('<div class="section"><h2>DNS Blocklists</h2><div class="form-card">'
+                '<div style="color:#94a3b8;font-size:0.9em">Could not load blocklists from AdGuard.</div>'
+                '</div></div>')
+    total = sum(l["rules_count"] for l in lists if l["enabled"])
+
+    def band(n):
+        if n < 400000:
+            return ("#1d9e75", "Light &mdash; comfortable on any supported router")
+        if n < 600000:
+            return ("#e8a000", "Moderate &mdash; fine on 512&nbsp;MB+ routers")
+        return ("#DC6B5F", "Heavy &mdash; best on 1&nbsp;GB routers (MT6000/MT5000); may strain 256&nbsp;MB models")
+    bcol, blab = band(total)
+
+    note = {
+        "Security":         ("#DC6B5F", "Phishing, malware, scam &amp; stalkerware. Best kept on &mdash; turning these off to save memory trades away real protection."),
+        "Family & Content": ("#1d9e75", "Adult content, gambling, dating."),
+        "Ads & Tracking":   ("#64748b", "Ads, trackers, telemetry, smart-TV."),
+        "Other":            ("#64748b", "Additional lists."),
+    }
+    from collections import OrderedDict
+    groups = OrderedDict()
+    for l in lists:
+        groups.setdefault(l["category"], []).append(l)
+    rows = ""
+    for cat, items in groups.items():
+        col, txt = note.get(cat, ("#64748b", ""))
+        rows += (f'<div style="margin-top:14px;margin-bottom:2px">'
+                 f'<span style="font-weight:700;color:{col};font-size:0.9em">{cat}</span>'
+                 f'<div style="font-size:0.74em;color:#94a3b8">{txt}</div></div>')
+        for l in items:
+            u   = l["url"].replace("&", "&amp;").replace('"', "&quot;")
+            chk = "checked" if l["enabled"] else ""
+            rows += (f'<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">'
+                     f'<input type="checkbox" name="list" value="{u}" data-rules="{l["rules_count"]}" {chk} '
+                     f'class="bl-toggle" style="width:16px;height:16px;accent-color:#e8a000;flex-shrink:0">'
+                     f'<span style="flex:1;font-size:0.88em;color:#2c2c2a">{l["name"]}</span>'
+                     f'<span style="font-size:0.78em;color:#94a3b8;white-space:nowrap">{l["rules_count"]:,}</span></label>')
+
+    meter = (f'<div class="form-card" style="margin-bottom:10px">'
+             f'<div style="display:flex;justify-content:space-between;align-items:baseline">'
+             f'<span style="font-weight:700;color:#2c2c2a">Active rules</span>'
+             f'<span id="bl-total" style="font-weight:800;color:{bcol}">{total:,}</span></div>'
+             f'<div id="bl-band" style="font-size:0.78em;color:{bcol};margin-top:2px">{blab}</div></div>')
+
+    js = ("<script>(function(){"
+          "function upd(){var t=0;document.querySelectorAll('.bl-toggle:checked').forEach(function(c){t+=parseInt(c.dataset.rules||0);});"
+          "var col,lab;"
+          "if(t<400000){col='#1d9e75';lab='Light \\u2014 comfortable on any supported router';}"
+          "else if(t<600000){col='#e8a000';lab='Moderate \\u2014 fine on 512\\u00a0MB+ routers';}"
+          "else{col='#DC6B5F';lab='Heavy \\u2014 best on 1\\u00a0GB routers (MT6000/MT5000); may strain 256\\u00a0MB models';}"
+          "var tt=document.getElementById('bl-total');tt.textContent=t.toLocaleString();tt.style.color=col;"
+          "var bb=document.getElementById('bl-band');bb.textContent=lab;bb.style.color=col;}"
+          "document.querySelectorAll('.bl-toggle').forEach(function(c){c.addEventListener('change',upd);});"
+          "})();</script>")
+
+    return (f'<div class="section"><h2>DNS Blocklists</h2>'
+            f'<div class="form-card" style="margin-bottom:10px"><div style="font-size:0.82em;color:#64748b">'
+            f'Turn lists on or off to balance protection against router load &mdash; more rules block more, but use more memory and a little speed. '
+            f'Changes apply in a few seconds. The number on the right is each list\'s rule count.</div></div>'
+            f'{meter}'
+            f'<form method="POST" action="/admin/blocklists/save">'
+            f'<div class="form-card">{rows}'
+            f'<button type="submit" style="width:100%;margin-top:16px;padding:12px;background:#e8a000;border:none;'
+            f'border-radius:8px;color:white;font-weight:700;cursor:pointer">Save Blocklist Selection</button>'
+            f'</div></form>{js}</div>')
+
+
 def build_admin(config, saved=False, cleared=False, cleared_all=False,
                 confirm_clear=False, confirm_clear_all=False,
                 adguard_applied=False, adguard_apply_error=""):
@@ -3224,6 +3300,7 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         + '}'
         + '</script>'
         + build_security_checklist_card(compute_safety_score(config))
+        + _blocklist_manager_html(config)
         + f'<div class="section"><h2>Settings</h2><form method="POST" action="/admin/save" id="admin-settings">'
         # Login
         + f'<div class="form-card"><div class="form-label">Lantern Watch Username</div>'

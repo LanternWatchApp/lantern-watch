@@ -747,6 +747,23 @@ class Handler(BaseHTTPRequestHandler):
                 clear_portal_acks(config)
                 html = build_admin(config, saved=True)
 
+            elif parsed.path == "/admin/blocklists/save":
+                # Enable/disable each AGH blocklist to match the checked boxes.
+                # Unchecked = disable, so we reconcile against the full list.
+                from adguard import get_all_filter_lists, set_filter_enabled
+                checked = set(params.get("list", []))
+                changed = 0
+                try:
+                    for f in get_all_filter_lists(config):
+                        want = f["url"] in checked
+                        if want != f["enabled"]:
+                            set_filter_enabled(config, f["url"], f["name"], want)
+                            changed += 1
+                except Exception as e:
+                    print(f"[Blocklists] save error: {e}")
+                print(f"[Blocklists] {changed} list(s) toggled")
+                html = build_admin(config, saved=True)
+
             elif parsed.path == "/notifications/save":
                 config.setdefault("alerts", {})
                 config.setdefault("summary", {})

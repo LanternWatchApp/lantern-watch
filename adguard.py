@@ -356,6 +356,58 @@ def refresh_filters(config):
         print(f"[Filters] refresh error: {e}")
 
 
+# ── Blocklist manager (Settings → DNS Blocklists) ─────────────────────────────
+
+def _list_category_map():
+    """URL -> display category, for grouping lists in the blocklist manager."""
+    norm = {"Family Safety": "Family & Content", "Security": "Security",
+            "Ads & Tracking": "Ads & Tracking"}
+    m = {}
+    for l in RECOMMENDED_LISTS:
+        m[l["url"]] = norm.get(l.get("category"), "Other")
+    opt_cat = {"nsfw": "Family & Content", "gambling": "Family & Content",
+               "smart_tv": "Ads & Tracking", "extra_ads": "Ads & Tracking",
+               "bypass": "Security"}
+    for l in OPTIONAL_LISTS:
+        m[l["url"]] = opt_cat.get(l["id"], "Other")
+    return m
+
+
+_CAT_ORDER = {"Security": 0, "Family & Content": 1, "Ads & Tracking": 2, "Other": 3}
+
+
+def get_all_filter_lists(config):
+    """Every blocklist AGH knows about, annotated with category + rule count,
+    for the Settings blocklist manager. Sorted by category, then name."""
+    cmap = _list_category_map()
+    try:
+        st = json.loads(urllib.request.urlopen(
+            _ag_request(config, "/control/filtering/status"), timeout=8).read().decode())
+    except Exception as e:
+        print(f"[Filters] status error: {e}")
+        return []
+    out = []
+    for f in (st.get("filters") or []):
+        out.append({
+            "name":        f.get("name", ""),
+            "url":         f.get("url", ""),
+            "enabled":     bool(f.get("enabled")),
+            "rules_count": int(f.get("rules_count", 0)),
+            "category":    cmap.get(f.get("url"), "Other"),
+        })
+    out.sort(key=lambda x: (_CAT_ORDER.get(x["category"], 9), x["name"].lower()))
+    return out
+
+
+def set_filter_enabled(config, url, name, enabled):
+    """Enable or disable a single AGH blocklist via the set_url API."""
+    payload = json.dumps({
+        "url": url, "whitelist": False,
+        "data": {"name": name, "url": url, "enabled": bool(enabled)},
+    }).encode()
+    urllib.request.urlopen(_ag_request(config, "/control/filtering/set_url", payload), timeout=10)
+
+
 # ── AdGuard API helpers ───────────────────────────────────────────────────────
 
 def _ag_request(config, path, payload=None):
