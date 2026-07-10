@@ -78,6 +78,15 @@ def _short_vendor(v):
     return " ".join(words[:3]) or v
 
 
+def _drop_dns_suffix(s):
+    """Trim a router-local DNS suffix from a display name (Galaxy-S21.lan -> Galaxy-S21).
+    Local suffixes are noise in alerts — every device on the LAN has one."""
+    for suffix in (".lan", ".local", ".home", ".internal"):
+        if s and s.lower().endswith(suffix):
+            return s[: -len(suffix)]
+    return s
+
+
 def _friendly(name, config=None):
     """Best human-readable name for a client, so alerts/summaries never show a
     bare IP (which Telegram turns into a dead link). Order: saved label → DHCP
@@ -97,6 +106,7 @@ def _friendly(name, config=None):
                     lbl = k[0].upper() + k[1:]   # "Smart TV", "Video doorbell"
         except Exception:
             pass
+    lbl = _drop_dns_suffix(lbl)
     if config and config.get("demo_mode"):
         return _demo(name, lbl, config)
     return lbl
@@ -207,15 +217,16 @@ def send_telegram(config, message, title="Lantern Watch"):
         # Dashboard:/View activity: URL lines, which become real links just below.
         _ip = _re.compile(r"(?<![\w.])(\d{1,3}(?:\.\d{1,3}){3})(?![\w.])")
         text = "\n".join(
-            ln if ln.lstrip().startswith(("Dashboard:", "View activity:"))
+            ln if ln.lstrip().startswith(("Dashboard:", "View activity:", "Find help:"))
             else _ip.sub(r"`\1`", ln)
             for ln in text.split("\n")
         )
         # Telegram won't linkify a bare single-label host like "lanternwatch", so
-        # render the dashboard / device lines as clean labeled Markdown links
+        # render the dashboard / device / help lines as clean labeled Markdown links
         # (the URL target is the LAN IP, which is always reachable + linkable).
         text    = _re.sub(r"(?m)^Dashboard:\s*(\S+)\s*$",     r"[Open Dashboard](\1)", text)
         text    = _re.sub(r"(?m)^View activity:\s*(\S+)\s*$", r"[View activity](\1)", text)
+        text    = _re.sub(r"(?m)^Find help:\s*(\S+)\s*$",     r"[Find help](\1)", text)
         payload = json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}).encode()
         req = urllib.request.Request(
             f"https://api.telegram.org/bot{token}/sendMessage",
@@ -235,6 +246,7 @@ def _email_html(message):
     safe = _html.escape(message)
     safe = _re.sub(r"(?m)^Dashboard:\s*(\S+)\s*$",     r'<a href="\1">Open Dashboard</a>', safe)
     safe = _re.sub(r"(?m)^View activity:\s*(\S+)\s*$", r'<a href="\1">View activity</a>', safe)
+    safe = _re.sub(r"(?m)^Find help:\s*(\S+)\s*$",     r'<a href="\1">Find help</a>', safe)
     return ('<div style="font-family:sans-serif;font-size:14px;line-height:1.5">'
             + safe.replace("\n", "<br>") + "</div>")
 
@@ -412,12 +424,13 @@ def check_blocked_content(config):
 
     base_url  = _dash_url(config)
     help_url  = base_url.rstrip("/") + "/findhelp"
-    help_line = f"\n\nIf you or someone at home is struggling, you're not alone — help is here: {help_url}"
+    help_line = ("\n\nIf you or someone at home is struggling, you're not alone.\n"
+                 f"Find help: {help_url}")
     if len(fresh) == 1:
         c, d = fresh[0]
-        body = f"{label(c, config)} tried to reach a blocked site: {d}"
+        body = f"{_friendly(c, config)} tried to reach a blocked site: {d}"
     else:
-        lines = [f"• {label(c, config)}: {d}" for c, d in fresh]
+        lines = [f"• {_friendly(c, config)}: {d}" for c, d in fresh]
         body  = f"{len(fresh)} blocked-site attempts:\n" + "\n".join(lines)
     msg = _append_url(body + help_line, config)
     if config.get("ntfy_topic"):
@@ -686,7 +699,7 @@ def send_weekly_summary(config):
         if label(d["client_name"], config) in skip:
             continue
         dpct = round(d["blocked"] / d["total"] * 100) if d["total"] > 0 else 0
-        lines.append(f"  {_demo(d['client_name'], label(d['client_name'], config), config)}: {d['total']:,} queries, {dpct}% blocked")
+        lines.append(f"  {_friendly(d['client_name'], config)}: {d['total']:,} queries, {dpct}% blocked")
     if top_blocked:
         lines += ["", "Top blocked domains:"]
         for r in top_blocked:
