@@ -399,6 +399,29 @@ def get_all_filter_lists(config):
     return out
 
 
+_FID_CAT_CACHE = {"ts": 0.0, "map": None}
+
+
+def filter_id_category_map(config):
+    """AGH filter_list_id -> our category (Security / Family & Content / Ads &
+    Tracking / Other). Used to decide which blocklist hits are notify-worthy —
+    a `FilteredBlackList` block only says "a list caught it", not which one.
+    Cached ~5 min (filter ids are stable until a list is added/removed)."""
+    import time
+    now = time.time()
+    if _FID_CAT_CACHE["map"] is not None and (now - _FID_CAT_CACHE["ts"] < 300):
+        return _FID_CAT_CACHE["map"]
+    cmap = _list_category_map()  # url -> category
+    try:
+        st = json.loads(urllib.request.urlopen(
+            _ag_request(config, "/control/filtering/status"), timeout=8).read().decode())
+        m = {f.get("id"): cmap.get(f.get("url"), "Other") for f in (st.get("filters") or [])}
+        _FID_CAT_CACHE.update(ts=now, map=m)
+    except Exception as e:
+        print(f"[Filters] fid category map error: {e}")
+    return _FID_CAT_CACHE["map"] or {}
+
+
 def set_filter_enabled(config, url, name, enabled):
     """Enable or disable a single AGH blocklist via the set_url API."""
     payload = json.dumps({

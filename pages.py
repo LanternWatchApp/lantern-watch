@@ -1821,12 +1821,15 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
     from db import get_notable_blocks
     try:
         from adguard import (get_custom_blocks, get_blocked_pack_domains,
-                             service_category_for_domain, service_notify_enabled)
+                             service_category_for_domain, service_notify_enabled,
+                             filter_id_category_map)
         _explicit = set(get_custom_blocks(config)) | set(get_blocked_pack_domains(config))
         _svc_ok = lambda d: service_notify_enabled(service_category_for_domain(d, config), config)
+        _fid_cats = filter_id_category_map(config)
+        _fam_ok = lambda fids: any(_fid_cats.get(f) == "Family & Content" for f in fids)
     except Exception:
-        _explicit, _svc_ok = set(), None
-    notable = get_notable_blocks(_explicit, is_notable_service=_svc_ok)
+        _explicit, _svc_ok, _fam_ok = set(), None, None
+    notable = get_notable_blocks(_explicit, is_notable_service=_svc_ok, is_family_list=_fam_ok)
     if notable:
         adult_rows    = "".join(make_adult_link(r) for r in notable)
         adult_section = ('<div class="section"><h2 class="alert">Blocked Content</h2>'

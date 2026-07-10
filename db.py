@@ -321,21 +321,35 @@ def get_device_detail(client_name):
     return totals, clean_sites, blocked_sites, hourly, secs, all_time, peak_hour, top_category, ip_address, hostname
 
 
-def get_notable_blocks(explicit_domains, is_notable_service=None, limit=10):
+def _parse_fids(s):
+    """Parse a GROUP_CONCAT of filter_id values into a list of ints."""
+    out = []
+    for x in (s or "").split(","):
+        x = x.strip()
+        if x and x.lower() != "none":
+            try:
+                out.append(int(x))
+            except ValueError:
+                pass
+    return out
+
+
+def get_notable_blocks(explicit_domains, is_notable_service=None, is_family_list=None, limit=10):
     """Recent 'notable' blocked domains for the dashboard Blocked Content section:
-    adult content, admin-chosen blocks (custom + category packs), and blocked
-    services whose CATEGORY the parent chose to be notified about — NOT the
-    ambient ad/tracker noise or chatty gaming/streaming telemetry.
-    `explicit_domains` is the custom-block + pack set (tells a parent-chosen
-    FilteredBlackList hit from ad-list noise). `is_notable_service(domain)` is an
-    optional predicate returning True if a blocked-SERVICE domain's category has
-    notifications enabled (see adguard.service_notify_enabled)."""
+    adult content, hits on a Family & Content blocklist (adult/gambling/dating),
+    admin-chosen blocks (custom + category packs), and blocked services whose
+    CATEGORY the parent chose to be notified about — NOT the ambient ad/tracker
+    noise or chatty gaming/streaming telemetry.
+    `explicit_domains` is the custom-block + pack set. `is_notable_service(domain)`
+    flags a notify-enabled blocked SERVICE; `is_family_list(filter_ids)` flags a
+    hit on a Family & Content blocklist (see adguard.filter_id_category_map)."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     since = today_start()
     rows = conn.execute("""
         SELECT domain, COUNT(*) as hits, MAX(ts) as last_seen,
-               GROUP_CONCAT(DISTINCT reason) as reasons
+               GROUP_CONCAT(DISTINCT reason) as reasons,
+               GROUP_CONCAT(DISTINCT filter_id) as filter_ids
         FROM querylog
         WHERE blocked=1 AND ts > ?
           AND (reason LIKE '%Parental%' OR reason = 'FilteredBlockedService'
@@ -351,6 +365,8 @@ def get_notable_blocks(explicit_domains, is_notable_service=None, limit=10):
         notable = "Parental" in reasons
         if not notable and "FilteredBlackList" in reasons:
             notable = any(dom == e or dom.endswith("." + e) for e in exp)
+            if not notable and is_family_list:
+                notable = is_family_list(_parse_fids(r["filter_ids"]))
         if not notable and "FilteredBlockedService" in reasons:
             notable = bool(is_notable_service and is_notable_service(dom))
         if notable:

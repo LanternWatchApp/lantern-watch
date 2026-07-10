@@ -51,9 +51,16 @@ def init_db():
         blocked INTEGER,
         reason TEXT,
         elapsed_ms REAL,
+        filter_id INTEGER,
         UNIQUE(ts, client_ip, domain, qtype)
     )
     """)
+    # Migration for DBs created before filter_id existed (which blocklist caught a
+    # block — needed to notify on adult/gambling/dating list hits).
+    try:
+        conn.execute("ALTER TABLE querylog ADD COLUMN filter_id INTEGER")
+    except Exception:
+        pass
     conn.commit()
     conn.close()
 
@@ -110,22 +117,32 @@ def store_entries(entries, config):
     conn.row_factory = sqlite3.Row
     saved = 0
     for item in entries:
+        if not isinstance(item, dict):
+            continue
         try:
             ts = item.get("time")
             client_ip = item.get("client", "")
-            raw_name = item.get("client_info", {}).get("name", "") or client_ip
+            ci = item.get("client_info")
+            raw_name = (ci.get("name", "") if isinstance(ci, dict) else "") or client_ip
             client_name = raw_name
-            question = item.get("question", {})
+            question = item.get("question")
+            if not isinstance(question, dict):
+                question = {}
             domain = question.get("name", "")
             qtype = question.get("type", "")
             blocked = 1 if item.get("reason", "").startswith("Filtered") else 0
             reason = item.get("reason", "")
             elapsed = float(item.get("elapsedMs", 0))
+            filter_id = None
+            for _rule in (item.get("rules") or []):
+                if isinstance(_rule, dict) and _rule.get("filter_list_id") is not None:
+                    filter_id = _rule.get("filter_list_id")
+                    break
             result = conn.execute("""
             INSERT OR IGNORE INTO querylog
-            (ts, client_ip, client_name, domain, qtype, blocked, reason, elapsed_ms)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (ts, client_ip, client_name, domain, qtype, blocked, reason, elapsed))
+            (ts, client_ip, client_name, domain, qtype, blocked, reason, elapsed_ms, filter_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (ts, client_ip, client_name, domain, qtype, blocked, reason, elapsed, filter_id))
             if result.rowcount > 0:
                 saved += 1
         except Exception as e:
