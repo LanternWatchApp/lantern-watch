@@ -428,7 +428,7 @@ def check_blocked_content(config):
                  f"Find help: {help_url}")
     if len(fresh) == 1:
         c, d = fresh[0]
-        body = f"{_friendly(c, config)} tried to reach a blocked site: {d}"
+        body = f"{_friendly(c, config)} tried to reach a blocked site:\n{d}"
     else:
         lines = [f"• {_friendly(c, config)}: {d}" for c, d in fresh]
         body  = f"{len(fresh)} blocked-site attempts:\n" + "\n".join(lines)
