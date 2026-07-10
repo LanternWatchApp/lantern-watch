@@ -2252,22 +2252,31 @@ def build_blocked_page():
         'background:#f8f7f4;padding:24px">'
         '<div style="max-width:440px;width:100%;text-align:center">'
         f'<div style="width:216px;margin:0 auto 20px">{_LOGO_SVG}</div>'
-        '<h1 style="font-size:1.25em;font-weight:800;color:#2c2c2a;margin-bottom:20px;'
+        '<h1 style="font-size:1.25em;font-weight:800;color:#2c2c2a;margin-bottom:14px;'
         'line-height:1.4">This site has been blocked<br>by Lantern Watch.</h1>'
+        '<p style="color:#64748b;font-size:0.92em;line-height:1.6;margin-bottom:18px">'
+        'Access was blocked because this site has been identified as potentially harmful.</p>'
         '<div style="background:#fffbf0;border:1px solid #e8d080;border-radius:12px;'
-        'padding:18px 20px;margin-bottom:20px">'
+        'padding:18px 20px;margin-bottom:18px">'
         '<div style="font-size:0.95em;color:#7a5c00;font-style:italic;line-height:1.7">'
         '&#x201C;Your word is a lamp to my feet<br>and a light to my path.&#x201D;'
         '</div>'
         '<div style="font-size:0.8em;color:#94a3b8;margin-top:8px;font-weight:700;'
         'letter-spacing:0.05em">— PSALM 119:105</div>'
         '</div>'
-        '<p style="color:#64748b;font-size:0.9em;line-height:1.6;margin-bottom:24px">'
-        'The administrators have been notified.</p>'
+        '<p style="color:#94a3b8;font-size:0.8em;line-height:1.5;margin-bottom:16px">'
+        'This activity may be visible to your family&#x2019;s accountability settings.</p>'
+        '<p style="color:#475569;font-size:0.9em;line-height:1.6;margin-bottom:22px">'
+        'Whatever brought you here today, you are not alone. If you&#x2019;d like encouragement, '
+        'accountability, prayer, or support, help is available.</p>'
         '<a href="http://192.168.8.1:8081/findhelp" '
         'style="display:inline-block;background:#e8a000;color:white;padding:13px 32px;'
         'border-radius:20px;font-weight:700;font-size:0.95em;text-decoration:none">'
         'Find Help</a>'
+        '<div style="margin-top:16px">'
+        '<a href="https://www.google.com" '
+        'style="color:#94a3b8;font-size:0.85em;font-weight:600;text-decoration:none">'
+        '&#x2190; Return to safety</a></div>'
         '</div></div>'
         '</body></html>'
     )
@@ -2385,19 +2394,76 @@ def build_findhelp(config):
             f'</div>{items_html}</div>'
         )
 
+    hero = (
+        '<div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:12px;padding:18px 20px;margin-bottom:16px">'
+        '<div style="font-weight:800;color:#16A34A;font-size:1.05em;margin-bottom:6px">&#x1F526; Take a breath</div>'
+        '<div style="font-size:0.9em;color:#334155;line-height:1.7">'
+        'You made it here, and that&#x2019;s a good first step.<br><br>'
+        'This site was blocked because it has been identified as potentially harmful to your goals, '
+        'relationships, faith, finances, or well-being. Many people struggle with online habits they '
+        'never intended to develop &mdash; whether curiosity, frustration, temptation, or a deeper '
+        'struggle, you are not alone.<br><br>'
+        'Freedom doesn&#x2019;t usually happen in a single moment. It often begins with one honest '
+        'conversation, one prayer, or one decision to ask for help.</div></div>'
+    )
+    prayer = (
+        '<div style="background:#fffbf0;border:1px solid #e8d080;border-radius:12px;padding:16px 20px;margin-bottom:16px">'
+        '<div style="font-weight:700;color:#7a5c00;margin-bottom:6px">&#x1F64F; A simple prayer</div>'
+        '<div style="font-size:0.9em;color:#7a5c00;font-style:italic;line-height:1.7">'
+        'Lord, help me choose what is good, pure, and life-giving today. Give me strength to walk in '
+        'truth, wisdom, and freedom. Amen.</div></div>'
+    )
+    immediate = (
+        '<div style="background:#FFF7F7;border:1px solid #FCA5A5;border-radius:12px;padding:16px 20px;margin-bottom:16px">'
+        '<div style="font-weight:800;color:#DC6B5F;margin-bottom:8px">&#x1F6A8; Need support right now?</div>'
+        '<ul style="margin:0;padding-left:18px;font-size:0.88em;color:#475569;line-height:1.8">'
+        '<li>Put down your device and take a short walk.</li>'
+        '<li>Call or text a trusted friend, spouse, pastor, mentor, or family member.</li>'
+        '<li>Spend a few minutes in prayer before your next decision.</li></ul>'
+        '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #FCA5A5;font-size:0.88em;color:#334155;line-height:1.6">'
+        'If you&#x2019;re in crisis or thinking about harming yourself, you don&#x2019;t have to face it alone:'
+        '<div style="margin-top:8px;font-weight:800;color:#DC6B5F">&#x1F4DE; Call or text '
+        '<a href="tel:988" style="color:#DC6B5F;text-decoration:none">988</a> &mdash; Suicide &amp; Crisis Lifeline (US, 24/7)</div>'
+        '<div style="font-size:0.85em;color:#64748b;margin-top:4px">Outside the US or in immediate danger, contact your local emergency services.</div>'
+        '</div></div>'
+    )
+    church = (
+        '<div style="background:white;border:1px solid #E2E8F0;border-radius:12px;padding:16px 20px;margin-bottom:16px">'
+        '<div style="font-weight:800;color:#475569;margin-bottom:6px">&#x26EA; Start here</div>'
+        '<div style="font-size:0.88em;color:#475569;line-height:1.7">If you attend a church, consider reaching '
+        'out to a trusted pastor, elder, mentor, or men&#x2019;s / women&#x2019;s leader. Many people find that '
+        'healing begins with a real conversation rather than another website.</div></div>'
+    )
+    resources_heading = (
+        '<div style="font-weight:800;color:#1e293b;font-size:1em;margin:22px 0 6px">'
+        '&#x1F6E1;&#xFE0F; Recovery &amp; accountability resources</div>'
+        '<div style="font-size:0.82em;color:#64748b;line-height:1.6;margin-bottom:14px">'
+        'Confidential, faith-based support for individuals and families &mdash; all free or low-cost.</div>'
+    )
+    spouses = (
+        '<div style="background:#FDF2F8;border:1px solid #FBCFE8;border-radius:12px;padding:16px 20px;margin:8px 0 16px">'
+        '<div style="font-weight:800;color:#DB2777;margin-bottom:6px">&#x2764;&#xFE0F; For spouses &amp; families</div>'
+        '<div style="font-size:0.88em;color:#475569;line-height:1.7">If someone you love is struggling, you deserve '
+        'support too. Betrayal, isolation, anxiety, and loss of trust are heavy to carry alone. Pure Desire Ministries, '
+        'Focus on the Family, and New Life Ministries (above) all offer dedicated help for spouses, parents, and families. '
+        'You do not have to carry this burden alone.</div></div>'
+    )
+    remember = (
+        '<div style="background:#FFFBF0;border:1px solid #FEF3C7;border-radius:12px;padding:16px 20px;margin-top:16px;text-align:center">'
+        '<div style="font-weight:800;color:#D97706;margin-bottom:6px">&#x1F526; Remember</div>'
+        '<div style="font-size:0.9em;color:#475569;line-height:1.7">Needing help is not weakness. Everyone faces '
+        'struggles, and everyone needs support. One small step toward freedom today can make a bigger difference than '
+        'you realize.<br><br><b>You are not alone, and there is hope.</b></div></div>'
+    )
     return (
         '<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg"><meta charset="UTF-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1.0">'
         '<title>Find Help - Lantern Watch</title><style>' + CSS + '</style></head><body>'
         + build_header("Find Help", config=config)
         + '<div class="page-wrap">'
-        +''
         + '<div class="section">'
-        + '<div style="background:#FFFBF0;border:1px solid #FEF3C7;border-radius:12px;padding:14px 16px;margin-bottom:20px">'
-        + '<div style="font-weight:700;color:#D97706;margin-bottom:4px">&#x1F526; You are not alone.</div>'
-        + '<div style="font-size:0.85em;color:#64748b;line-height:1.6">These organizations provide confidential, faith-based support for families navigating difficult digital habits. All resources are vetted and free or low-cost.</div>'
-        + '</div>'
-        + cards_html
+        + hero + prayer + immediate + church
+        + resources_heading + cards_html + spouses + remember
         + '</div></div></body></html>'
     )
 
