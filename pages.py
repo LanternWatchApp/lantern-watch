@@ -2366,7 +2366,7 @@ def build_findhelp(config):
     ]
 
     def resource_card(name, site, site2, phone, cost, avail, desc, color, bg, border):
-        ph = (f'<a href="tel:{phone}" style="color:{color};font-weight:700;text-decoration:none">&#x1F4DE; {phone}</a>'
+        ph = (f'<span style="color:{color};font-weight:700">&#x1F4DE; {phone}</span>'
               if phone else '<span style="color:#94a3b8;font-size:0.85em">Online access only</span>')
         s2 = (f' / <a href="https://{site2}" target="_blank" style="color:{color}">{site2}</a>' if site2 else "")
         return (
@@ -2423,7 +2423,7 @@ def build_findhelp(config):
         '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #FCA5A5;font-size:0.88em;color:#334155;line-height:1.6">'
         'If you&#x2019;re in crisis or thinking about harming yourself, you don&#x2019;t have to face it alone:'
         '<div style="margin-top:8px;font-weight:800;color:#DC6B5F">&#x1F4DE; Call or text '
-        '<a href="tel:988" style="color:#DC6B5F;text-decoration:none">988</a> &mdash; Suicide &amp; Crisis Lifeline (US, 24/7)</div>'
+        '988 &mdash; Suicide &amp; Crisis Lifeline (USA &amp; Canada, 24/7)</div>'
         '<div style="font-size:0.85em;color:#64748b;margin-top:4px">Outside the US or in immediate danger, contact your local emergency services.</div>'
         '</div></div>'
     )
