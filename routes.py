@@ -527,6 +527,16 @@ class Handler(BaseHTTPRequestHandler):
                     config["email"]["to_address"] = email_to
                     if smtp_pass:
                         config["email"]["smtp_password"] = smtp_pass
+                # Only if they actually set up a channel do we turn on the
+                # sensible default alerts + daily summary (the wizard has no
+                # per-alert toggles). Skipping / saving blank leaves it all off.
+                if ntfy_topic or (tg_token and tg_chat) or smtp_host:
+                    config["alerts"] = {"adult_content": True, "new_device": True,
+                                        "high_block_rate": True, "high_block_threshold": 50,
+                                        "vpn_detection": True}
+                    config.setdefault("summary", {})
+                    config["summary"]["daily"] = True
+                    config["summary"].setdefault("daily_hour", 20)
                 save_config(config)
                 self._redirect("/")
                 return

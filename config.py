@@ -61,18 +61,21 @@ DEFAULTS = {
     # pointing at the router, so users can type http://<name>:8081 in a browser.
     # The LAN IP and localhost are always recognized.
     "local_hostnames": ["lanternwatch", "lanternwatch.lan"],
+    # Notifications start OFF on a fresh install — nothing is "set up" until the
+    # user configures a channel in the notification wizard (which then turns on
+    # these sensible defaults). Skipping the wizard leaves everything off.
     "alerts": {
-        "adult_content": True,
-        "new_device": True,
-        "high_block_rate": True,
+        "adult_content": False,
+        "new_device": False,
+        "high_block_rate": False,
         "high_block_threshold": 50,
-        "vpn_detection": True,
+        "vpn_detection": False,
     },
     "summary": {
-        "daily": True,
+        "daily": False,
         "daily_hour": 20,
         "weekly": False,
-        "weekly_day": 0,
+        "weekly_day": 6,
         "weekly_hour": 20,
     },
     "retention_days": 60,
@@ -81,10 +84,10 @@ DEFAULTS = {
     # streaming, shopping, relay) stays quiet. Editable per group on
     # /blocked-services. Runtime falls back to SERVICE_NOTIFY_DEFAULTS if absent.
     "service_notify": {
-        "Social Media": True,
-        "Messaging & Chat": True,
-        "Dating / Adult": True,
-        "Gambling": True,
+        "Social Media": False,
+        "Messaging & Chat": False,
+        "Dating / Adult": False,
+        "Gambling": False,
         "Gaming": False,
         "Streaming & Music": False,
         "Shopping": False,

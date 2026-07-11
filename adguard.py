@@ -57,7 +57,10 @@ SOCIAL_PROFILES = {
 # ── Safe Search defaults per profile (None = user-controlled, for custom) ─────
 PROFILE_SAFE_SEARCH = {
     "open":     False,
-    "moderate": False,
+    # Moderate keeps Safe Search ON — the fresh-install wizard enables it, so the
+    # profile badge and the engine checkboxes now agree (and it's a low-breakage
+    # family-safety win for the default profile).
+    "moderate": True,
     "teen":     True,
     "strict":   True,
 }
@@ -1372,16 +1375,14 @@ AGH_SERVICE_GROUPS = {
 }
 
 # Which blocked-service CATEGORIES notify / show in the dashboard "Blocked
-# Content" by default. Intentional-navigation categories are on; chatty
-# background-telemetry categories (gaming, streaming, shopping, relay) are off,
-# so a parent isn't buried in Smart-TV / GeForce / Game Pass telemetry. Every
-# category is a per-group checkbox on /blocked-services, so this is only the
-# starting point. "Other" = AGH services we don't group (default quiet).
+# Content". All OFF by default — a fresh install shows no pre-checked Notify
+# boxes; the parent opts in per category on /blocked-services once they block
+# something they want alerts for. "Other" = AGH services we don't group.
 SERVICE_NOTIFY_DEFAULTS = {
-    "Social Media":       True,
-    "Messaging & Chat":   True,
-    "Dating / Adult":     True,
-    "Gambling":           True,
+    "Social Media":       False,
+    "Messaging & Chat":   False,
+    "Dating / Adult":     False,
+    "Gambling":           False,
     "Gaming":             False,
     "Streaming & Music":  False,
     "Shopping":           False,

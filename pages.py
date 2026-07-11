@@ -3660,19 +3660,20 @@ def build_notifications(config, cleared=False, saved=False,
     _adult    = "checked" if _alerts.get("adult_content")       else ""
     _newdev   = "checked" if _alerts.get("new_device")          else ""
     _highblk  = "checked" if _alerts.get("high_block_rate")     else ""
-    _vpn      = "checked" if _alerts.get("vpn_detection", True)  else ""
+    _vpn      = "checked" if _alerts.get("vpn_detection")       else ""
     _daily    = "checked" if _summary.get("daily")              else ""
     _weekly   = "checked" if _summary.get("weekly")             else ""
     _daily_hr = _summary.get("daily_hour", 20)
-    _weekly_d = _summary.get("weekly_day", 0)
+    _weekly_d = _summary.get("weekly_day", 6)
     _vpn_wl   = ", ".join(config.get("vpn_whitelist", []))
     _time_opts = "".join(
         f'<label class="radio-row"><input type="radio" name="daily_hour" value="{h}" {"checked" if _daily_hr == h else ""}> {l}</label>'
         for h, l in [(17,"5:00 PM"),(18,"6:00 PM"),(19,"7:00 PM"),(20,"8:00 PM"),(21,"9:00 PM"),(22,"10:00 PM")]
     )
+    # Sunday-first ordering; value = Python weekday() index (Mon=0 … Sun=6).
     _day_opts = "".join(
         f'<label class="radio-row"><input type="radio" name="weekly_day" value="{i}" {"checked" if _weekly_d == i else ""}> {d}</label>'
-        for i, d in enumerate(["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"])
+        for i, d in [(6,"Sunday"),(0,"Monday"),(1,"Tuesday"),(2,"Wednesday"),(3,"Thursday"),(4,"Friday"),(5,"Saturday")]
     )
 
     notif_form = (
