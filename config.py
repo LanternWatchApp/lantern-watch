@@ -128,12 +128,21 @@ def save_config(config):
         json.dump(config, f, indent=2)
 
 
+def _strip_dns_suffix(s):
+    """Trim a router-local DNS suffix (Galaxy-S21.lan -> Galaxy-S21). Every device
+    on the LAN carries one, so it's just noise on every screen."""
+    for suffix in (".lan", ".local", ".home", ".internal"):
+        if s and s.lower().endswith(suffix):
+            return s[: -len(suffix)]
+    return s
+
+
 def label(name, config):
-    """Return the friendly display label for a device name."""
+    """Return the friendly display label for a device name, with the redundant
+    router-local DNS suffix (.lan/.local/…) trimmed for display."""
     devices = config.get("devices", {})
-    if name in devices:
-        return devices[name].get("label", name)
-    return name
+    raw = devices[name].get("label", name) if name in devices else name
+    return _strip_dns_suffix(raw)
 
 
 def effective_type(name, config, domains=None):

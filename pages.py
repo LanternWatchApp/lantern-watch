@@ -3602,7 +3602,7 @@ def build_notifications(config, cleared=False, saved=False,
             '<div style="text-align:center;padding:40px 20px;color:#94a3b8">'
             '<div style="font-size:2em;margin-bottom:8px">&#x1F514;</div>'
             '<div style="font-weight:700;margin-bottom:4px">No notifications yet</div>'
-            '<div style="font-size:0.85em">Alerts will appear here once alerts.py has sent something.</div>'
+            '<div style="font-size:0.85em">Alerts you receive will be listed here. Turn on the alerts you want above and set up a channel to start getting them.</div>'
             '</div>'
         )
     else:
