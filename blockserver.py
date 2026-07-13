@@ -71,6 +71,21 @@ class _BlockHandler(BaseHTTPRequestHandler):
         pass  # stay quiet — one line per blocked hit would flood the log
 
 
+class _QuietHTTPSServer(ThreadingHTTPServer):
+    """Blocked HTTPS sites make the browser reject our self-signed cert
+    (SSLV3_ALERT_CERTIFICATE_UNKNOWN) or abort the TLS handshake — that's the
+    expected block-page flow, not a failure. Swallow those handshake errors
+    instead of dumping a full traceback to the log on every blocked hit."""
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        import sys
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ssl.SSLError, ConnectionError, BrokenPipeError, OSError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
+
+
 def start_block_server():
     """Launch the HTTPS block-page server in a daemon thread. Best-effort: if it
     can't bind or the cert can't be made, the HTTP block page still works."""
@@ -78,7 +93,7 @@ def start_block_server():
         _ensure_cert()
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(certfile=_CRT, keyfile=_KEY)
-        srv = ThreadingHTTPServer(("0.0.0.0", _PORT), _BlockHandler)
+        srv = _QuietHTTPSServer(("0.0.0.0", _PORT), _BlockHandler)
         srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         print(f"[BlockServer] HTTPS block page serving on :{_PORT}")
