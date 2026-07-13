@@ -273,6 +273,8 @@ def check_schedules():
                              f"({hours_used}h used today). Internet paused."
                              f"\n\nDashboard: {dash_url}")
                     title = "Screen Time Limit Reached"
+                    from alerts import _log_notification
+                    _log_notification(title, msg, config.get("ntfy_topic", ""))
                     topic = config.get("ntfy_topic", "")
                     if topic:
                         _ntfy(topic, msg, title)

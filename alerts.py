@@ -167,6 +167,20 @@ def _log_notification(title, message, topic):
         print(f"Notification log error: {e}")
 
 
+def notify(config, title, message, priority="default", tags="bell", click_url=""):
+    """Record the alert in the in-app activity log (once), THEN push it to every
+    channel that's configured (ntfy / Telegram / email). Logging is independent of
+    push, so the notification log is a true activity history even when no channel
+    is set up. (send_alert/telegram/email are forward-referenced — resolved at
+    call time.)"""
+    _log_notification(title, message, config.get("ntfy_topic", ""))
+    topic = config.get("ntfy_topic", "")
+    if topic:
+        send_alert(topic, message, title=title, priority=priority, tags=tags, click_url=click_url)
+    send_telegram(config, message, title)
+    send_email(config, message, title)
+
+
 # ── Send ──────────────────────────────────────────────────────────────────────
 
 def send_alert(topic, message, title="Lantern Watch", priority="default", tags="bell", click_url=""):
@@ -176,7 +190,6 @@ def send_alert(topic, message, title="Lantern Watch", priority="default", tags="
         return
     from config import load_config
     if not load_config().get("ntfy_enabled", True):
-        _log_notification(title, message, topic)  # ntfy off: keep the in-app log, skip the push
         return
     try:
         headers = {
@@ -196,9 +209,6 @@ def send_alert(topic, message, title="Lantern Watch", priority="default", tags="
         print(f"[{datetime.now().strftime('%H:%M:%S')}] Alert sent (ntfy): {title}")
     except Exception as e:
         print(f"Alert error (ntfy): {e}")
-
-    # Always log — even if send fails, we want a record of the attempt
-    _log_notification(title, message, topic)
 
 
 def send_telegram(config, message, title="Lantern Watch"):
@@ -433,11 +443,7 @@ def check_blocked_content(config):
         lines = [f"• {_friendly(c, config)}: {d}" for c, d in fresh]
         body  = f"{len(fresh)} blocked-site attempts:\n" + "\n".join(lines)
     msg = _append_url(body + help_line, config)
-    if config.get("ntfy_topic"):
-        send_alert(config["ntfy_topic"], msg, title="Blocked Content",
-                   priority="high", tags="warning", click_url=help_url)
-    send_telegram(config, msg, "Blocked Content")
-    send_email(config, msg, "Blocked Content")
+    notify(config, "Blocked Content", msg, priority="high", tags="warning", click_url=help_url)
 
 
 def check_new_devices(config):
@@ -460,10 +466,7 @@ def check_new_devices(config):
             friendly = _friendly(name, config)
             ip_suffix = f" ({name})" if (_IS_IP.match(name) and friendly != name) else ""
             msg = _append_url(f"New device joined: {friendly}{ip_suffix}", config)
-            send_alert(config["ntfy_topic"], msg, title="New Device Detected", priority="default", tags="bell",
-                       click_url=_dash_url(config))
-            send_telegram(config, msg, "New Device Detected")
-            send_email(config, msg, "New Device Detected")
+            notify(config, "New Device Detected", msg, tags="bell", click_url=_dash_url(config))
 
 
 def check_high_block_rate(config):
@@ -494,10 +497,7 @@ def check_high_block_rate(config):
                         f"{device} has {pct}% block rate in last 10 min ({row['blocked']} of {row['total']} blocked)",
                         config,
                     )
-                    send_alert(config["ntfy_topic"], msg, title="High Block Rate", priority="high", tags="warning",
-                               click_url=_dash_url(config))
-                    send_telegram(config, msg, "High Block Rate")
-                    send_email(config, msg, "High Block Rate")
+                    notify(config, "High Block Rate", msg, priority="high", tags="warning", click_url=_dash_url(config))
                     cooldowns[name] = now.isoformat()
                     changed = True
     if changed:
@@ -546,13 +546,7 @@ def check_vpn_suspected(config):
                     f"View activity: {device_url}\n"
                     f"Dashboard: {base_url}"
                 )
-                send_alert(
-                    config["ntfy_topic"], msg,
-                    title="Activity Drop Detected", priority="default",
-                    tags="magnifying_glass", click_url=device_url,
-                )
-                send_telegram(config, msg, "Activity Drop Detected")
-                send_email(config, msg, "Activity Drop Detected")
+                notify(config, "Activity Drop Detected", msg, tags="magnifying_glass", click_url=device_url)
                 cooldowns[name] = datetime.now().isoformat()
                 config["vpn_cooldowns"] = cooldowns
                 save_config(config)
@@ -651,6 +645,7 @@ def send_daily_summary(config):
     extras  = config.get("extra_topics", "")
     if extras:
         topics += [t.strip() for t in extras.split(",") if t.strip()]
+    _log_notification("Lantern Watch Daily Summary", message, config.get("ntfy_topic", ""))
     for topic in [t for t in topics if t]:
         send_alert(topic, message, title="Lantern Watch Daily Summary", priority="default", tags="chart",
                    click_url=_dash_url(config))
@@ -710,6 +705,7 @@ def send_weekly_summary(config):
     extras  = config.get("extra_topics", "")
     if extras:
         topics += [t.strip() for t in extras.split(",") if t.strip()]
+    _log_notification("Lantern Watch Weekly Summary", message, config.get("ntfy_topic", ""))
     for topic in [t for t in topics if t]:
         send_alert(topic, message, title="Lantern Watch Weekly Summary", priority="default", tags="bar_chart",
                    click_url=_dash_url(config))
