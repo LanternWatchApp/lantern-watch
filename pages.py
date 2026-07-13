@@ -3356,8 +3356,8 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         + '  fetch("/admin/check-update").then(function(r){return r.json();}).then(function(d){'
         + '    res.style.display="block";'
         + '    if(d.update_available){'
-        + '      res.style.cssText="display:block;background:#fffbf0;border:1px solid #e8d080;color:#e8a000;padding:10px 14px;border-radius:8px;font-size:0.85em;font-weight:600";'
-        + "      res.innerHTML=\"Version \"+d.latest_version+\" is available — get the latest from <a href='\"+(d.update_url||\"https://github.com/LanternWatchApp/lantern-watch\")+\"' target='_blank' rel='noopener' style='color:#e8a000;font-weight:700;text-decoration:underline'>Lantern Watch on GitHub</a>\";"
+        + '      res.style.cssText="display:block;background:#fffbf0;border:1px solid #e8d080;color:#e8a000;padding:12px 14px;border-radius:8px;font-size:0.85em;font-weight:600";'
+        + "      res.innerHTML=\"Version \"+d.latest_version+\" is available. Your device names &amp; settings are kept.<br><button onclick='updateNow()' style='margin-top:8px;padding:8px 20px;background:#e8a000;border:none;border-radius:8px;color:white;font-weight:700;cursor:pointer'>Update Now</button> <a href='\"+(d.update_url||\"https://github.com/LanternWatchApp/lantern-watch\")+\"' target='_blank' rel='noopener' style='color:#94a3b8;font-size:0.85em;margin-left:8px'>view on GitHub</a>\";"
         + '    } else if(d.ok===false){'
         + '      res.style.cssText="display:block;background:#fff7f7;border:1px solid #fca5a5;color:#e24b4a;padding:10px 14px;border-radius:8px;font-size:0.85em;font-weight:600";'
         + '      res.textContent="Could not check: "+(d.error||"unknown error");'
@@ -3371,6 +3371,14 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         + '    res.textContent="Connection error — check that the router has internet access.";'
         + '    btn.textContent="Check for Updates";btn.disabled=false;'
         + '  });'
+        + '}'
+        + 'function updateNow(){'
+        + '  if(!confirm("Update Lantern Watch now? The dashboard restarts in about 30-45 seconds. Your device names and settings are kept.")) return;'
+        + '  var res=document.getElementById("upd-result");'
+        + '  fetch("/admin/update",{method:"POST"}).catch(function(){});'
+        + '  res.style.cssText="display:block;background:#fffbf0;border:1px solid #e8d080;color:#e8a000;padding:12px 14px;border-radius:8px;font-size:0.85em;font-weight:600";'
+        + '  res.innerHTML="Updating\\u2026 downloading and installing the new version. The dashboard will restart shortly \\u2014 this page reloads automatically in about 45 seconds.";'
+        + '  setTimeout(function(){ location.reload(); }, 45000);'
         + '}'
         + '</script>'
         + build_security_checklist_card(compute_safety_score(config))

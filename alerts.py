@@ -882,12 +882,14 @@ def main():
             config = load_config()
             now    = datetime.now()
 
-            # One-time anonymous install record — retried every cycle until the
-            # endpoint confirms it, so a boot-time network hiccup can't silently
-            # lose the count. Fires regardless of the opt-in toggle (counting only).
-            if not config.get("install_recorded"):
+            # Anonymous install/version record — re-sent whenever the version
+            # changes (fresh install AND each update), retried until the endpoint
+            # confirms it, so the row's version + last-seen reflect the running
+            # build. Fires regardless of the opt-in toggle (counting only).
+            from config import VERSION as _V
+            if config.get("install_ping_version") != _V:
                 if send_install_ping(config):
-                    config["install_recorded"] = True
+                    config["install_ping_version"] = _V
                     save_config(config)
 
             # Opt-in anonymous stats — once a day, at THIS install's jittered slot

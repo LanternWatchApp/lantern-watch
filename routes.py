@@ -780,6 +780,36 @@ class Handler(BaseHTTPRequestHandler):
                 refresh_filters(config)
                 html = build_admin(config, refreshed=True)
 
+            elif parsed.path == "/admin/update":
+                # One-click self-update: fetch the current feed .ipk and opkg-install
+                # it. Runs in a NEW session so it survives the service restart that
+                # opkg's postinst triggers. Device names + settings are preserved by
+                # install.sh (it backs up and keeps the existing config).
+                import subprocess
+                script = (
+                    "#!/bin/sh\n"
+                    "sleep 2\n"
+                    "FN=$(curl -fsSL https://lanternwatch.org/repo/Packages | "
+                    "awk -F': ' '/^Filename:/{print $2; exit}')\n"
+                    '[ -z "$FN" ] && exit 1\n'
+                    'curl -fsSL "https://lanternwatch.org/repo/$FN" -o /tmp/lw_update.ipk || exit 1\n'
+                    "opkg install --force-reinstall /tmp/lw_update.ipk\n"
+                )
+                try:
+                    with open("/tmp/lw_update.sh", "w") as _f:
+                        _f.write(script)
+                    subprocess.Popen(["sh", "/tmp/lw_update.sh"],
+                                     stdout=open("/tmp/lw_update.log", "w"),
+                                     stderr=subprocess.STDOUT, start_new_session=True)
+                    _resp = {"ok": True}
+                except Exception as _e:
+                    _resp = {"ok": False, "error": str(_e)}
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(_resp).encode())
+                return
+
             elif parsed.path == "/notifications/save":
                 config.setdefault("alerts", {})
                 config.setdefault("summary", {})

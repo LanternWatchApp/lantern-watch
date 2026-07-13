@@ -1,140 +1,136 @@
 /**
- * Lantern Watch — install telemetry + update check (Google Apps Script web app).
+ * Lantern Watch — install + opt-in usage recorder (Google Apps Script web app).
  *
- * Behaviour:
- *   - Upserts one row per install_id into the "Installs" sheet (updated in place
- *     on repeat pings; never grows past one row per physical router).
- *   - Compares the router's reported version to LATEST_VERSION and tells it
- *     whether an update is available, pointing at the GitHub repo.
+ * Two kinds of ping, both upserted by install_id (one row per router):
+ *   - event:"install"  sent on first boot AND whenever the version changes (each
+ *                      update). Records first_seen (once), and refreshes last_seen,
+ *                      version, model, OpenWrt. Does NOT mark opted_in.
+ *   - event:"ping"     opt-in daily usage. Bumps ping_count, sets opted_in=TRUE,
+ *                      records feature flags + device count.
  *
- * Deploy: paste into the Apps Script editor bound to the telemetry spreadsheet,
- * Save, then Deploy -> Manage deployments -> (edit the existing web app) ->
- * New version -> Deploy. Editing in place keeps the same /exec URL so
- * config.py's UPDATE_CHECK_URL does not change.
+ * Update-checking is no longer here — the app reads GitHub tags directly, so
+ * there's no version to keep in sync.
  *
- * Bump LATEST_VERSION here whenever you ship a new release (keep it in sync
- * with VERSION in config.py).
+ * Deploy: paste, Save, then Deploy -> Manage deployments -> (edit the existing
+ * web app) -> New version -> Deploy. Editing in place keeps the same /exec URL.
  */
 
-// This is a STANDALONE script (not bound to the sheet), so open the spreadsheet
-// by ID. Set this to your telemetry spreadsheet's ID — the long token in the
-// sheet URL between /d/ and /edit. (Kept out of the repo on purpose.)
-var SPREADSHEET_ID = "YOUR_SPREADSHEET_ID";
+var SPREADSHEET_ID = "1nQa9L6tIWXxl1iH_En5mEVJHkaEsRQ5r7d32Iqu_0W8";
 var SHEET_NAME     = "Installs";
-var LATEST_VERSION = "0.9.0-beta";
-var UPDATE_URL     = "https://github.com/LanternWatchApp/lantern-watch";
 
 var HEADER = [
-  "first_seen", "install_id", "last_seen", "ping_count", "version",
-  "router_model", "openwrt_version", "adguard_connected", "device_count",
-  "social_profile", "screen_time", "social_blocking", "bedtime_enabled",
-  "focus_times", "notif_ntfy", "notif_telegram", "notif_email"
+  "first_seen", "install_id", "last_seen", "ping_count", "opted_in",
+  "version", "router_model", "openwrt_version", "adguard_connected",
+  "device_count", "social_profile", "screen_time", "social_blocking",
+  "bedtime_enabled", "focus_times", "notif_ntfy", "notif_telegram", "notif_email"
 ];
 
 function doPost(e) {
-  // Serialize concurrent pings so two requests can't both miss the same
-  // install_id and each append a row.
   var lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(30000);
-  } catch (err) {
-    return jsonOut_({ status: "error", ok: false, error: "Busy, could not obtain lock" });
-  }
+  try { lock.waitLock(30000); }
+  catch (err) { return jsonOut_({ ok: false, error: "Busy, could not obtain lock" }); }
 
   try {
     if (!e || !e.postData || !e.postData.contents) {
-      return jsonOut_({ status: "error", ok: false, error: "No POST body" });
+      return jsonOut_({ ok: false, error: "No POST body" });
     }
+    var d  = JSON.parse(e.postData.contents);
+    var id = d.install_id;
+    if (!id) return jsonOut_({ ok: false, error: "Missing install_id" });
 
-    var data = JSON.parse(e.postData.contents);
-    var installId = data.install_id;
-    if (!installId) {
-      return jsonOut_({ status: "error", ok: false, error: "Missing install_id" });
-    }
+    var sheet     = getSheet_();
+    var C         = colMap_(sheet);
+    var now       = new Date();
+    var isInstall = (d.event === "install");
+    var feats     = d.features || {};
+    var notif     = feats.notifications || {};
 
-    var sheet = getInstallsSheet_();
-    var now = new Date();
-
-    var features = data.features || {};
-    var notif = features.notifications || {};
-
-    // Columns E..Q (13 values), in sheet order, from the latest payload.
-    var payloadCols = [
-      data.version || "",                                   // E version
-      data.router_model || "",                              // F router_model
-      data.openwrt_version || "",                           // G openwrt_version
-      data.adguard_connected === true,                      // H adguard_connected
-      (typeof data.device_count === "number") ? data.device_count : "", // I device_count
-      data.social_profile || "",                            // J social_profile
-      features.screen_time === true,                        // K screen_time
-      features.social_blocking === true,                    // L social_blocking
-      features.bedtime_enabled === true,                    // M bedtime_enabled
-      features.focus_times_enabled === true,                // N focus_times
-      notif.ntfy === true,                                  // O notif_ntfy
-      notif.telegram === true,                              // P notif_telegram
-      notif.email === true                                  // Q notif_email
-    ];
-
-    // Find an existing row by install_id (column B), skipping the header.
-    var rowIndex = -1;
-    var lastRow = sheet.getLastRow();
-    if (lastRow >= 2) {
-      var ids = sheet.getRange(2, 2, lastRow - 1, 1).getValues(); // B2:B<last>
+    // Find the row for this install_id (columns are looked up by name).
+    var row = -1, last = sheet.getLastRow();
+    if (last >= 2 && C["install_id"]) {
+      var ids = sheet.getRange(2, C["install_id"], last - 1, 1).getValues();
       for (var i = 0; i < ids.length; i++) {
-        if (String(ids[i][0]) === String(installId)) {
-          rowIndex = i + 2; // +1 for header, +1 for 0-based index
-          break;
-        }
+        if (String(ids[i][0]) === String(id)) { row = i + 2; break; }
       }
     }
 
-    if (rowIndex === -1) {
-      // New install: first_seen = last_seen = now, ping_count = 1, then E..Q.
-      sheet.appendRow([now, installId, now, 1].concat(payloadCols));
-    } else {
-      // Existing install: bump last_seen + ping_count, overwrite E..Q. A untouched.
-      var prev = sheet.getRange(rowIndex, 4).getValue();              // D ping_count
-      var count = (typeof prev === "number" && prev > 0) ? prev + 1 : 1;
-      sheet.getRange(rowIndex, 3).setValue(now);                      // C last_seen
-      sheet.getRange(rowIndex, 4).setValue(count);                    // D ping_count
-      sheet.getRange(rowIndex, 5, 1, payloadCols.length).setValues([payloadCols]); // E..Q
+    function set(name, val) { if (C[name]) sheet.getRange(row, C[name]).setValue(val); }
+    function get(name)      { return C[name] ? sheet.getRange(row, C[name]).getValue() : ""; }
+
+    if (row === -1) {
+      var blank = [];
+      for (var k = 0; k < sheet.getLastColumn(); k++) blank.push("");
+      sheet.appendRow(blank);
+      row = sheet.getLastRow();
+      set("first_seen", now);
+      set("install_id", id);
+      set("ping_count", 0);
+      set("opted_in", false);
     }
 
-    // Update-check result: any version mismatch -> point them at the repo.
-    var currentVersion = data.version || "";
-    return jsonOut_({
-      status:           "success",
-      ok:               true,
-      current_version:  currentVersion,
-      latest_version:   LATEST_VERSION,
-      update_available: currentVersion !== LATEST_VERSION,
-      update_url:       UPDATE_URL
-    });
+    // Both ping types report these.
+    set("last_seen", now);
+    if (d.version)         set("version", d.version);
+    if (d.router_model)    set("router_model", d.router_model);
+    if (d.openwrt_version) set("openwrt_version", d.openwrt_version);
+
+    if (!isInstall) {
+      // Opt-in usage ping: count it, mark opted-in, record the feature flags.
+      var prev = get("ping_count");
+      set("ping_count", (typeof prev === "number" ? prev : 0) + 1);
+      set("opted_in", true);
+      set("adguard_connected", d.adguard_connected === true);
+      if (typeof d.device_count === "number") set("device_count", d.device_count);
+      set("social_profile", d.social_profile || "");
+      set("screen_time", feats.screen_time === true);
+      set("social_blocking", feats.social_blocking === true);
+      set("bedtime_enabled", feats.bedtime_enabled === true);
+      set("focus_times", feats.focus_times_enabled === true);
+      set("notif_ntfy", notif.ntfy === true);
+      set("notif_telegram", notif.telegram === true);
+      set("notif_email", notif.email === true);
+    }
+
+    return jsonOut_({ ok: true, status: "success", event: isInstall ? "install" : "ping" });
 
   } catch (err) {
-    return jsonOut_({ status: "error", ok: false, error: String((err && err.message) || err) });
+    return jsonOut_({ ok: false, error: String((err && err.message) || err) });
   } finally {
     lock.releaseLock();
   }
 }
 
-function getInstallsSheet_() {
+function getSheet_() {
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sheet = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(HEADER);
     sheet.setFrozenRows(1);
+    return sheet;
+  }
+  // Migration-safe: add any missing canonical columns (e.g. opted_in) on the right.
+  var have = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  for (var i = 0; i < HEADER.length; i++) {
+    if (have.indexOf(HEADER[i]) === -1) {
+      sheet.getRange(1, sheet.getLastColumn() + 1).setValue(HEADER[i]);
+    }
   }
   return sheet;
 }
 
+function colMap_(sheet) {
+  var hdr = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  var m = {};
+  for (var i = 0; i < hdr.length; i++) m[hdr[i]] = i + 1; // 1-based column
+  return m;
+}
+
 function jsonOut_(obj) {
-  return ContentService
-    .createTextOutput(JSON.stringify(obj))
+  return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// Optional: sanity-check the deployment in a browser (GET the web app URL).
+// Sanity check in a browser (GET the web app URL).
 function doGet() {
-  return jsonOut_({ status: "ok", endpoint: "lanternwatch-installs", latest_version: LATEST_VERSION });
+  return jsonOut_({ ok: true, endpoint: "lanternwatch-installs" });
 }
