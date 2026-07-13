@@ -10,7 +10,7 @@ import re as _re
 # Versioning: AdGuard-style 0.MAJOR.MINOR with a -beta suffix while pre-1.0
 # (e.g. 0.9.0-beta → 0.9.0.1 → 0.9.0.2 …). A '-beta' build sorts BELOW the same
 # numbered release. See is_newer_version().
-VERSION          = "0.9.1-beta"
+VERSION          = "0.10.0"
 # Update check reads the public GitHub repo directly — the newest git tag is the
 # single source of truth. No telemetry is sent; the router just asks GitHub for
 # the tag list, anonymously, like any visitor.

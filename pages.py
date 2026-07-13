@@ -809,6 +809,21 @@ input:focus{outline:none;border-color:#e8a000;box-shadow:0 0 0 3px rgba(232,160,
       <label>SMTP password / app password</label>
       <input type="password" name="smtp_pass" placeholder="Leave blank to keep existing">
     </div>
+    <div class="card" style="border:2px solid #e8d080;background:#fffbf0">
+      <div class="card-title">&#x1F4CA; Help keep Lantern Watch free <span class="badge">Optional</span></div>
+      <p class="card-sub">Lantern Watch is free for everyone, forever. Knowing how many families actually use it is the one thing that tells us whether to keep building and supporting it &mdash; that's the only reason we ask.</p>
+      <p class="card-sub">If you opt in, once a day your router shares a tiny <b>anonymous</b> snapshot:</p>
+      <p class="card-sub" style="margin:0 0 10px 0;line-height:1.9">
+        &#x2705; App version &amp; router model<br>
+        &#x2705; How many devices, and which features you use (schedules, screen time, social blocking)<br>
+        &#x2705; Which notification types you&#x2019;ve set up<br>
+        &#x274C; <b>Never</b> your name, your devices&#x2019; names, the sites anyone visits, or any IP/MAC address
+      </p>
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+        <input type="checkbox" name="telemetry_enabled" style="margin-top:3px;width:18px;height:18px;accent-color:#e8a000">
+        <span><b>Yes, share anonymous usage stats to support the project.</b></span></label>
+      <p class="card-sub" style="margin-top:8px;font-size:0.8em">You can turn this on or off anytime in Settings.</p>
+    </div>
     <button type="submit" class="btn-submit">Save &amp; Go to Dashboard</button>
   </form>
   <a href="/" class="skip">Skip for now — set this up later in Settings</a>

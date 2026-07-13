@@ -537,6 +537,8 @@ class Handler(BaseHTTPRequestHandler):
                     config.setdefault("summary", {})
                     config["summary"]["daily"] = True
                     config["summary"].setdefault("daily_hour", 20)
+                # First-run opt-in for anonymous usage stats (default off).
+                config["telemetry_enabled"] = "telemetry_enabled" in params
                 save_config(config)
                 self._redirect("/")
                 return
