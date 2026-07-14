@@ -625,7 +625,8 @@ import json, sys
 sys.path.insert(0, "$INSTALL_DIR")
 try:
     from adguard import (apply_adguard_setup, RECOMMENDED_LISTS,
-                         install_default_optional_lists, apply_doh_dns_mitigation)
+                         install_default_optional_lists, apply_doh_dns_mitigation,
+                         apply_service_allowlist)
     with open("$CONFIG") as f:
         config = json.load(f)
     list_ids = [l["id"] for l in RECOMMENDED_LISTS]
@@ -635,6 +636,7 @@ try:
     try:
         install_default_optional_lists(config)
         apply_doh_dns_mitigation(config)
+        apply_service_allowlist(config)
     except Exception as e:
         print("  optional/DoH defaults skipped: " + str(e), file=sys.stderr)
     if errors:

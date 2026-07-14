@@ -553,10 +553,12 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     # Default-on optional lists (smart-TV tracking) + always-on
                     # gentle DoH mitigation (Firefox canary + DoH hostnames).
-                    from adguard import install_default_optional_lists, apply_doh_dns_mitigation
+                    from adguard import (install_default_optional_lists, apply_doh_dns_mitigation,
+                                         apply_service_allowlist)
                     try:
                         install_default_optional_lists(config)
                         apply_doh_dns_mitigation(config)
+                        apply_service_allowlist(config)
                     except Exception as _e:
                         print(f"[Setup] optional/DoH defaults error: {_e}")
                     config["adguard_setup_complete"] = True

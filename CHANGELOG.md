@@ -11,6 +11,16 @@ While the project is pre-1.0, the leading `0.` signals it's still maturing:
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.10.1] — 2026-07-14
+
+### Fixed
+- **Never block Lantern Watch's own services.** AdGuard's Safe Browsing was
+  flagging `ntfy.sh` (our push service and the ntfy phone app) as malware — a
+  false positive that would silently break ntfy notifications. Added an always-on
+  service allowlist (`ntfy.sh`, `api.telegram.org`, the update feed, GitHub, and
+  the telemetry endpoint) so filtering / Safe Browsing / Parental can't block
+  our push, updates, or telemetry.
+
 ## [0.10.0] — 2026-07-13
 
 ### Added

@@ -36,6 +36,12 @@ if __name__ == "__main__":
         apply_doh_dns_mitigation(config)
     except Exception as _e:
         print(f"[Boot] DoH DNS mitigation error: {_e}")
+    # Always-on service allowlist — never block our own push/updates/telemetry.
+    try:
+        from adguard import apply_service_allowlist
+        apply_service_allowlist(config)
+    except Exception as _e:
+        print(f"[Boot] service allowlist error: {_e}")
     # Re-apply the stricter DoH iptables rules (cleared on reboot) only if opted in
     if config.get("doh_blocking"):
         apply_doh_iptables(True)

@@ -1209,6 +1209,50 @@ def apply_doh_dns_mitigation(config):
         return _ag_post(config, "/filtering/set_rules", {"rules": final})
 
 
+# ── Service allowlist ─────────────────────────────────────────────────────────
+# Domains Lantern Watch itself relies on — always allowlisted (@@ rules) so
+# filtering / Safe Browsing / Parental can never block our own push, updates, or
+# telemetry. AdGuard's Safe Browsing was flagging ntfy.sh (our push service, and
+# the ntfy phone app) as "malware" — a false positive that would silently break
+# ntfy notifications for anyone who uses that channel.
+_ALLOW_MARKER = "# Lantern Watch — service allowlist"
+SERVICE_ALLOWLIST = [
+    "ntfy.sh",                    # ntfy push notifications (+ the ntfy phone app)
+    "api.telegram.org",           # Telegram notifications
+    "lanternwatch.org",           # update feed
+    "api.github.com",             # update-version check (git tags)
+    "github.com",                 # install / clone
+    "raw.githubusercontent.com",  # blocklists + install script
+    "script.google.com",          # anonymous install / usage ping
+]
+
+
+def apply_service_allowlist(config):
+    """Ensure Lantern Watch's own service domains are allowlisted, so filtering,
+    Safe Browsing, or Parental can't block our push / updates / telemetry.
+    Idempotent; applied at setup and on every boot."""
+    with _rules_lock:
+        current = get_custom_rules(config)
+        cleaned, in_sec = [], False
+        for line in current:
+            if line.strip() == _ALLOW_MARKER:
+                in_sec = True
+                continue
+            if in_sec and (line.startswith("@@||") or line == ""):
+                continue
+            in_sec = False
+            cleaned.append(line)
+        allow_rules = ["", _ALLOW_MARKER] + [f"@@||{d}^$important" for d in SERVICE_ALLOWLIST]
+        new_rules = cleaned + allow_rules
+        final, prev_blank = [], False
+        for line in new_rules:
+            is_blank = line.strip() == ""
+            if not (is_blank and prev_blank):
+                final.append(line)
+            prev_blank = is_blank
+        return _ag_post(config, "/filtering/set_rules", {"rules": final})
+
+
 # Known DoH resolver IPs — port 443 and 853 (DoT) iptables blocking
 DOH_BLOCK_IPS = [
     "1.1.1.1", "1.0.0.1",               # Cloudflare
