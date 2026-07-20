@@ -19,6 +19,17 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.14.1] — 2026-07-20
+
+### Fixed
+- **Device names now match on every page.** The dashboard, query log, and device
+  detail pages showed a bare IP address (e.g. `192.168.8.230`) while the Devices
+  page showed the friendly name (e.g. "Dell device") for the very same device.
+  Each page worked the name out for itself and the copies had drifted apart; they
+  now share one routine, so they cannot disagree again.
+- **The router shows its own model** — e.g. "GL.iNet GL-MT3600BE" — instead of
+  appearing as "localhost".
+
 ## [0.14.0] — 2026-07-20
 
 First public release.

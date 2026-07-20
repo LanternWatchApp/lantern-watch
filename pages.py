@@ -1641,20 +1641,87 @@ lw-label{{display:block;font-size:13px;font-weight:500;color:#6b6b6b;margin-bott
 </body></html>"""
 
 
+# ── Device display name (shared) ──────────────────────────────────────────────
+
+def _row_get(row, key, default=""):
+    """dict.get() that also works on a sqlite3.Row.
+
+    Device rows arrive as plain dicts from some queries and as sqlite3.Row from
+    others, and sqlite3.Row has no .get() — calling it raises AttributeError and
+    takes the whole page down."""
+    try:
+        v = row[key]
+    except (KeyError, IndexError, TypeError):
+        return default
+    return default if v is None else v
+
+
+_router_model_cache = {"model": None}
+
+
+def router_model_name():
+    """This router's own model, e.g. 'GL.iNet GL-MT3600BE'. Cached."""
+    if _router_model_cache["model"] is None:
+        m = ""
+        try:
+            with open("/tmp/sysinfo/model") as f:
+                m = f.read().strip()
+        except Exception:
+            m = ""
+        _router_model_cache["model"] = m or "Router"
+    return _router_model_cache["model"]
+
+
+def device_display_name(name, config, ip_hostnames=None, client_ip="", ident=None):
+    """The friendly name shown for a device — used by EVERY page.
+
+    This lives in one place on purpose: the dashboard, Devices list, query log and
+    device detail pages each used to work this out themselves, so the same device
+    could read "Dell device" on one page and "192.168.8.230" on another.
+
+    Priority: the name you saved > a resolved hostname > this router's model (for
+    the router's own lookups) > the hardware maker from the MAC/OUI > the bare IP.
+    """
+    import re as _re
+    _is_ip = _re.compile(r"^\d{1,3}(\.\d{1,3}){3}$").match
+
+    saved     = (config.get("devices", {}).get(name, {}) or {}).get("label", "")
+    has_saved = bool(saved) and saved != name
+
+    # The router's own DNS lookups report as "localhost" / 127.0.0.1.
+    if not has_saved and (name == "localhost" or client_ip in ("127.0.0.1", "::1")):
+        return _demo(name, router_model_name(), config)
+
+    if has_saved or not _is_ip(name):
+        return _demo(name, label(name, config), config)
+
+    # Bare IP — try a hostname, then the hardware maker, then give up and show the IP.
+    if ident is None:
+        try:
+            from classify import device_identity
+            ident = device_identity(name)
+        except Exception:
+            ident = {}
+    raw = (ip_hostnames or {}).get(name, "") or (ident or {}).get("hostname", "")
+    if raw:
+        return _demo(name, pretty_hostname(raw), config)
+    vendor = (ident or {}).get("vendor", "")
+    if vendor:
+        return _demo(name, f"{_short_vendor(vendor)} device", config)
+    return _demo(name, name, config)
+
+
 # ── Component builders ────────────────────────────────────────────────────────
 
 def make_card(d, screen_times, max_queries, config, ip_hostnames=None):
     import re
     _is_ip   = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$").match
     name     = d["client_name"]
-    if ip_hostnames and _is_ip(name):
-        raw      = ip_hostnames.get(name, "")
-        friendly = pretty_hostname(raw) if raw else label(name, config)
-        ip_sub   = f'<div style="font-size:0.75em;color:#94a3b8;margin-top:-2px">{name}</div>'
-    else:
-        friendly = label(name, config)
-        ip_sub   = ""
-    friendly = _demo(name, friendly, config)
+    friendly = device_display_name(name, config, ip_hostnames,
+                                   client_ip=_row_get(d, "client_ip"))
+    # Keep the raw IP underneath when the label isn't the IP itself.
+    ip_sub   = (f'<div style="font-size:0.75em;color:#94a3b8;margin-top:-2px">{name}</div>'
+                if _is_ip(name) and friendly != name else "")
     pct      = round((d["blocked"] / d["total"] * 100) if d["total"] > 0 else 0, 1)
     bar_pct  = round(d["total"] / max_queries * 100)
     danger   = "danger" if pct > 30 else ""
@@ -1956,7 +2023,7 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
 
 def build_detail(client_name, config, client_ip_param=""):
     totals, sites, blocked_sites, hourly, secs, all_time, peak_hour, top_category, ip_address, hostname = get_device_detail(client_name)
-    friendly    = _demo(client_name, label(client_name, config), config)
+    friendly    = device_display_name(client_name, config)
 
     # Full device identity (demo mode shows stable fakes so screenshots are safe).
     from classify import device_identity, device_kind
@@ -2118,7 +2185,7 @@ def build_domain_detail(domain, config):
 
     who_html = "".join(
         f'<div class="domain-item"><div>'
-        f'<div style="color:#1e293b;font-weight:600">{_demo(r["client_name"], label(r["client_name"], config), config)}</div>'
+        f'<div style="color:#1e293b;font-weight:600">{device_display_name(r["client_name"], config)}</div>'
         f'<div style="color:#94a3b8;font-size:0.75em">Last: {_local_ts(r["last_seen"])[:16] if r["last_seen"] else "-"}</div></div>'
         f'<span class="domain-count red">{r["attempts"]:,} times</span></div>'
         for r in summary
@@ -2127,7 +2194,7 @@ def build_domain_detail(domain, config):
     timeline_html = ""
     for r in entries[:25]:
         ts       = _local_ts(r["ts"])[:16] if r["ts"] else "-"
-        friendly = _demo(r["client_name"], label(r["client_name"], config), config)
+        friendly = device_display_name(r["client_name"], config)
         reason   = r["reason"] or "Blocked"
         if "Parental" in reason:      ls = "Content Filter"
         elif "SafeBrowsing" in reason: ls = "Malware"
@@ -2174,7 +2241,7 @@ def build_domain_detail(domain, config):
 
 
 def build_schedule_page(client_name, client_ip, config):
-    friendly    = _demo(client_name, label(client_name, config), config)
+    friendly    = device_display_name(client_name, config)
     schedules   = config.get("schedules", {})
     sched       = schedules.get(client_ip, {})
     enabled     = "checked" if sched.get("enabled") else ""
@@ -2801,8 +2868,8 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
     def _sortkey(d):
         n = d["client_name"]
         if sort == "type":    return effective_type(n, config)
-        if sort == "recent":  return d.get("last_seen") or ""
-        if sort == "queries": return d.get("total") or 0
+        if sort == "recent":  return _row_get(d, "last_seen") or ""
+        if sort == "queries": return _row_get(d, "total") or 0
         l = cfg_devices.get(n, {}).get("label", "")
         return (l if (l and l != n) else n).lower()
     all_devices = sorted(all_devices, key=_sortkey, reverse=(sort in ("recent", "queries")))
@@ -2853,30 +2920,17 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         enc         = quote(name)
         icon        = TYPE_ICONS.get(cur_type, "👤")
 
-        # Resolve display name: if client_name is a bare IP, look up a hostname;
-        # failing that, fall back to the hardware maker (from MAC/OUI) so an
-        # unnamed device reads like "Dell device" with the IP underneath, not a
-        # bare number. The IP is always kept as the subtitle.
-        ident = device_identity(name)
-        if _is_ip(name):
-            raw_host = ip_hostnames.get(name, "") or ident.get("hostname", "")
-            if raw_host:
-                display = pretty_hostname(raw_host)
-            elif ident.get("vendor"):
-                display = f'{_short_vendor(ident["vendor"])} device'
-            else:
-                display = name
-            subtitle    = name  # always show the IP underneath
-        else:
-            display  = name
-            subtitle = ""
-        display = _demo(name, display, config)
+        # Display name comes from the shared helper so this page and the dashboard
+        # can never disagree about what a device is called.
+        ident    = device_identity(name)
+        display  = device_display_name(name, config, ip_hostnames,
+                                       client_ip=_row_get(d, "client_ip"), ident=ident)
+        subtitle = name if _is_ip(name) else ""
 
-        # The router's own DNS lookups report as "localhost" (127.0.0.1). Show a
-        # friendly name and default it to Infrastructure when the user hasn't named it.
-        if name == "localhost" or (d.get("client_ip") in ("127.0.0.1", "::1")):
-            display  = "Router"
-            subtitle = subtitle or (d.get("client_ip") or "127.0.0.1")
+        # The router's own DNS lookups report as "localhost" (127.0.0.1) — default
+        # it to Infrastructure when the user hasn't given it a role.
+        if name == "localhost" or (_row_get(d, "client_ip") in ("127.0.0.1", "::1")):
+            subtitle = subtitle or (_row_get(d, "client_ip") or "127.0.0.1")
             if "type" not in cfg:
                 cur_type = "infrastructure"
                 icon     = TYPE_ICONS.get("infrastructure", icon)
@@ -4119,12 +4173,7 @@ def build_querylog_page(entries, devices, total, filters, config):
     device_opts = '<option value="">All Devices</option>'
     for d in devices:
         sel = 'selected' if d == device else ''
-        if _is_ip(d):
-            raw = _ip_hostnames.get(d, "")
-            display = pretty_hostname(raw) if raw else label(d, config)
-        else:
-            display = label(d, config)
-        display = _demo(d, display, config)
+        display = device_display_name(d, config, _ip_hostnames)
         device_opts += f'<option value="{d}" {sel}>{display}</option>'
 
     win_opts = ""
@@ -4152,7 +4201,7 @@ def build_querylog_page(entries, devices, total, filters, config):
         ts_date   = ts_local[:10]
         dev_name  = e["client_name"] or e["client_ip"] or "Unknown"
         dev_ip    = e["client_ip"] or ""
-        dev_label = _demo(dev_name, label(dev_name, config), config)
+        dev_label = device_display_name(dev_name, config, _ip_hostnames)
         domain    = e["domain"] or "—"
         qtype     = e["qtype"] or ""
         is_blocked = e["blocked"]
