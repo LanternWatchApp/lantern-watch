@@ -1,0 +1,68 @@
+name: Build and Release .ipk
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Read version
+        id: ver
+        run: |
+          VERSION=$(grep '^VERSION' config.py | sed "s/.*= *['\"]//;s/['\"].*//")
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "PKG=lanternwatch_${VERSION}_all.ipk" >> $GITHUB_OUTPUT
+
+      - name: Build .ipk
+        run: bash build_ipk.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.ver.outputs.PKG }}
+          path: ${{ steps.ver.outputs.PKG }}
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Lantern Watch ${{ steps.ver.outputs.VERSION }}
+          body: |
+            ## Install
+
+            **GL.iNet admin panel (easiest, no SSH):**
+            1. Applications → Plug-ins → **Manage Sources**
+            2. Add source — Name: `lanternwatch` · URL: `https://lanternwatch.org/repo` → Apply
+            3. **Refresh**, search `lanternwatch`, click **Install**
+            4. Open `http://192.168.8.1:8081` and set your password
+
+            AdGuard Home is enabled and configured automatically — no toggles to set.
+
+            **SSH / LuCI Software (direct .ipk):**
+            ```bash
+            opkg install lanternwatch_${{ steps.ver.outputs.VERSION }}_all.ipk
+            ```
+
+            ## Requirements
+            - GL.iNet router running OpenWrt (GL-MT6000, GL-MT3600BE, GL-MT5000, GL-MT3000, GL-MT2500)
+            - Internet connection during install (downloads Python + filter lists)
+          files: ${{ steps.ver.outputs.PKG }}
+          prerelease: ${{ contains(steps.ver.outputs.VERSION, 'beta') || contains(steps.ver.outputs.VERSION, 'alpha') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

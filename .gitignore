@@ -1,0 +1,22 @@
+.ssh/
+__pycache__/
+*.pyc
+*.db
+*.log
+*.bak
+*.backup
+*.ipk
+oui-db.txt
+oui-db.txt.tmp
+.git-credentials
+lanternwatch_config.json
+add_*.py
+fix_*.py
+patch_*.py
+social_patch.py
+vscode-server/
+.vscode-server/
+glinet_files.tar.gz
+docs/internal/
+# Internal operator/AI context — stays local, never published to the public repo
+CLAUDE.md
