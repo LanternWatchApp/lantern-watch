@@ -19,6 +19,15 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.14.2] — 2026-07-20
+
+### Changed
+- **Simplified the last step of first-run setup.** It no longer asks you to enter
+  ntfy, Telegram, or email details up front — that was a lot to face on a first
+  run. The step is now just the optional "share anonymous usage stats" choice, and
+  notifications, schedules, and social profiles are all set up later from the
+  dashboard whenever you want them.
+
 ## [0.14.1] — 2026-07-20
 
 ### Fixed

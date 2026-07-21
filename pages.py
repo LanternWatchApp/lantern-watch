@@ -743,15 +743,6 @@ function applySetup() {
 
 
 def get_notifications_wizard_page(config):
-    ntfy_topic = config.get("ntfy_topic", "")
-    tg         = config.get("telegram", {})
-    tg_token   = tg.get("bot_token", "")
-    tg_chat    = tg.get("chat_id", "")
-    em         = config.get("email", {})
-    em_host    = em.get("smtp_host", "")
-    em_port    = str(em.get("smtp_port", 587))
-    em_user    = em.get("smtp_user", "")
-    em_to      = em.get("to_address", "")
     return ("""<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Set Up Notifications — Lantern Watch</title>
@@ -777,38 +768,10 @@ input:focus{outline:none;border-color:#e8a000;box-shadow:0 0 0 3px rgba(232,160,
 .skip:hover{color:#e8a000}
 </style></head><body>
 <div class="box">
-  <div style="text-align:center;font-size:2.5em;margin-bottom:12px">&#x1F514;</div>
-  <h1>Set up notifications</h1>
-  <p class="sub">Get alerts when something needs your attention. Fill in what you want to use — leave the rest blank.</p>
+  <div style="text-align:center;font-size:2.5em;margin-bottom:12px">&#x1F389;</div>
+  <h1>You&#x2019;re all set!</h1>
+  <p class="sub">Notifications (ntfy, Telegram, email), schedules, and social profiles are all waiting in the dashboard whenever you want them.</p>
   <form method="POST" action="/setup/notifications">
-    <div class="card">
-      <div class="card-title">ntfy <span class="badge">Easiest</span></div>
-      <p class="card-sub">Free push notifications to your phone. Install the ntfy app at <b>ntfy.sh</b> and subscribe to your topic name.</p>
-      <label>Topic name</label>
-      <input type="text" name="ntfy_topic" placeholder="e.g. my-family-alerts" value="NTFY_TOPIC_VAL">
-    </div>
-    <div class="card">
-      <div class="card-title">Telegram</div>
-      <p class="card-sub">Alerts via Telegram. Needs a bot token and chat ID — full setup guide in <b>Settings &rarr; Notifications</b> after you finish.</p>
-      <label>Bot token</label>
-      <input type="text" name="tg_token" placeholder="123456:ABC-..." value="TG_TOKEN_VAL">
-      <label>Chat ID</label>
-      <input type="text" name="tg_chat" placeholder="Your personal or group chat ID" value="TG_CHAT_VAL">
-    </div>
-    <div class="card">
-      <div class="card-title">Email</div>
-      <p class="card-sub">Works with Gmail, Outlook, and any SMTP provider. Gmail requires an App Password — guide in <b>Settings &rarr; Notifications</b>.</p>
-      <label>Send alerts to</label>
-      <input type="text" name="email_to" placeholder="your@email.com" value="EM_TO_VAL">
-      <label>SMTP host</label>
-      <input type="text" name="smtp_host" placeholder="smtp.gmail.com" value="EM_HOST_VAL">
-      <label>SMTP port</label>
-      <input type="number" name="smtp_port" value="EM_PORT_VAL">
-      <label>SMTP username</label>
-      <input type="text" name="smtp_user" placeholder="your@gmail.com" value="EM_USER_VAL">
-      <label>SMTP password / app password</label>
-      <input type="password" name="smtp_pass" placeholder="Leave blank to keep existing">
-    </div>
     <div class="card" style="border:2px solid #e8d080;background:#fffbf0">
       <div class="card-title">&#x1F4CA; Help keep Lantern Watch free <span class="badge">Optional</span></div>
       <p class="card-sub">Lantern Watch is free for everyone, forever. Knowing how many families actually use it is the one thing that tells us whether to keep building and supporting it &mdash; that's the only reason we ask.</p>
@@ -824,18 +787,10 @@ input:focus{outline:none;border-color:#e8a000;box-shadow:0 0 0 3px rgba(232,160,
         <span><b>Yes, share anonymous usage stats to support the project.</b></span></label>
       <p class="card-sub" style="margin-top:8px;font-size:0.8em">This one is ticked to start with &mdash; untick it if you&#x2019;d rather not, and you can change it anytime in Settings.</p>
     </div>
-    <button type="submit" class="btn-submit">Save &amp; Go to Dashboard</button>
+    <button type="submit" class="btn-submit">Go to Dashboard</button>
   </form>
-  <a href="/" class="skip">Skip for now — set this up later in Settings</a>
 </div>
-</body></html>"""
-           .replace("NTFY_TOPIC_VAL", ntfy_topic)
-           .replace("TG_TOKEN_VAL",   tg_token)
-           .replace("TG_CHAT_VAL",    tg_chat)
-           .replace("EM_TO_VAL",      em_to)
-           .replace("EM_HOST_VAL",    em_host)
-           .replace("EM_PORT_VAL",    em_port)
-           .replace("EM_USER_VAL",    em_user))
+</body></html>""")
 
 
 _LOGO_B64 = (

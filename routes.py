@@ -533,43 +533,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"connected": connected}).encode())
                 return
 
-            # ── Notification wizard save (step 4) ────────────────────────────────
+            # ── Final wizard step (stats opt-in) ─────────────────────────────────
+            # Notification channels used to be configured here, but the wizard was
+            # simplified to just the anonymous-stats choice — channels, alert types,
+            # schedules and social profiles are all set up later in the dashboard.
             elif parsed.path == "/setup/notifications":
-                ntfy_topic = params.get("ntfy_topic", [""])[0].strip()
-                tg_token   = params.get("tg_token",   [""])[0].strip()
-                tg_chat    = params.get("tg_chat",    [""])[0].strip()
-                email_to   = params.get("email_to",   [""])[0].strip()
-                smtp_host  = params.get("smtp_host",  [""])[0].strip()
-                smtp_port  = params.get("smtp_port",  ["587"])[0].strip()
-                smtp_user  = params.get("smtp_user",  [""])[0].strip()
-                smtp_pass  = params.get("smtp_pass",  [""])[0].strip()
-                if ntfy_topic:
-                    config["ntfy_topic"] = ntfy_topic
-                if tg_token and tg_chat:
-                    if not isinstance(config.get("telegram"), dict):
-                        config["telegram"] = {}
-                    config["telegram"]["bot_token"] = tg_token
-                    config["telegram"]["chat_id"]   = tg_chat
-                if smtp_host:
-                    if not isinstance(config.get("email"), dict):
-                        config["email"] = {}
-                    config["email"]["smtp_host"]  = smtp_host
-                    config["email"]["smtp_port"]  = int(smtp_port) if smtp_port.isdigit() else 587
-                    config["email"]["smtp_user"]  = smtp_user
-                    config["email"]["to_address"] = email_to
-                    if smtp_pass:
-                        config["email"]["smtp_password"] = smtp_pass
-                # Only if they actually set up a channel do we turn on the
-                # sensible default alerts + daily summary (the wizard has no
-                # per-alert toggles). Skipping / saving blank leaves it all off.
-                if ntfy_topic or (tg_token and tg_chat) or smtp_host:
-                    config["alerts"] = {"adult_content": True, "new_device": True,
-                                        "high_block_rate": True, "high_block_threshold": 50,
-                                        "vpn_detection": True}
-                    config.setdefault("summary", {})
-                    config["summary"]["daily"] = True
-                    config["summary"].setdefault("daily_hour", 20)
-                # First-run opt-in for anonymous usage stats (default off).
                 config["telemetry_enabled"] = "telemetry_enabled" in params
                 save_config(config)
                 if config["telemetry_enabled"]:
