@@ -19,6 +19,18 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.14.3] — 2026-07-23
+
+### Fixed
+- **Backup & Restore now actually ships.** The `backup.py` module was never added
+  to the package build, so every installed copy was missing it — which silently
+  disabled the whole feature: downloadable backup files *and* USB auto-backup. The
+  app didn't crash (each backup call is a guarded, on-demand import), it just did
+  nothing. `backup.py` is now included in the package, so plugging in a USB drive
+  saves your setup automatically again, and manual backup/restore works. (USB
+  detection itself was fine — it reads the live mount table and handles GL.iNet's
+  `/tmp/mountd/...` location.)
+
 ## [0.14.2] — 2026-07-20
 
 ### Changed

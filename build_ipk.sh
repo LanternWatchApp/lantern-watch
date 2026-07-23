@@ -29,6 +29,7 @@ mkdir -p "$BUILD/control"
 APP_FILES="
   adguard.py
   alerts.py
+  backup.py
   blockserver.py
   classify.py
   collector.py
