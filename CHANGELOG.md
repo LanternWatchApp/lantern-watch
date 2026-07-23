@@ -19,6 +19,21 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.14.4] — 2026-07-23
+
+### Fixed
+- **Updating no longer resets your Safe Search / YouTube Restricted Mode choice.**
+  The installer re-applies family protection on every run, and that step blanket-
+  re-enabled every Safe Search engine — so an update silently switched YouTube
+  Restricted Mode back on, undoing anyone who had turned it off to allow comments.
+  Setup now only applies the secure-by-default all-engines-on state when Safe
+  Search is currently off (a genuine first-time setup); if it's already on, it
+  preserves your per-engine choices. The fix is centralized, so it also covers the
+  manual "Apply Now" button — re-applying protection keeps your YouTube choice.
+  (Everything else you configure already survives updates; it lives in your config
+  file, which updates never overwrite. Safe Search was the one setting stored in
+  AdGuard rather than the config, which is why it was the one thing affected.)
+
 ## [0.14.3] — 2026-07-23
 
 ### Fixed

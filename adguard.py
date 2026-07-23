@@ -761,20 +761,30 @@ def apply_adguard_setup(config, list_ids, enable_sb, enable_parental, enable_ss)
         _disable_protection(config, "parental")
 
     if enable_ss:
-        try:
-            payload = json.dumps({
-                "enabled": True, "google": True, "youtube": True,
-                "bing": True, "duckduckgo": True, "pixabay": True,
-                "ecosia": True, "yandex": True,
-            }).encode()
-            # GL.iNet AGH build requires PUT for safesearch/settings
-            req = _ag_request(config, "/control/safesearch/settings", payload)
-            req.method = "PUT"
-            urllib.request.urlopen(req, timeout=5)
-            print("[AdGuard setup] Safe search enabled (all engines)")
-        except Exception as e:
-            print(f"[AdGuard setup] Safe search error: {e}")
-            errors.append(f"Safe search: {e}")
+        # Only force the secure-by-default "all engines on" state when Safe Search
+        # is currently OFF — i.e. a genuine first-time setup. If it's already on,
+        # PRESERVE the user's per-engine choices, notably YouTube Restricted Mode
+        # (which they may have deliberately turned off to allow comments). Blanket-
+        # re-enabling every engine here is what made an app update silently switch
+        # YouTube Restricted Mode back on. The /social YouTube toggle stays the
+        # source of truth; setup must not override it on a re-run.
+        if get_safesearch_status(config).get("enabled"):
+            print("[AdGuard setup] Safe search already on — preserving engine choices (incl. YouTube)")
+        else:
+            try:
+                payload = json.dumps({
+                    "enabled": True, "google": True, "youtube": True,
+                    "bing": True, "duckduckgo": True, "pixabay": True,
+                    "ecosia": True, "yandex": True,
+                }).encode()
+                # GL.iNet AGH build requires PUT for safesearch/settings
+                req = _ag_request(config, "/control/safesearch/settings", payload)
+                req.method = "PUT"
+                urllib.request.urlopen(req, timeout=5)
+                print("[AdGuard setup] Safe search enabled (all engines)")
+            except Exception as e:
+                print(f"[AdGuard setup] Safe search error: {e}")
+                errors.append(f"Safe search: {e}")
 
     return added, errors
 
