@@ -29,7 +29,7 @@ We never collect, store, or see:
 - Your notification credentials (ntfy topic, Telegram token, email address)
 - Your router's IP address or network configuration
 
-All of this data lives exclusively on your router and is never transmitted anywhere.
+Lantern Watch never collects, stores, or transmits any of this — we have no servers that receive it. (Resolving domains does require sending lookups to an upstream DNS provider such as Cloudflare or Quad9 — that is inherent to how DNS filtering works — but it uses no account, and it never goes to Lantern Watch.)
 
 ## 2. Checking for updates sends us nothing
 
@@ -85,7 +85,7 @@ The Lantern Watch website and documentation contain affiliate links (currently A
 
 ## 9. Children's privacy
 
-Lantern Watch is designed to help parents protect children's online safety. We do not collect any data about children or anyone else. All data stays on your router.
+Lantern Watch is designed to help parents protect children's online safety. We do not collect any data about children or anyone else — Lantern Watch has no servers that receive your data.
 
 ## 10. Contact
 
