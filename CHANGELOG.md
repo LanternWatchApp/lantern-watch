@@ -19,6 +19,30 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.14.5] — 2026-07-24
+
+Hardening from a full end-to-end audit. Everything tested healthy; these close the
+minor gaps the audit surfaced (no user-facing feature was broken).
+
+### Fixed
+- **Lite updates no longer switch off small blocklists you enabled.** On Lite, an
+  update used to disable *every* list outside the tiny default set to protect a
+  512 MB router from running out of memory — including a modest list you'd turned
+  on yourself. It now only disables genuinely heavy lists (the ones that actually
+  cause the memory problem), so your own choices survive updates.
+- **A forced protection profile now sticks.** Installing with `--force-lite` /
+  `--force-full` is remembered across updates, instead of reverting to the
+  RAM-based default on the next update (which never re-passes the flag).
+- **The app talks to AdGuard over loopback** (`127.0.0.1`) instead of the LAN IP,
+  so a router whose LAN address changes (e.g. repeater mode) can't lose its
+  connection to AdGuard.
+
+### Changed
+- **"Clear Data" now reclaims the disk space** it frees (the database file used to
+  stay large after a clear until the next write cycle).
+- **Build safeguard:** the package build now fails if any app module isn't included
+  — the exact class of mistake behind the missing Backup & Restore file in 0.14.3.
+
 ## [0.14.4] — 2026-07-23
 
 ### Fixed

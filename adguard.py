@@ -437,16 +437,26 @@ def upstream_hosts(config):
     return {urllib.parse.urlparse(u).hostname for u in upstreams_for(config)}
 
 
+# On LITE, a single list bigger than this is what OOM-kills a 512 MB router
+# (GL.iNet's ~158K default, the ~107K adult list, ~144K phishing). Below it,
+# a list is small enough to keep — so a Lite user who deliberately enabled a
+# modest extra blocklist keeps it across updates, instead of having it silently
+# switched off. The rule-budget meter in the UI still warns before they overdo it.
+LITE_HEAVY_LIST_RULES = 50000
+
+
 def enforce_profile_filters(config):
-    """On LITE, disable every enabled AGH filter that isn't in the tiny lite set —
-    chiefly GL.iNet's ~158K default ad list and any heavy list a prior install
-    added. Keeps the footprint ~15 MB. Idempotent; a no-op on FULL."""
+    """On LITE, disable only the HEAVY enabled filters that aren't in the tiny lite
+    set — chiefly GL.iNet's ~158K default ad list and other giant lists that would
+    OOM a 512 MB router. Small lists a Lite user chose to enable are left alone, so
+    an update doesn't revert their choice. Keeps the footprint lean. No-op on FULL."""
     if not is_lite(config):
         return
     keep = {l["url"] for l in RECOMMENDED_LISTS if l["id"] in recommended_ids(config)}
     keep |= {l["url"] for l in OPTIONAL_LISTS if l["id"] in default_optional_ids(config)}
     for f in get_all_filter_lists(config):
-        if f["enabled"] and f["url"] not in keep:
+        if (f["enabled"] and f["url"] not in keep
+                and f.get("rules_count", 0) > LITE_HEAVY_LIST_RULES):
             try:
                 set_filter_enabled(config, f["url"], f["name"], False)
                 print(f"[Profile] LITE: disabled heavy list '{f['name']}' ({f['rules_count']} rules)")

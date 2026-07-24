@@ -53,6 +53,25 @@ for f in $APP_FILES; do
     echo "  + $f"
 done
 
+# ── Guardrail: every Python module in the repo must be packaged ───────────────
+# Catches the "forgot to add it to APP_FILES" class of bug — backup.py shipped
+# missing for months because it was never listed here. Add genuinely dev-only
+# modules to DEV_ONLY to exempt them; anything else missing fails the build.
+DEV_ONLY="fix_lists.py"
+for pyf in *.py; do
+    case " $DEV_ONLY " in *" $pyf "*) continue ;; esac
+    found=0
+    for af in $APP_FILES; do [ "$af" = "$pyf" ] && found=1 && break; done
+    if [ "$found" != 1 ]; then
+        echo ""
+        echo "BUILD FAILED: '$pyf' exists in the repo but is not in APP_FILES."
+        echo "  Add it to the APP_FILES list above, or add it to DEV_ONLY if it's dev-only."
+        rm -rf "$BUILD"
+        exit 1
+    fi
+done
+echo "  [guardrail] all repo .py modules are packaged"
+
 chmod 755 "$BUILD/data/root/lantern-watch/install.sh"
 chmod 755 "$BUILD/data/root/lantern-watch/lanternwatch.initd"
 

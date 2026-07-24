@@ -767,6 +767,7 @@ class Handler(BaseHTTPRequestHandler):
                 conn = sqlite3.connect(DB_PATH)
                 conn.execute("DELETE FROM querylog")
                 conn.commit()
+                conn.execute("VACUUM")   # reclaim the file space a full clear leaves behind
                 conn.close()
                 config["last_adult_alert"] = datetime.utcnow().isoformat() + "Z"
                 config["blocked_content_cooldowns"] = {}
@@ -780,6 +781,7 @@ class Handler(BaseHTTPRequestHandler):
                 conn = sqlite3.connect(DB_PATH)
                 conn.execute("DELETE FROM querylog")
                 conn.commit()
+                conn.execute("VACUUM")   # reclaim the file space a full clear leaves behind
                 conn.close()
                 config["devices"] = {}
                 config["schedules"] = {}

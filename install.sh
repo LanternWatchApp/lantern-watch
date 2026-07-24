@@ -196,6 +196,11 @@ OVERLAY_MB=$((OVERLAY_KB / 1024))
 # Protection profile from RAM: < 600 MB → LITE (tiny footprint + filtering
 # upstream, for 512 MB routers like the Beryl 7), >= 600 MB → FULL (heavy local
 # blocklists, for 1 GB+ like the Brume 3). --force-full / --force-lite override.
+# A forced choice persists across updates: feed/self-update runs never pass the
+# flag, so without this an update would silently revert to the RAM-derived profile.
+if [ -z "$FORCE_PROT" ] && [ -f "$INSTALL_DIR/lanternwatch_config.json" ]; then
+    FORCE_PROT=$(python3 -c "import json;print(json.load(open('$INSTALL_DIR/lanternwatch_config.json')).get('forced_profile') or '')" 2>/dev/null || echo "")
+fi
 if [ -n "$FORCE_PROT" ]; then
     PROT_PROFILE="$FORCE_PROT"
     # Guard the footgun: FULL on a small router loads 300K+ rules and AdGuard
@@ -476,10 +481,16 @@ try:
     c["hw_profile"] = "$PROFILE"
     c["hw_low_ram"] = $([ "$LOW_RAM" = "yes" ] && echo "True" || echo "False")
     c["protection_profile"] = "$PROT_PROFILE"   # 'lite' (<600MB) or 'full' — picks list set + upstream
+    fp = "$FORCE_PROT"
+    if fp:
+        c["forced_profile"] = fp   # persist a --force-lite/--force-full choice across updates
     ag = c.get("adguard", {})
     existing_url = ag.get("url", "")
-    if not existing_url or "127.0.0.1" in existing_url:
-        ag["url"] = "http://$LAN_IP:3000"
+    # Talk to AdGuard over loopback — always reachable, and immune to LAN-IP
+    # changes (e.g. repeater mode shifting the subnet). Normalize the auto-set
+    # values (empty / loopback / this router's LAN IP); leave a custom URL alone.
+    if not existing_url or "127.0.0.1" in existing_url or "$LAN_IP" in existing_url:
+        ag["url"] = "http://127.0.0.1:3000"
     if not ag.get("username"):
         ag["username"] = "lanternwatch"
     pw = os.environ.get("_AGH_PASS", "")
