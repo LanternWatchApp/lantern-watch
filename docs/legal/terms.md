@@ -10,7 +10,7 @@ Lantern Watch is free, open-source software. You are free to use, modify, and di
 
 ## 1. What Lantern Watch is
 
-Lantern Watch is a self-hosted parental control dashboard that runs on your own GL.iNet router. Your network data — device names, browsing, and usage — is never transmitted to Lantern Watch; we have no servers that receive it. (DNS filtering does resolve domains through an upstream provider such as Cloudflare or Quad9 — inherent to DNS, and using no account — but that never goes to us.) Its only outbound contact with Lantern Watch is an anonymous install count and software-update checks (see Section 5).
+Lantern Watch is a self-hosted parental control dashboard that runs on your own GL.iNet router. Content filtering runs locally through AdGuard Home using community blocklists (adult, malware, phishing, trackers, and more); DNS is resolved through trusted public providers — **`cloudflare-dns.com` and `dns.quad9.net`**, or Cloudflare for Families on lighter routers, which handles adult/malware filtering upstream to save memory. Your network data — device names, browsing, and usage — is never transmitted to Lantern Watch; we operate no servers that receive it, and no account ties your DNS to you. See the [Privacy Policy](privacy.md) for the full DNS flow. Lantern Watch's only outbound contact with us is an anonymous install count and software-update checks (see Section 5).
 
 ## 2. No warranty
 
