@@ -444,10 +444,13 @@ _NAV_ACTIVE = {
 
 def build_header(subtitle="Light for your home network", config=None):
     logo = f'<div class="header-logo">{_LANTERN_SVG}</div>'
-    agh_url = "http://192.168.8.1:3000"
-    if config:
-        agh_url = config.get("adguard", {}).get("url", agh_url)
-    _host = agh_url.split("//")[-1].split(":")[0].split("/")[0] or "192.168.8.1"
+    # These are links the VISITOR'S BROWSER follows, so they must use the router's
+    # LAN IP — never the internal AdGuard API URL, which is loopback (127.0.0.1)
+    # since 0.14.5 and only reachable from the router itself. (Reusing that URL
+    # here is what pointed the Tools links at 127.0.0.1 = the visitor's own device.)
+    from config import router_lan_ip
+    _host = router_lan_ip()
+    agh_url = f"http://{_host}:3000"
     glinet_url = f"http://{_host}/#/login"
     active = _NAV_ACTIVE.get(subtitle, "")
     if subtitle.startswith("Schedule"):

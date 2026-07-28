@@ -19,6 +19,16 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.14.7] — 2026-07-28
+
+### Fixed
+- **The Tools menu links (AdGuard, GL.iNet) work again from any device.** 0.14.5
+  pointed the app's *internal* AdGuard connection at loopback (`127.0.0.1`), which
+  is correct — but the Tools menu reused that same URL for the links your browser
+  follows, so from a phone or laptop they pointed at `127.0.0.1` (your own device)
+  and went nowhere. The browser-facing links now use the router's real LAN IP,
+  while the internal connection stays on loopback.
+
 ## [0.14.6] — 2026-07-28
 
 ### Fixed
