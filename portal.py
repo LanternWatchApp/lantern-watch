@@ -46,11 +46,25 @@ def _ipt(*args, check=False, quiet=False):
 
 
 def _rebuild_chain(acked_ips):
-    """Flush lw_captive and repopulate: RETURN rules for each acked IP, then default REDIRECT.
+    """Flush lw_captive and repopulate, in order:
+      1. RETURN for traffic to the ROUTER ITSELF (its LAN IP + loopback) — the
+         portal must NEVER intercept the GL.iNet admin panel or the Lantern Watch
+         dashboard, or it locks the admin out of their own router with no way back
+         except a factory reset.
+      2. RETURN for each acknowledged client IP.
+      3. Default REDIRECT to the portal for everyone else.
 
     The REDIRECT rule MUST carry `-p tcp`: iptables refuses `--to-port` without a
     protocol match ("Need TCP, UDP, SCTP or DCCP with port specification")."""
     _ipt("-F", _CHAIN, quiet=True)
+    try:
+        from config import router_lan_ip
+        lan_ip = router_lan_ip()
+    except Exception:
+        lan_ip = ""
+    for self_ip in (lan_ip, "127.0.0.1"):
+        if self_ip:
+            _ipt("-A", _CHAIN, "-d", self_ip, "-j", "RETURN")
     for ip in acked_ips:
         _ipt("-A", _CHAIN, "-s", ip, "-j", "RETURN")
     _ipt("-A", _CHAIN, "-p", "tcp", "-j", "REDIRECT", "--to-port", str(_PORTAL_PORT))

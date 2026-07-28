@@ -19,6 +19,17 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.14.6] — 2026-07-28
+
+### Fixed
+- **The Network Notice (captive portal) no longer locks you out of your own
+  router.** When enabled, it was intercepting web traffic to the router itself —
+  so it blocked the GL.iNet admin panel *and* the Lantern Watch dashboard, with no
+  way through except a factory reset. The portal now always exempts the router's
+  own addresses (its LAN IP and loopback), so admin pages stay reachable while new
+  devices are still shown the notice. (This surfaced now because the captive portal
+  only started working correctly in 0.14.0 — before that it did nothing at all.)
+
 ## [0.14.5] — 2026-07-24
 
 Hardening from a full end-to-end audit. Everything tested healthy; these close the
