@@ -22,7 +22,7 @@ from adguard import (apply_social_profile, clear_social_blocking, get_adguard_st
                      reset_adguard_stats, restore_client_global,
                      get_safesearch_status,
                      get_blocked_services, set_blocked_services)
-from db import get_stats, DB_PATH, clear_notifications, get_all_known_devices, get_querylog_entries, get_querylog_devices, get_recent_blocks
+from db import get_stats, DB_PATH, clear_notifications, get_all_known_devices, get_querylog_entries, get_querylog_devices, get_recent_blocks, get_querylog_summary
 from scheduler import pause_device, unpause_device
 from pages import (
     get_welcome_page, get_welcome_error_page, get_adguard_wizard_page,
@@ -256,7 +256,8 @@ class Handler(BaseHTTPRequestHandler):
                     q           = ql_filters["q"] or None,
                 )
                 devices = get_querylog_devices(window)
-                html = build_querylog_page(entries, devices, total, ql_filters, config)
+                summary = get_querylog_summary(window, device=ql_filters["device"] or None)
+                html = build_querylog_page(entries, devices, total, ql_filters, config, summary=summary)
 
             elif parsed.path == "/api/recent-blocks":
                 # Near-real-time feed of blocked DNS queries. The dashboard can

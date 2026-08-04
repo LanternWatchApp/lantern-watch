@@ -4110,7 +4110,7 @@ def build_notifications(config, cleared=False, saved=False,
     )
 
 
-def build_querylog_page(entries, devices, total, filters, config):
+def build_querylog_page(entries, devices, total, filters, config, summary=None):
     device  = filters.get("device", "")
     blocked = filters.get("blocked", "")
     window  = filters.get("window", "1h")
@@ -4208,6 +4208,66 @@ def build_querylog_page(entries, devices, total, filters, config):
     clear_btn = (f'<a href="/querylog" class="ql-btn ql-btn-clear">Clear</a>'
                  if active_filters else '')
 
+    # ── Summary / Insights panel (aggregate view above the raw log) ───────────
+    window_lbl = WINDOW_LABELS.get(window, window)
+    s_total = (summary or {}).get("total", 0)
+    s_blk   = (summary or {}).get("blocked", 0)
+    s_pct   = round(s_blk / s_total * 100) if s_total else 0
+
+    def _qs_rows(items, is_device=False, blocked_col=False):
+        if not items:
+            return '<div class="qs-empty">Nothing in this window</div>'
+        maxc = max((it[1] for it in items), default=1) or 1
+        out = ""
+        for it in items:
+            if is_device:
+                name, c, b = it
+                lbl  = device_display_name(name, config, _ip_hostnames)
+                href = f'/querylog?device={quote(name)}&window={window}'
+                name_html = f'<a href="{href}" class="qs-name">{lbl}</a>'
+                cnt_sub = f'<span class="qs-sub">{round(b / c * 100) if c else 0}% blocked</span>'
+            else:
+                dom, c = it
+                name_html = f'<span class="qs-name" title="{dom}">{dom}</span>'
+                cnt_sub = ""
+            w = round(c / maxc * 100)
+            fill = "qs-fill qs-fill-blk" if blocked_col else "qs-fill"
+            out += (f'<div class="qs-row"><div class="{fill}" style="width:{w}%"></div>'
+                    f'{name_html}<span class="qs-count">{c:,}{cnt_sub}</span></div>')
+        return out
+
+    if summary and device:
+        _dev_lbl = device_display_name(device, config, _ip_hostnames)
+        summary_panel = (
+            f'<div class="qs-head">Activity for <b>{_dev_lbl}</b> &middot; {window_lbl} &middot; '
+            f'<b>{s_total:,}</b> queries &middot; <b>{s_blk:,}</b> blocked ({s_pct}%) '
+            f'&nbsp;<a href="/querylog?window={window}" class="qs-back">&#x2190; all devices</a></div>'
+            '<div class="qs-grid">'
+            f'<div class="qs-col"><div class="qs-title">Top Domains</div>{_qs_rows(summary["top_domains"])}</div>'
+            f'<div class="qs-col qs-col-blk"><div class="qs-title">Top Blocked</div>{_qs_rows(summary["top_blocked"], blocked_col=True)}</div>'
+            '</div>'
+        )
+    elif summary:
+        summary_panel = (
+            f'<div class="qs-head">Activity &middot; {window_lbl} &middot; <b>{s_total:,}</b> queries &middot; '
+            f'<b>{s_blk:,}</b> blocked ({s_pct}%)</div>'
+            '<div class="qs-grid">'
+            f'<div class="qs-col"><div class="qs-title">Top Devices<span class="qs-hint">tap to drill in</span></div>{_qs_rows(summary["top_devices"], is_device=True)}</div>'
+            f'<div class="qs-col"><div class="qs-title">Top Domains</div>{_qs_rows(summary["top_domains"])}</div>'
+            f'<div class="qs-col qs-col-blk"><div class="qs-title">Top Blocked</div>{_qs_rows(summary["top_blocked"], blocked_col=True)}</div>'
+            '</div>'
+        )
+    else:
+        summary_panel = ""
+
+    # Land on the Log tab when the visitor is clearly hunting specific entries
+    # (a domain search or blocked-only filter); otherwise lead with the Summary.
+    default_tab = "log" if (q or blocked == "1") else "sum"
+    _sum_on   = "on" if default_tab == "sum" else ""
+    _log_on   = "on" if default_tab == "log" else ""
+    _sum_disp = "block" if default_tab == "sum" else "none"
+    _log_disp = "block" if default_tab == "log" else "none"
+
     return (
         '<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg"><meta charset="UTF-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1.0">'
@@ -4254,6 +4314,24 @@ def build_querylog_page(entries, devices, total, filters, config):
 .ql-page-btn:hover{background:var(--amber-soft);border-color:var(--orange)}
 .ql-page-off{color:#ccc;pointer-events:none;border-color:var(--line)}
 .ql-page-info{font-size:13px;color:var(--muted)}
+.ql-tabs{display:flex;gap:6px;margin:2px 0 14px}
+.ql-tab{padding:7px 18px;border:1px solid var(--line);background:#fff;border-radius:8px;font-weight:700;font-size:13px;color:var(--muted);cursor:pointer;font-family:var(--font)}
+.ql-tab.on{background:var(--orange);color:#fff;border-color:var(--orange)}
+.qs-head{font-size:13px;color:var(--muted);margin-bottom:12px}
+.qs-back{color:var(--orange-dark);text-decoration:none;font-weight:700;white-space:nowrap}
+.qs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;padding-bottom:24px}
+.qs-col{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+.qs-title{font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline}
+.qs-hint{font-size:9.5px;color:#b8b2a6;font-weight:600;text-transform:none;letter-spacing:0}
+.qs-row{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 9px;margin-bottom:3px;border-radius:6px;overflow:hidden}
+.qs-fill{position:absolute;left:0;top:0;bottom:0;background:var(--amber-soft);z-index:0}
+.qs-fill-blk{background:#fdeaea}
+.qs-name{position:relative;z-index:1;font-size:12.5px;color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+a.qs-name{color:var(--orange-dark);text-decoration:none}
+a.qs-name:hover{text-decoration:underline}
+.qs-count{position:relative;z-index:1;font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+.qs-sub{font-size:9.5px;color:#b0392f;font-weight:600}
+.qs-empty{color:var(--muted);font-style:italic;font-size:12px;padding:8px}
 """ + '</style></head><body>'
         + build_header("Query Log", config=config)
         + '<div class="ql-wrap">'
@@ -4266,6 +4344,12 @@ def build_querylog_page(entries, devices, total, filters, config):
         + f'<button type="submit" class="ql-btn">Filter</button>'
         + clear_btn
         + '</form>'
+        + '<div class="ql-tabs">'
+        + f'<button type="button" class="ql-tab {_sum_on}" onclick="qlTab(\'sum\',this)">Summary</button>'
+        + f'<button type="button" class="ql-tab {_log_on}" onclick="qlTab(\'log\',this)">Full Log</button>'
+        + '</div>'
+        + f'<div id="ql-sum" style="display:{_sum_disp}">{summary_panel}</div>'
+        + f'<div id="ql-log" style="display:{_log_disp}">'
         + f'<div class="ql-stats">Showing {showing_from}–{showing_to} of {stats_msg}</div>'
         + '<div class="ql-table-wrap"><table class="ql-table">'
         + '<thead><tr><th>Time</th><th>Device</th><th>Domain</th><th>Type</th><th>Status</th><th>ms</th></tr></thead>'
@@ -4274,5 +4358,10 @@ def build_querylog_page(entries, devices, total, filters, config):
         + f'<div class="ql-pagination">{prev_btn}'
         + f'<span class="ql-page-info">{showing_from}–{showing_to} of {total:,}</span>'
         + f'{next_btn}</div>'
+        + '</div>'
+        + '<script>function qlTab(v,b){document.getElementById("ql-sum").style.display=(v=="sum")?"block":"none";'
+        + 'document.getElementById("ql-log").style.display=(v=="log")?"block":"none";'
+        + 'var t=document.getElementsByClassName("ql-tab");for(var i=0;i<t.length;i++)t[i].classList.remove("on");'
+        + 'b.classList.add("on");}</script>'
         + '</div></div></body></html>'
     )

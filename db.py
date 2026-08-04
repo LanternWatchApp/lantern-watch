@@ -767,6 +767,58 @@ def get_querylog_devices(window="1h"):
     return [r["client_name"] for r in rows if r["client_name"]]
 
 
+def get_querylog_summary(window="1h", device=None, limit=8):
+    """Aggregate the query log over a window for the /querylog Summary panel:
+    top devices (with per-device block counts), top allowed domains, and top
+    blocked domains, plus totals. When `device` is set, everything is scoped to
+    that one device (the drill-down / pivot). GROUP BY over the window only — the
+    ts range is served by the UNIQUE(ts, ...) index, so it stays quick even on a
+    512 MB router as long as the window isn't enormous."""
+    window_map = {"1h": "-1 hours", "6h": "-6 hours", "24h": "-24 hours", "7d": "-7 days",
+                  "30d": "-30 days", "60d": "-60 days", "90d": "-90 days"}
+    since_expr = window_map.get(window, "-1 hours")
+    where  = ["ts > datetime('now', ?)"]
+    params = [since_expr]
+    if device:
+        where.append("(client_name=? OR client_ip=?)")
+        params.extend([device, device])
+    w = " AND ".join(where)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        tot = conn.execute(
+            f"SELECT COUNT(*) t, COALESCE(SUM(blocked),0) b FROM querylog WHERE {w}", params
+        ).fetchone()
+        top_devices = []
+        if not device:   # ranking devices only makes sense across the whole network
+            top_devices = [
+                (r["client_name"], r["c"], r["b"]) for r in conn.execute(
+                    f"SELECT client_name, COUNT(*) c, COALESCE(SUM(blocked),0) b FROM querylog "
+                    f"WHERE {w} AND client_name!='' GROUP BY client_name ORDER BY c DESC LIMIT ?",
+                    params + [limit])
+            ]
+        top_domains = [
+            (r["domain"], r["c"]) for r in conn.execute(
+                f"SELECT domain, COUNT(*) c FROM querylog WHERE {w} AND blocked=0 AND domain!='' "
+                f"GROUP BY domain ORDER BY c DESC LIMIT ?", params + [limit])
+        ]
+        top_blocked = [
+            (r["domain"], r["c"]) for r in conn.execute(
+                f"SELECT domain, COUNT(*) c FROM querylog WHERE {w} AND blocked=1 AND domain!='' "
+                f"GROUP BY domain ORDER BY c DESC LIMIT ?", params + [limit])
+        ]
+    finally:
+        conn.close()
+    return {
+        "total":       tot["t"],
+        "blocked":     tot["b"],
+        "top_devices": top_devices,
+        "top_domains": top_domains,
+        "top_blocked": top_blocked,
+    }
+
+
 def get_oldest_log_date():
     """Return a human-readable date string for the oldest record in the DB."""
     try:

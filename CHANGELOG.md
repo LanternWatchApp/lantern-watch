@@ -19,6 +19,18 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.15.0] — 2026-07-29
+
+### Added
+- **Query Log Summary — see what your devices are actually doing, at a glance.**
+  The Query Log page now opens on a **Summary** that ranks, over any time window:
+  your **top devices** (with each one's block rate), the **domains** they reach
+  most, and the **top blocked** trackers and ads. **Tap a device** to drill into
+  exactly what it's talking to — a pivot from "which device" to "doing what." The
+  full row-by-row log is one tap away under **Full Log** (and searching or
+  filtering blocked-only jumps you straight there). Turns a log of hundreds of
+  thousands of rows into a two-second answer to "what's happening on my network?"
+
 ## [0.14.7] — 2026-07-28
 
 ### Fixed
