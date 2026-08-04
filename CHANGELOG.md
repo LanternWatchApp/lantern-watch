@@ -19,6 +19,12 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.15.0.1] — 2026-07-29
+
+### Added
+- The dashboard's **"Queries Today"** number is now a clickable link straight to
+  the Query Log (and its new Summary view).
+
 ## [0.15.0] — 2026-07-29
 
 ### Added

@@ -127,6 +127,8 @@ h1,h2,h3{color:var(--ink);font-weight:700;line-height:1.2;letter-spacing:-0.02em
 .stats-bar{display:flex;gap:8px;padding:12px 16px;overflow-x:auto;max-width:780px;margin:0 auto}
 .stat-card{background:var(--bg-card);border-radius:12px;padding:12px 16px;min-width:90px;flex:1;text-align:center;border:1px solid var(--line);box-shadow:var(--shadow);transition:box-shadow 200ms ease,transform 200ms ease}
 .stat-card:hover{box-shadow:var(--shadow-hover);transform:translateY(-2px)}
+a.stat-card{text-decoration:none;color:inherit;display:block;cursor:pointer}
+a.stat-card:hover .label{color:var(--orange-dark)}
 .stat-card .num{font-size:clamp(16px,5vw,28px);font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.num.blue{color:var(--ink)}.num.green{color:var(--ok)}.num.red{color:var(--danger)}
 .stat-card .label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-top:4px}
 .device-card{background:var(--bg-card);border-radius:var(--radius);padding:16px;margin-bottom:10px;border:1px solid var(--line);box-shadow:var(--shadow);transition:border-color 150ms ease,box-shadow 150ms ease}
@@ -1948,7 +1950,7 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
 
     stats_bar = (
         f'<div class="stats-bar">'
-        f'<div class="stat-card"><div class="num blue">{total_q:,}</div><div class="label">Queries Today</div></div>'
+        f'<a href="/querylog" class="stat-card"><div class="num blue">{total_q:,}</div><div class="label">Queries Today &rsaquo;</div></a>'
         f'<div class="stat-card"><div class="num green">{block_pct}%</div><div class="label">Block Rate</div></div>'
         f'<div class="stat-card"><div class="num blue">{len(people)}</div><div class="label">Devices</div></div>'
         f'<div class="stat-card"><div class="num red">{ag_blocked:,}</div><div class="label">Blocked</div>'
