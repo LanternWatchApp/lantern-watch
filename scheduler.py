@@ -284,6 +284,13 @@ def check_schedules():
         except Exception as e:
             print(f"Scheduler error: {e}")
 
+        # Auto-reblock any "preview pass" temporary allows that have expired.
+        try:
+            from adguard import sweep_expired_previews
+            sweep_expired_previews(load_config())
+        except Exception as e:
+            print(f"[Preview] sweep error: {e}")
+
         time.sleep(60)
 
 

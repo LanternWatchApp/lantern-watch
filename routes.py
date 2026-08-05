@@ -207,8 +207,14 @@ class Handler(BaseHTTPRequestHandler):
                 )
 
             elif parsed.path == "/domain":
-                params = parse_qs(parsed.query)
-                html   = build_domain_detail(unquote(params.get("name", [""])[0]), config)
+                params   = parse_qs(parsed.query)
+                _dname   = unquote(params.get("name", [""])[0])
+                _peek    = None
+                if params.get("peek", [""])[0] == "1" and _dname:
+                    from adguard import fetch_site_preview
+                    _peek = fetch_site_preview(_dname)
+                html = build_domain_detail(_dname, config,
+                                           msg=params.get("msg", [""])[0], peek=_peek)
 
             elif parsed.path == "/social":
                 params     = parse_qs(parsed.query)
@@ -660,7 +666,7 @@ class Handler(BaseHTTPRequestHandler):
                 # Allow a blocked domain (add an AGH @@|| exception) or re-block one
                 # the admin previously allowed. Round-trip the query-log filters so
                 # we land back on the same view, with a confirmation flash.
-                from adguard import add_allowlist_domain, remove_allowlist_domain
+                from adguard import add_allowlist_domain, cancel_preview
                 from urllib.parse import urlencode
                 domain = params.get("domain", [""])[0].strip().lower()
                 if parsed.path == "/querylog/allow":
@@ -668,17 +674,42 @@ class Handler(BaseHTTPRequestHandler):
                     msg = (f"Allowed {domain} — it will load now."
                            if ok else "Could not allow that site — please try again.")
                 else:
-                    ok  = bool(domain) and remove_allowlist_domain(config, domain)
+                    # cancel_preview re-blocks AND clears any preview-pass timer.
+                    ok  = bool(domain) and cancel_preview(config, domain)
                     msg = (f"Blocked {domain} again."
                            if ok else "Could not block that site — please try again.")
-                qs = urlencode({
-                    "device":  params.get("device",  [""])[0],
-                    "window":  params.get("window",  ["1h"])[0],
-                    "blocked": params.get("blocked", [""])[0],
-                    "q":       params.get("q",       [""])[0],
-                    "msg":     msg,
-                })
-                self._redirect(f"/querylog?{qs}")
+                # `back` lets a caller (e.g. the domain detail page) return to its
+                # own page; default is the Query Log with the filters preserved.
+                back = params.get("back", [""])[0]
+                if back:
+                    sep = "&" if "?" in back else "?"
+                    self._redirect(f"{back}{sep}{urlencode({'msg': msg})}")
+                else:
+                    qs = urlencode({
+                        "device":  params.get("device",  [""])[0],
+                        "window":  params.get("window",  ["1h"])[0],
+                        "blocked": params.get("blocked", [""])[0],
+                        "q":       params.get("q",       [""])[0],
+                        "msg":     msg,
+                    })
+                    self._redirect(f"/querylog?{qs}")
+                return
+
+            if parsed.path in ("/domain/preview", "/domain/keep"):
+                # Preview pass: temporarily allow a site so the admin can view it,
+                # then it auto-reblocks (see adguard.sweep_expired_previews); or
+                # "Keep allowed" promotes that preview to a permanent allow.
+                from adguard import start_preview, keep_preview
+                from urllib.parse import urlencode
+                domain = params.get("domain", [""])[0].strip().lower()
+                if parsed.path == "/domain/preview":
+                    start_preview(config, domain, minutes=15)
+                    msg = (f"Previewing {domain} for 15 minutes — open it below. "
+                           f"It re-blocks automatically unless you keep it.")
+                else:
+                    keep_preview(config, domain)
+                    msg = f"{domain} is now allowed for good."
+                self._redirect(f"/domain?name={quote(domain)}&{urlencode({'msg': msg})}")
                 return
 
             if parsed.path == "/admin/save":

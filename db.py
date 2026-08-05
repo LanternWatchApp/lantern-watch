@@ -385,7 +385,7 @@ def get_domain_detail(domain):
     since = today_start()
 
     entries = conn.execute(
-        "SELECT ts, client_name, reason, elapsed_ms, qtype FROM querylog "
+        "SELECT ts, client_name, reason, elapsed_ms, qtype, filter_id FROM querylog "
         "WHERE domain=? AND ts > ? ORDER BY ts DESC LIMIT 100",
         (domain, since),
     ).fetchall()

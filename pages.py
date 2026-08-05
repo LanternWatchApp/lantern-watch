@@ -2122,22 +2122,41 @@ def build_detail(client_name, config, client_ip_param=""):
     )
 
 
-def build_domain_detail(domain, config):
+def build_domain_detail(domain, config, msg="", peek=None):
     entries, summary, total = get_domain_detail(domain)
     is_adult   = any(r["reason"] == "FilteredParental" for r in entries)
     is_malware = any(r["reason"] == "FilteredSafeBrowsing" for r in entries)
 
+    # Current allow state + a specific category (using the blocklist name) so the
+    # page names WHAT this site is, and offers a one-tap Allow / Block again.
+    try:
+        from adguard import get_allowlisted_domains, get_filter_names, preview_expiry
+        _allowed  = domain.lower() in set(get_allowlisted_domains(config))
+        _fnames   = get_filter_names(config)
+        _prev_exp = preview_expiry(config, domain)   # epoch, or None if not a preview
+    except Exception:
+        _allowed, _fnames, _prev_exp = False, {}, None
+
+    def _fid_name(fid):
+        try:
+            return _fnames.get(int(fid), "")
+        except (TypeError, ValueError):
+            return ""
+
     if is_adult:
-        category    = "Content Filter"
+        category    = "Adult content"
         explanation = "This website was blocked by your family content filter."
         cat_badge   = '<span style="background:#DC6B5F;color:white;padding:3px 12px;border-radius:99px;font-size:0.8em;font-weight:700">BLOCKED</span>'
     elif is_malware:
-        category    = "Malware / Phishing"
+        category    = "Malware / phishing"
         explanation = "This website has been flagged as dangerous."
         cat_badge   = '<span style="background:#DC6B5F;color:white;padding:3px 12px;border-radius:99px;font-size:0.8em;font-weight:700">DANGEROUS</span>'
     else:
-        category    = "Blocked by Filter"
-        explanation = "This website was blocked by your active filter lists."
+        # Refine "a filter list caught it" into the actual category (Ads &
+        # trackers / Trackers / Gambling / Dating / …) via the list's name.
+        _r0 = next((r for r in entries if r["reason"]), None)
+        category    = block_category(_r0["reason"] if _r0 else "", _fid_name(_r0["filter_id"]) if _r0 else "")
+        explanation = f"This website was blocked as <b>{category.lower()}</b> by your active filter lists."
         cat_badge   = '<span style="background:#92400e;color:#fbbf24;padding:3px 12px;border-radius:99px;font-size:0.8em;font-weight:700">FILTERED</span>'
 
     first_seen = _local_ts(total["first"])[:16] if total["first"] else "-"
@@ -2170,13 +2189,103 @@ def build_domain_detail(domain, config):
             f'<span style="color:#94a3b8;font-size:0.75em">{elapsed}</span></div></div>'
         )
 
+    _esc = lambda s: (str(s or "")).replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
+    _dom_esc = _esc(domain)
+    _back    = f"/domain?name={quote(domain)}"
+    flash_html = (
+        f'<div style="margin:0 16px 12px;padding:10px 14px;background:#eaf7ef;border:1px solid #bfe6cd;'
+        f'border-radius:10px;color:#1c7a44;font-weight:600;font-size:0.9em">{_esc(msg)}</div>'
+        if msg else ""
+    )
+    # Shared button styles
+    _btn = 'border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:var(--font)'
+    _btn_green = f'background:#2f9e5f;color:#fff;{_btn}'
+    _btn_red   = f'background:#DC6B5F;color:#fff;{_btn}'
+    _btn_amber = f'background:#e8a000;color:#fff;{_btn}'
+    _btn_ghost = f'background:#fff;color:#334155;border:1px solid #cbd5e1;border-radius:8px;font-weight:700;cursor:pointer;font-family:var(--font)'
+
+    def _hidden():
+        return (f'<input type="hidden" name="domain" value="{_dom_esc}">'
+                f'<input type="hidden" name="back" value="{_back}">')
+
+    # ── Safe "Peek" result (server-fetched title/description), if requested ────
+    peek_box = ""
+    if peek is not None:
+        if peek.get("ok") and (peek.get("title") or peek.get("description")):
+            _t = _esc(peek.get("title", "")); _d = _esc(peek.get("description", ""))
+            peek_box = (
+                '<div style="margin-top:12px;padding:12px;background:#f6f9ff;border:1px solid #c9d9f5;border-radius:10px">'
+                '<div style="font-size:0.72em;text-transform:uppercase;letter-spacing:0.05em;color:#5877b8;font-weight:700;margin-bottom:6px">What is this site?</div>'
+                + (f'<div style="font-weight:700;color:#1e293b;font-size:0.95em">{_t}</div>' if _t else '')
+                + (f'<div style="color:#475569;font-size:0.85em;margin-top:4px">{_d}</div>' if _d else '')
+                + '<div style="color:#94a3b8;font-size:0.72em;margin-top:8px">Fetched privately by your router — shown only to you, nothing was unblocked.</div>'
+                '</div>'
+            )
+        else:
+            peek_box = (
+                '<div style="margin-top:12px;padding:12px;background:#f8f8f6;border:1px solid #e2e0d9;border-radius:10px;'
+                'color:#64748b;font-size:0.85em">'
+                + _esc(peek.get("error") or "Couldn't load a preview.") +
+                '</div>'
+            )
+    _peek_link = (
+        f'<a href="/domain?name={quote(domain)}&amp;peek=1" class="btn" '
+        f'style="{_btn_ghost};display:inline-block;text-decoration:none;font-size:0.85em;padding:8px 14px">'
+        f'&#x1F50D; What is this site?</a>'
+    )
+
+    if _prev_exp:
+        # Previewing: temporarily allowed, auto-reblocks soon.
+        import time as _t
+        _mins = max(0, int(round((_prev_exp - _t.time()) / 60)))
+        _open = f'https://{domain}/'
+        allow_box = (
+            '<div style="margin-top:14px;padding:12px;background:#FFFBEB;border:1px solid #F0D890;border-radius:10px">'
+            f'<div style="color:#7a5a12;font-weight:700;font-size:0.9em;margin-bottom:4px">&#x1F441;&#xFE0F; You&#39;re previewing this site.</div>'
+            f'<div style="color:#7a5a12;font-size:0.8em;margin-bottom:10px">It re-blocks automatically in about {_mins} min unless you keep it. '
+            'If it doesn&#39;t open right away, wait a few seconds and refresh — your device may briefly remember the block.</div>'
+            f'<a href="{_open}" target="_blank" rel="noopener" class="btn" '
+            f'style="{_btn_amber};display:inline-block;text-decoration:none;font-size:0.88em;padding:9px 16px;margin-bottom:8px">'
+            f'Open {_esc(domain)} &#x2197;</a>'
+            '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+            f'<form method="POST" action="/domain/keep">{_hidden()}'
+            f'<button type="submit" class="btn" style="{_btn_green};font-size:0.85em;padding:8px 16px">&#x2713; Keep allowed</button></form>'
+            f'<form method="POST" action="/querylog/reblock">{_hidden()}'
+            f'<button type="submit" class="btn" style="{_btn_red};font-size:0.85em;padding:8px 16px">&#x2717; Block again</button></form>'
+            '</div></div>'
+        )
+    elif _allowed:
+        allow_box = (
+            '<div style="margin-top:14px;padding:12px;background:#eaf7ef;border:1px solid #bfe6cd;border-radius:10px">'
+            '<div style="color:#1c7a44;font-weight:700;font-size:0.88em;margin-bottom:8px">'
+            '&#x2713; You&#39;ve allowed this site &mdash; it loads normally now.</div>'
+            f'<form method="POST" action="/querylog/reblock">{_hidden()}'
+            f'<button type="submit" class="btn" style="{_btn_red};font-size:0.85em;padding:8px 16px">'
+            'Block this site again</button></form></div>'
+        )
+    else:
+        allow_box = (
+            '<div style="margin-top:14px;padding:12px;background:#FFFDF5;border:1px solid #F0D890;border-radius:10px">'
+            '<div style="color:#7a5a12;font-size:0.82em;margin-bottom:10px">'
+            'Not sure about this site? <b>Peek</b> at what it is, <b>Preview</b> the real page for 15 minutes, '
+            'or <b>Allow</b> it for good.</div>'
+            + peek_box +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'
+            + _peek_link +
+            f'<form method="POST" action="/domain/preview">{_hidden()}'
+            f'<button type="submit" class="btn" style="{_btn_amber};font-size:0.85em;padding:8px 14px">&#x1F441;&#xFE0F; Preview site (15 min)</button></form>'
+            f'<form method="POST" action="/querylog/allow">{_hidden()}'
+            f'<button type="submit" class="btn" style="{_btn_green};font-size:0.88em;padding:8px 16px">&#x2713; Allow this site</button></form>'
+            '</div></div>'
+        )
+
     return (
         f'<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg"><meta charset="UTF-8">'
         f'<meta name="viewport" content="width=device-width,initial-scale=1.0">'
         f'<title>{domain} - Lantern Watch</title><style>{CSS}</style></head><body>'
         + build_header("Blocked Site Details", config=config)
         + '<div class="page-wrap">'
-        +''
+        + flash_html
         + f'<div style="margin:0 16px 12px;padding:16px;background:#FFF7F7;border-radius:12px;border:2px solid #FCA5A5">'
         + f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'
         + f'<div style="font-size:1.1em;font-weight:700;color:#DC6B5F;word-break:break-all">{domain}</div>{cat_badge}</div>'
@@ -2187,6 +2296,7 @@ def build_domain_detail(domain, config):
         + f'<div style="font-size:0.8em;color:#64748b">First: <b>{first_seen}</b></div>'
         + f'<div style="font-size:0.8em;color:#64748b">Last: <b>{last_seen}</b></div>'
         + f'</div>'
+        + allow_box
         + f'<form method="POST" action="/domain/clear" style="margin-top:14px" '
         + f'onsubmit="return confirm(\'Remove all log entries for {domain}? This clears its counts everywhere but keeps the rest of your history.\')">'
         + f'<input type="hidden" name="domain" value="{domain}">'

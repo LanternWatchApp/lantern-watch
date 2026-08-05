@@ -19,6 +19,25 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.15.2] — 2026-08-04
+
+### Added
+- **Decide about a blocked site right on its details page** (tap any blocked domain
+  from the dashboard → `/domain?name=…`). Every blocked site now shows a plain-
+  English category of what it is — *Adult content, Ads & trackers, Malware /
+  phishing, Gambling, Dating…* — plus three ways to judge it before you commit:
+  - **🔍 What is this site?** — the router privately fetches just the site's name and
+    description (bypassing the block) and shows them to *you only*. Nothing is
+    unblocked and no one else's access changes — a safe way to tell what a cryptic
+    domain actually is.
+  - **👁️ Preview site (15 min)** — temporarily lets the site through and opens it in a
+    new tab so you can see the real page, then **auto-blocks it again after 15
+    minutes** unless you hit **Keep allowed**. (Heads-up: a DNS allow briefly opens
+    the site for every device on the network, and it can take a few seconds to load.)
+  - **✓ Allow this site** — let it through for good, one tap.
+  If a site is already allowed, the page shows that state with a **Block again**
+  button instead.
+
 ## [0.15.1] — 2026-08-04
 
 ### Added

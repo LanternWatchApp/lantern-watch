@@ -1993,6 +1993,273 @@ def remove_allowlist_domain(config, domain):
         return _save_allowlist(config, current)
 
 
+# ── Temporary "preview pass" allows (auto-reblock after N minutes) ─────────────
+# Lets an admin briefly unblock a site to eyeball it, without it staying open
+# forever. Expiries live in config["temp_allows"] = {domain: expiry_epoch}. The
+# scheduler sweeps them (sweep_expired_previews); "Keep allowed" promotes one to
+# a permanent allow by simply forgetting its expiry.
+
+def start_preview(config, domain, minutes=15):
+    """Allow `domain` now and mark it to auto-reblock in `minutes`."""
+    domain = (domain or "").strip().lower()
+    if not domain:
+        return False
+    from config import load_config, save_config
+    ok = add_allowlist_domain(config, domain)
+    cfg = load_config()
+    ta = cfg.get("temp_allows", {}) or {}
+    ta[domain] = time.time() + minutes * 60
+    cfg["temp_allows"] = ta
+    save_config(cfg)
+    return ok
+
+
+def keep_preview(config, domain):
+    """Promote a preview to a permanent allow: drop its expiry, leave it allowed."""
+    domain = (domain or "").strip().lower()
+    from config import load_config, save_config
+    cfg = load_config()
+    ta = cfg.get("temp_allows", {}) or {}
+    if domain in ta:
+        ta.pop(domain, None)
+        cfg["temp_allows"] = ta
+        save_config(cfg)
+    return True
+
+
+def cancel_preview(config, domain):
+    """Re-block a domain and forget any preview expiry for it."""
+    domain = (domain or "").strip().lower()
+    from config import load_config, save_config
+    remove_allowlist_domain(config, domain)
+    cfg = load_config()
+    ta = cfg.get("temp_allows", {}) or {}
+    if domain in ta:
+        ta.pop(domain, None)
+        cfg["temp_allows"] = ta
+        save_config(cfg)
+    return True
+
+
+def preview_expiry(config, domain):
+    """Epoch seconds when `domain`'s preview auto-reblocks, or None if it isn't
+    a temporary preview."""
+    domain = (domain or "").strip().lower()
+    exp = (config.get("temp_allows", {}) or {}).get(domain)
+    try:
+        return float(exp) if exp else None
+    except (TypeError, ValueError):
+        return None
+
+
+def sweep_expired_previews(config):
+    """Re-block any preview whose window has elapsed. Called each scheduler tick."""
+    from config import load_config, save_config
+    cfg = load_config()
+    ta  = cfg.get("temp_allows", {}) or {}
+    if not ta:
+        return
+    now = time.time()
+    expired = [d for d, exp in ta.items() if not exp or now >= float(exp)]
+    if not expired:
+        return
+    for d in expired:
+        try:
+            remove_allowlist_domain(cfg, d)
+        except Exception as e:
+            print(f"[Preview] reblock {d} failed: {e}")
+        ta.pop(d, None)
+    cfg = load_config()          # re-read: remove_allowlist_domain didn't touch temp_allows
+    cfg["temp_allows"] = {d: v for d, v in (cfg.get("temp_allows", {}) or {}).items() if d not in expired}
+    save_config(cfg)
+    print(f"[Preview] auto-reblocked expired preview(s): {', '.join(expired)}")
+
+
+# ── Safe site preview (server-side metadata fetch, bypassing the DNS block) ────
+# Fetches ONLY a blocked site's <title> + description so the admin can tell what
+# it is before deciding — without unblocking it for anyone. The router's own DNS
+# is AdGuard (which would block the lookup), so we resolve directly against
+# 1.1.1.1 and connect by IP. We read only the <head>, never execute anything,
+# never load remote resources, and hand back escaped text only.
+
+def _resolve_a(domain, timeout=3):
+    """Minimal A-record lookup straight to 1.1.1.1:53 (bypasses AdGuard)."""
+    import socket, struct, random
+    tid = random.randint(0, 0xFFFF)
+    header = struct.pack(">HHHHHH", tid, 0x0100, 1, 0, 0, 0)
+    q = b"".join(bytes([len(p)]) + p.encode() for p in domain.split(".") if p) + b"\x00"
+    q += struct.pack(">HH", 1, 1)
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(timeout)
+    try:
+        s.sendto(header + q, ("1.1.1.1", 53))
+        data, _ = s.recvfrom(2048)
+    finally:
+        s.close()
+    ancount = struct.unpack(">H", data[6:8])[0]
+    idx = 12
+    while data[idx] != 0:                     # skip question name
+        idx += 1 + data[idx]
+    idx += 5                                   # null byte + qtype + qclass
+    for _ in range(ancount):
+        if data[idx] & 0xC0 == 0xC0:           # compressed name pointer
+            idx += 2
+        else:
+            while data[idx] != 0:
+                idx += 1 + data[idx]
+            idx += 1
+        rtype, _rclass, _ttl, rdlen = struct.unpack(">HHIH", data[idx:idx + 10])
+        idx += 10
+        if rtype == 1 and rdlen == 4:          # A record
+            return ".".join(str(b) for b in data[idx:idx + 4])
+        idx += rdlen                            # skip CNAME etc., keep scanning
+    return None
+
+
+def _extract_meta(html):
+    import re
+    from html import unescape
+    def _clean(s):
+        return unescape(re.sub(r"\s+", " ", s or "").strip())
+    title = ""
+    m = re.search(r"<title[^>]*>(.*?)</title>", html, re.I | re.S)
+    if m:
+        title = _clean(m.group(1))
+    if not title:
+        m = re.search(r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']*)', html, re.I)
+        title = _clean(m.group(1)) if m else ""
+    desc = ""
+    for pat in (r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']*)',
+                r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\']*)'):
+        m = re.search(pat, html, re.I | re.S)
+        if m:
+            desc = _clean(m.group(1))
+            if desc:
+                break
+    return title[:160], desc[:300]
+
+
+def _http_get_once(domain, path="/", timeout=4):
+    """One HTTPS GET to `domain` (resolved via 1.1.1.1, connected by IP). Returns
+    the raw response bytes (headers + partial body), or None."""
+    import socket, ssl
+    ip = _resolve_a(domain, timeout=3)
+    if not ip:
+        return None
+    ctx = ssl.create_default_context()
+    raw = socket.create_connection((ip, 443), timeout=timeout)
+    raw.settimeout(timeout)
+    buf = b""
+    try:
+        s = ctx.wrap_socket(raw, server_hostname=domain)
+        s.sendall(("GET %s HTTP/1.1\r\nHost: %s\r\n"
+                   "User-Agent: Mozilla/5.0 (Lantern Watch site preview)\r\n"
+                   "Accept: text/html\r\nAccept-Encoding: identity\r\n"
+                   "Connection: close\r\n\r\n" % (path, domain)).encode())
+        while len(buf) < 131072:
+            chunk = s.recv(8192)
+            if not chunk:
+                break
+            buf += chunk
+            if b"\r\n\r\n" in buf and (b"</head>" in buf.lower()):
+                break
+        s.close()
+    except Exception:
+        try:
+            raw.close()
+        except Exception:
+            pass
+        if not buf:
+            return None
+    return buf
+
+
+def _parse_response(buf):
+    """Split raw HTTP bytes into (status:int, headers:dict, body:str)."""
+    head, _, body = buf.partition(b"\r\n\r\n")
+    lines = head.decode("iso-8859-1", "ignore").split("\r\n")
+    status = 0
+    try:
+        status = int(lines[0].split()[1])
+    except Exception:
+        pass
+    headers = {}
+    for ln in lines[1:]:
+        if ":" in ln:
+            k, v = ln.split(":", 1)
+            headers[k.strip().lower()] = v.strip()
+    return status, headers, body.decode("utf-8", "ignore")
+
+
+def _redirect_target(location, cur_host):
+    """Resolve a Location header to (host, path)."""
+    loc = (location or "").strip()
+    if loc.startswith("http://") or loc.startswith("https://"):
+        rest = loc.split("://", 1)[1]
+        host = rest.split("/", 1)[0].split(":")[0]
+        path = "/" + rest.split("/", 1)[1] if "/" in rest else "/"
+        return host.lower(), path
+    if loc.startswith("/"):
+        return cur_host, loc
+    return cur_host, "/" + loc
+
+
+def _is_bot_challenge(title, body):
+    """True if the fetched page is an anti-bot interstitial (Cloudflare "Just a
+    moment…", "Checking your browser", "Attention Required", etc.) rather than the
+    real site — common on gambling/adult/high-risk domains, and useless to preview."""
+    t = (title or "").lower().strip()
+    if any(k in t for k in ("just a moment", "checking your browser", "attention required",
+                            "one moment, please", "verifying you are human", "please wait")):
+        return True
+    b = (body or "").lower()
+    return any(k in b for k in ("cf-browser-verification", "challenge-platform", "_cf_chl_opt",
+                                "cf_chl", "enable javascript and cookies to continue"))
+
+
+def fetch_site_preview(domain):
+    """Return {'ok': bool, 'title', 'description', 'error'} for a blocked domain,
+    fetched safely (text only) so the admin can judge it. Follows redirects (apex
+    → www, http → https landing pages) and falls back to www. once."""
+    domain = (domain or "").strip().lower().strip(".")
+    if not domain or "/" in domain or " " in domain or "." not in domain:
+        return {"ok": False, "error": "That doesn't look like a website address."}
+    try:
+        host, path, tried_www = domain, "/", domain.startswith("www.")
+        seen = set()
+        for _ in range(5):
+            buf = _http_get_once(host, path)
+            if not buf:
+                if not tried_www:
+                    host, path, tried_www = "www." + domain, "/", True
+                    continue
+                break
+            status, headers, body = _parse_response(buf)
+            if status in (301, 302, 303, 307, 308) and headers.get("location"):
+                nh, np = _redirect_target(headers["location"], host)
+                if (nh, np) in seen:
+                    break
+                seen.add((nh, np))
+                host, path = nh, np
+                continue
+            title, desc = _extract_meta(body)
+            if _is_bot_challenge(title, body):
+                return {"ok": True, "title": "", "description": "",
+                        "error": "This site is behind an anti-bot check (like Cloudflare), so a "
+                                 "private text preview isn't available — use “Preview site” "
+                                 "to see the real page."}
+            if (not title and not desc) and not tried_www:
+                host, path, tried_www = "www." + domain, "/", True
+                continue
+            if not title and not desc:
+                return {"ok": True, "title": "", "description": "",
+                        "error": "Reached the site, but it didn't share a name or description."}
+            return {"ok": True, "title": title, "description": desc}
+        return {"ok": False, "error": "Couldn't load a preview — the site may be down or blocking it."}
+    except Exception:
+        return {"ok": False, "error": "Couldn't load a preview — the site may be down or blocking it."}
+
+
 # ── Per-client filtering control ──────────────────────────────────────────────
 
 def _ag_get_clients(config):
