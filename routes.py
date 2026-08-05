@@ -246,6 +246,7 @@ class Handler(BaseHTTPRequestHandler):
                     "window":  params.get("window",  ["1h"])[0],
                     "q":       params.get("q",       [""])[0],
                     "offset":  params.get("offset",  ["0"])[0],
+                    "msg":     params.get("msg",      [""])[0],
                 }
                 window   = ql_filters["window"]
                 entries, total = get_querylog_entries(
@@ -655,6 +656,31 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             # ── Authenticated POST routes ─────────────────────────────────────
+            if parsed.path in ("/querylog/allow", "/querylog/reblock"):
+                # Allow a blocked domain (add an AGH @@|| exception) or re-block one
+                # the admin previously allowed. Round-trip the query-log filters so
+                # we land back on the same view, with a confirmation flash.
+                from adguard import add_allowlist_domain, remove_allowlist_domain
+                from urllib.parse import urlencode
+                domain = params.get("domain", [""])[0].strip().lower()
+                if parsed.path == "/querylog/allow":
+                    ok  = bool(domain) and add_allowlist_domain(config, domain)
+                    msg = (f"Allowed {domain} — it will load now."
+                           if ok else "Could not allow that site — please try again.")
+                else:
+                    ok  = bool(domain) and remove_allowlist_domain(config, domain)
+                    msg = (f"Blocked {domain} again."
+                           if ok else "Could not block that site — please try again.")
+                qs = urlencode({
+                    "device":  params.get("device",  [""])[0],
+                    "window":  params.get("window",  ["1h"])[0],
+                    "blocked": params.get("blocked", [""])[0],
+                    "q":       params.get("q",       [""])[0],
+                    "msg":     msg,
+                })
+                self._redirect(f"/querylog?{qs}")
+                return
+
             if parsed.path == "/admin/save":
                 config["lw_username"]  = params.get("lw_username",  ["admin"])[0].strip() or "admin"
                 new_pw = params.get("lw_password", [""])[0]

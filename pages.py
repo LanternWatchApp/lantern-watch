@@ -4112,6 +4112,31 @@ def build_notifications(config, cleared=False, saved=False,
     )
 
 
+def block_category(reason, filter_name=""):
+    """A short, human label for WHY a domain was blocked — the context a parent
+    needs to decide whether a block was right. `reason` is AdGuard's raw code
+    (FilteredParental, FilteredSafeBrowsing, FilteredSafeSearch, FilteredBlackList…);
+    for a plain blocklist hit we refine it using the list's NAME, so an entry like
+    'ob.thisgreencolumn.com' reads as 'Ads & trackers' or 'Adult content' rather
+    than a bare 'Blocked'."""
+    r = reason or ""
+    if "Parental" in r:        return "Adult content"
+    if "SafeBrowsing" in r:    return "Malware / phishing"
+    if "SafeSearch" in r:      return "Safe search"
+    if "BlockedService" in r:  return "Blocked service"
+    if "Rewrite" in r:         return "Redirected"
+    n = (filter_name or "").lower()
+    if any(k in n for k in ("phish", "malic", "malware", "urlhaus", "virus", "anti-malware")):
+        return "Malware / phishing"
+    if "scam" in n:                       return "Scam"
+    if "stalker" in n or "spyware" in n:  return "Spyware"
+    if "adult" in n or "porn" in n:       return "Adult content"
+    if "dating" in n:                     return "Dating"
+    if "gambl" in n:                      return "Gambling"
+    if "tracker" in n or "telemetry" in n: return "Trackers"
+    return "Ads & trackers"
+
+
 def build_querylog_page(entries, devices, total, filters, config, summary=None):
     device  = filters.get("device", "")
     blocked = filters.get("blocked", "")
@@ -4129,6 +4154,39 @@ def build_querylog_page(entries, devices, total, filters, config, summary=None):
         _ip_hostnames = get_ip_hostname_map(config)
     except Exception:
         _ip_hostnames = {}
+
+    # Filter-list names (to label WHY a domain was blocked) and the current
+    # allowlist (so a domain already let through shows "Allowed", not an Allow
+    # button). Both are cheap/cached; degrade gracefully if AGH is unreachable.
+    try:
+        from adguard import get_filter_names, get_allowlisted_domains
+        _filter_names = get_filter_names(config)
+        _allowlisted  = set(get_allowlisted_domains(config))
+    except Exception:
+        _filter_names, _allowlisted = {}, set()
+
+    def _fname(fid):
+        try:
+            return _filter_names.get(int(fid), "")
+        except (TypeError, ValueError):
+            return ""
+
+    def _esc(s):
+        return (str(s or "")).replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
+
+    def _act_form(dom, action, label_txt, cls):
+        """A tiny POST form (Allow / Block again) that round-trips the current
+        filters so we return to the same view after the change."""
+        return (f'<form method="post" action="/querylog/{action}" class="qs-actf">'
+                f'<input type="hidden" name="domain" value="{_esc(dom)}">'
+                f'<input type="hidden" name="window" value="{_esc(window)}">'
+                f'<input type="hidden" name="device" value="{_esc(device)}">'
+                f'<input type="hidden" name="blocked" value="{_esc(blocked)}">'
+                f'<input type="hidden" name="q" value="{_esc(q)}">'
+                f'<button type="submit" class="qs-act {cls}">{label_txt}</button></form>')
+
+    flash_msg = filters.get("msg", "")
+    flash_html = f'<div class="ql-flash">{_esc(flash_msg)}</div>' if flash_msg else ""
 
     device_opts = '<option value="">All Devices</option>'
     for d in devices:
@@ -4168,14 +4226,11 @@ def build_querylog_page(entries, devices, total, filters, config, summary=None):
         elapsed   = e["elapsed_ms"]
         reason    = e["reason"] or ""
 
-        if "Parental" in reason:       reason_lbl = "Content Filter"
-        elif "SafeBrowsing" in reason: reason_lbl = "Malware"
-        elif "SafeSearch"   in reason: reason_lbl = "Safe Search"
-        elif is_blocked:               reason_lbl = "Blocked"
-        else:                          reason_lbl = ""
+        reason_lbl = block_category(reason, _fname(_row_get(e, "filter_id", 0))) if is_blocked else ""
 
         status_badge = (
-            f'<span class="ql-badge ql-blocked" title="{reason_lbl or reason}">Blocked</span>'
+            f'<span class="ql-badge ql-blocked" title="{reason or "Blocked"}">Blocked</span>'
+            f'<span class="ql-cat">{reason_lbl}</span>'
             if is_blocked else
             '<span class="ql-badge ql-allowed">Allowed</span>'
         )
@@ -4222,21 +4277,45 @@ def build_querylog_page(entries, devices, total, filters, config, summary=None):
         maxc = max((it[1] for it in items), default=1) or 1
         out = ""
         for it in items:
+            action = ""
             if is_device:
                 name, c, b = it
                 lbl  = device_display_name(name, config, _ip_hostnames)
                 href = f'/querylog?device={quote(name)}&window={window}'
                 name_html = f'<a href="{href}" class="qs-name">{lbl}</a>'
                 cnt_sub = f'<span class="qs-sub">{round(b / c * 100) if c else 0}% blocked</span>'
+            elif blocked_col:
+                # top_blocked rows carry (domain, count, reason, filter_id) so we
+                # can name the category and offer a one-tap Allow.
+                dom, c, reason, fid = it[0], it[1], it[2] if len(it) > 2 else "", it[3] if len(it) > 3 else 0
+                cat = block_category(reason, _fname(fid))
+                name_html = (f'<span class="qs-name" title="{_esc(dom)}">{_esc(dom)}</span>'
+                             f'<span class="qs-cat">{cat}</span>')
+                cnt_sub = ""
+                action = ('<span class="qs-act qs-act-done" title="You allowed this">Allowed</span>'
+                          if dom in _allowlisted else _act_form(dom, "allow", "Allow", "qs-act-go"))
             else:
-                dom, c = it
-                name_html = f'<span class="qs-name" title="{dom}">{dom}</span>'
+                dom, c = it[0], it[1]
+                name_html = f'<span class="qs-name" title="{_esc(dom)}">{_esc(dom)}</span>'
                 cnt_sub = ""
             w = round(c / maxc * 100)
             fill = "qs-fill qs-fill-blk" if blocked_col else "qs-fill"
             out += (f'<div class="qs-row"><div class="{fill}" style="width:{w}%"></div>'
-                    f'{name_html}<span class="qs-count">{c:,}{cnt_sub}</span></div>')
+                    f'{name_html}<span class="qs-count">{c:,}{cnt_sub}</span>{action}</div>')
         return out
+
+    # Manually-allowed sites, with a one-tap "Block again" for each — so a parent
+    # who allowed something and then thought better of it can reverse it here.
+    def _allowed_panel():
+        if not _allowlisted:
+            return ""
+        rows = "".join(
+            f'<div class="qa-row"><span class="qa-dom" title="{_esc(d)}">{_esc(d)}</span>'
+            f'{_act_form(d, "reblock", "Block again", "qs-act-blk")}</div>'
+            for d in sorted(_allowlisted))
+        return ('<div class="qa-panel"><div class="qa-head">Allowed sites'
+                '<span class="qa-hint">domains you chose to let through — block again anytime</span>'
+                f'</div>{rows}</div>')
 
     if summary and device:
         _dev_lbl = device_display_name(device, config, _ip_hostnames)
@@ -4248,6 +4327,7 @@ def build_querylog_page(entries, devices, total, filters, config, summary=None):
             f'<div class="qs-col"><div class="qs-title">Top Domains</div>{_qs_rows(summary["top_domains"])}</div>'
             f'<div class="qs-col qs-col-blk"><div class="qs-title">Top Blocked</div>{_qs_rows(summary["top_blocked"], blocked_col=True)}</div>'
             '</div>'
+            + _allowed_panel()
         )
     elif summary:
         summary_panel = (
@@ -4258,6 +4338,7 @@ def build_querylog_page(entries, devices, total, filters, config, summary=None):
             f'<div class="qs-col"><div class="qs-title">Top Domains</div>{_qs_rows(summary["top_domains"])}</div>'
             f'<div class="qs-col qs-col-blk"><div class="qs-title">Top Blocked</div>{_qs_rows(summary["top_blocked"], blocked_col=True)}</div>'
             '</div>'
+            + _allowed_panel()
         )
     else:
         summary_panel = ""
@@ -4334,9 +4415,29 @@ a.qs-name:hover{text-decoration:underline}
 .qs-count{position:relative;z-index:1;font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
 .qs-sub{font-size:9.5px;color:#b0392f;font-weight:600}
 .qs-empty{color:var(--muted);font-style:italic;font-size:12px;padding:8px}
+.qs-name{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.qs-cat{font-size:9.5px;font-weight:600;color:#9a6a12;text-transform:none;letter-spacing:0;white-space:nowrap}
+.qs-col-blk .qs-cat{color:#b0562f}
+.qs-actf{position:relative;z-index:1;margin:0}
+.qs-act{position:relative;z-index:1;font-family:var(--font);font-size:11px;font-weight:700;
+  padding:4px 10px;border-radius:7px;border:1px solid var(--line);cursor:pointer;white-space:nowrap;line-height:1}
+.qs-act-go{background:#eaf7ef;color:var(--ok);border-color:#bfe6cd}
+.qs-act-go:hover{background:#d8f0e2}
+.qs-act-blk{background:#fdeaea;color:var(--danger);border-color:#f3c9c9}
+.qs-act-blk:hover{background:#f9dada}
+.qs-act-done{background:#f0eee9;color:var(--muted);border:1px solid var(--line);cursor:default}
+.qa-panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:14px}
+.qa-head{font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.qa-hint{font-size:9.5px;color:#b8b2a6;font-weight:600;text-transform:none;letter-spacing:0}
+.qa-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 9px;margin-bottom:3px;border-radius:6px;background:var(--bg-soft)}
+.qa-dom{font-size:12.5px;color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ql-cat{display:block;font-size:10px;color:var(--muted);font-weight:600;margin-top:3px;white-space:nowrap}
+.ql-flash{background:#eaf7ef;border:1px solid #bfe6cd;color:#1c7a44;font-size:13px;font-weight:600;
+  padding:10px 14px;border-radius:10px;margin-bottom:12px}
 """ + '</style></head><body>'
         + build_header("Query Log", config=config)
         + '<div class="ql-wrap">'
+        + flash_html
         + '<div class="section">'
         + f'<form method="get" action="/querylog" class="ql-filters">'
         + f'<select name="device" class="ql-select">{device_opts}</select>'

@@ -19,6 +19,26 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.15.1] — 2026-08-04
+
+### Added
+- **Allow a blocked site in one tap — and see what each block actually is.**
+  The Query Log's **Top Blocked** list now labels every domain with a plain-English
+  category — *Ads & trackers, Adult content, Malware / phishing, Trackers, Gambling,
+  Dating, Safe search* — so a cryptic entry like `ob.thisgreencolumn.com` reads as
+  what it is, not just "Blocked." Next to each is an **Allow** button: if a real site
+  is being caught by mistake, one tap lets it through (and the fix is live in a few
+  seconds, no AdGuard trip required). The same category now shows on every blocked
+  row in the Full Log.
+- **An "Allowed sites" panel with one-tap Block again.** Everything you've allowed is
+  listed together, each with a **Block again** button — so if you allow something and
+  then think better of it, you can reverse it from the same page.
+
+### Fixed
+- **A just-allowed domain now takes effect immediately.** Allowing a site waits for
+  AdGuard to reload its rules before returning, instead of the change only landing on
+  the next reload — so the site works as soon as the confirmation appears.
+
 ## [0.15.0.1] — 2026-07-29
 
 ### Added

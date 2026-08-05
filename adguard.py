@@ -1924,6 +1924,32 @@ def set_client_blocked_services(config, client_name, ip, service_ids,
         return _ag_post(config, "/clients/add", client)
 
 
+_filter_names_cache = {"ts": 0.0, "map": {}}
+
+
+def get_filter_names(config):
+    """Map AdGuard filter-list id -> human name (e.g. 1 -> 'AdGuard DNS filter',
+    …491 -> 'Smart-TV Tracker Blocklist'). Used to label WHY a domain was blocked
+    (which list / category). Cached briefly — the list set rarely changes, and the
+    query log page can call this on every render."""
+    now = time.time()
+    if now - _filter_names_cache["ts"] < 300 and _filter_names_cache["map"]:
+        return _filter_names_cache["map"]
+    names = {}
+    try:
+        status = _ag_get(config, "/filtering/status") or {}
+        for f in (status.get("filters") or []):
+            try:
+                names[int(f.get("id"))] = f.get("name") or ""
+            except (TypeError, ValueError):
+                continue
+    except Exception:
+        pass
+    if names:
+        _filter_names_cache.update(ts=now, map=names)
+    return names or _filter_names_cache["map"]
+
+
 # ── Domain allowlist (AGH custom rules with @@|| exceptions) ─────────────────
 
 _ALLOWLIST_MARKER = "# Lantern Watch — Allowed Domains"
@@ -2046,4 +2072,8 @@ def _save_allowlist(config, domains):
             if not (is_blank and prev_blank):
                 final.append(line)
             prev_blank = is_blank
-        return _ag_post(config, "/filtering/set_rules", {"rules": final})
+        ok = _ag_post(config, "/filtering/set_rules", {"rules": final})
+        _ag_wait_ready(config)   # AGH reloads its rule engine on set_rules; wait so a
+                                 # just-allowed (or re-blocked) domain is live before we
+                                 # return, instead of taking effect only on next reload.
+        return ok

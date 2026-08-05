@@ -605,7 +605,7 @@ def get_querylog_entries(device=None, blocked_only=False, window="1h", offset=0,
         f"SELECT COUNT(*) FROM querylog WHERE {where_sql}", params
     ).fetchone()[0]
     rows = conn.execute(
-        f"SELECT ts, client_name, client_ip, domain, qtype, blocked, reason, elapsed_ms "
+        f"SELECT ts, client_name, client_ip, domain, qtype, blocked, reason, elapsed_ms, filter_id "
         f"FROM querylog WHERE {where_sql} ORDER BY ts DESC LIMIT ? OFFSET ?",
         params + [limit, offset],
     ).fetchall()
@@ -803,9 +803,14 @@ def get_querylog_summary(window="1h", device=None, limit=8):
                 f"SELECT domain, COUNT(*) c FROM querylog WHERE {w} AND blocked=0 AND domain!='' "
                 f"GROUP BY domain ORDER BY c DESC LIMIT ?", params + [limit])
         ]
+        # reason / filter_id are bare (non-aggregated) columns: SQLite returns them
+        # from one row of each domain's group. They're effectively constant per
+        # domain, so this cheaply tells us WHY the domain is blocked (which list /
+        # category) without a second pass — used to label each blocked domain.
         top_blocked = [
-            (r["domain"], r["c"]) for r in conn.execute(
-                f"SELECT domain, COUNT(*) c FROM querylog WHERE {w} AND blocked=1 AND domain!='' "
+            (r["domain"], r["c"], r["reason"], r["filter_id"]) for r in conn.execute(
+                f"SELECT domain, COUNT(*) c, reason, filter_id FROM querylog "
+                f"WHERE {w} AND blocked=1 AND domain!='' "
                 f"GROUP BY domain ORDER BY c DESC LIMIT ?", params + [limit])
         ]
     finally:
