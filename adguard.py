@@ -2217,6 +2217,35 @@ def _is_bot_challenge(title, body):
                                 "cf_chl", "enable javascript and cookies to continue"))
 
 
+_TRACKER_PREFIXES = {
+    "ob", "obs", "ad", "ads", "ads1", "ads2", "adserver", "adservice", "adsystem",
+    "analytics", "analytic", "track", "tracker", "tracking", "telemetry", "beacon",
+    "pixel", "px", "stats", "stat", "metric", "metrics", "collect", "collector",
+    "rtb", "sync", "event", "events", "log", "logs", "tag", "tags", "tm", "measure",
+    "mon", "monitor", "sentry", "amplitude", "segment", "mixpanel",
+}
+
+
+def _looks_like_tracker(domain):
+    """Heuristic: does the leftmost label look like an ad/analytics/tracking
+    endpoint (ob., ads., analytics., pixel., metrics., …) rather than a site?"""
+    first = domain.split(".")[0]
+    return first in _TRACKER_PREFIXES
+
+
+def _no_page_message(domain):
+    """Friendly explanation when a blocked domain has no readable page — which
+    itself is the answer: it's almost always a background service, not a site."""
+    if _looks_like_tracker(domain):
+        return ("This isn't a normal website — its name and pattern match a background "
+                "ad / analytics / tracking service (the kind that runs behind other sites "
+                "and apps). There's no page to visit here, which is typical of what gets "
+                "flagged and blocked.")
+    return ("This didn't load as a normal web page. Domains that behave this way are "
+            "usually background services — ads, analytics, or trackers — rather than sites "
+            "someone actually visits, so there's no page to preview.")
+
+
 def fetch_site_preview(domain):
     """Return {'ok': bool, 'title', 'description', 'error'} for a blocked domain,
     fetched safely (text only) so the admin can judge it. Follows redirects (apex
@@ -2252,12 +2281,11 @@ def fetch_site_preview(domain):
                 host, path, tried_www = "www." + domain, "/", True
                 continue
             if not title and not desc:
-                return {"ok": True, "title": "", "description": "",
-                        "error": "Reached the site, but it didn't share a name or description."}
+                return {"ok": True, "title": "", "description": "", "error": _no_page_message(domain)}
             return {"ok": True, "title": title, "description": desc}
-        return {"ok": False, "error": "Couldn't load a preview — the site may be down or blocking it."}
+        return {"ok": True, "title": "", "description": "", "error": _no_page_message(domain)}
     except Exception:
-        return {"ok": False, "error": "Couldn't load a preview — the site may be down or blocking it."}
+        return {"ok": True, "title": "", "description": "", "error": _no_page_message(domain)}
 
 
 # ── Per-client filtering control ──────────────────────────────────────────────

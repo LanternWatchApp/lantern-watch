@@ -19,6 +19,19 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.15.3] — 2026-08-10
+
+### Changed
+- **"What is this site?" now gives you a real answer even when there's no page to
+  show.** A lot of blocked domains (like `ob.thisgreencolumn.com`) aren't websites
+  at all — they're background ad/analytics/tracking endpoints with nothing to
+  visit. Instead of a bland "Couldn't load a preview," Peek now explains that:
+  domains whose name/pattern match a tracker (`ob.`, `ads.`, `analytics.`,
+  `pixel.`, `metrics.`, …) are called out as background ad/tracking services, and
+  anything else that won't load is described as a likely background service rather
+  than a site someone visits. The result reads as an informative answer, not an
+  error.
+
 ## [0.15.2] — 2026-08-04
 
 ### Added

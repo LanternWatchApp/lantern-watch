@@ -2222,10 +2222,12 @@ def build_domain_detail(domain, config, msg="", peek=None):
                 '</div>'
             )
         else:
+            _peek_err = _esc(peek.get("error") or "No preview available.")
             peek_box = (
-                '<div style="margin-top:12px;padding:12px;background:#f8f8f6;border:1px solid #e2e0d9;border-radius:10px;'
-                'color:#64748b;font-size:0.85em">'
-                + _esc(peek.get("error") or "Couldn't load a preview.") +
+                '<div style="margin-top:12px;padding:12px;background:#f6f9ff;border:1px solid #c9d9f5;border-radius:10px">'
+                '<div style="font-size:0.72em;text-transform:uppercase;letter-spacing:0.05em;color:#5877b8;font-weight:700;margin-bottom:6px">What is this site?</div>'
+                f'<div style="color:#475569;font-size:0.87em">{_peek_err}</div>'
+                '<div style="color:#94a3b8;font-size:0.72em;margin-top:8px">Checked privately by your router — shown only to you, nothing was unblocked.</div>'
                 '</div>'
             )
     _peek_link = (
