@@ -19,6 +19,18 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.15.5] — 2026-08-12
+
+### Changed
+- **Auto-name now keeps the person's name AND adds what the device is.** Previously
+  "Auto-name devices" replaced a meaningful name like `sample-mobile-01` with a
+  generic "Samsung Android device", losing *who* it belongs to. It now combines
+  them — **"sample-mobile-01 — Samsung Android device"** — so a parent sees both
+  the person and the device at a glance (easier to know who to go coach). A cryptic
+  name (a model code like `9469X`, or a bare IP) is still replaced by the maker+OS
+  guess alone, since it tells a human nothing. OUI maker names are also tidied
+  ("FUNAI ELECTRIC CO., LTD." → "Funai Electric").
+
 ## [0.15.4] — 2026-08-12
 
 ### Changed

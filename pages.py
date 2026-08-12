@@ -2894,13 +2894,17 @@ def _device_type_row(name, shown, paused, reports, notes):
 
 def _short_vendor(v):
     """Trim corporate suffixes from an OUI vendor for display: 'Dell Inc.' -> 'Dell',
-    'Samsung Electronics Co.,Ltd' -> 'Samsung'."""
+    'Samsung Electronics Co.,Ltd' -> 'Samsung', 'FUNAI ELECTRIC CO., LTD.' -> 'Funai
+    Electric'. Case-insensitive, and repeats so stacked suffixes ('Co., Ltd') both go."""
     v = (v or "").split(",")[0].strip()
-    for suf in (" Electronics", " Technologies", " Technology", " Corporation",
-                " Corp.", " Corp", " Communications", " Systems", " Networks",
-                " Inc.", " Inc", " LLC", " Ltd.", " Ltd", " Co.", " GmbH"):
-        if v.endswith(suf):
+    for suf in (" electronics", " technologies", " technology", " corporation",
+                " corp.", " corp", " communications", " systems", " networks",
+                " inc.", " inc", " llc", " ltd.", " ltd", " co.", " co", " gmbh"):
+        if v.lower().endswith(suf):
             v = v[: -len(suf)].strip()
+    # Tidy shouty ALL-CAPS registry names (FUNAI ELECTRIC -> Funai Electric).
+    if v.isupper():
+        v = v.title()
     return v
 
 
@@ -3032,17 +3036,25 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         name_hint = ""
         _cur_lbl  = cfg.get("label", "")
         if autoname and (not _cur_lbl or _cur_lbl == name) and not config.get("demo_mode"):
-            # Prefer a real, human hostname; otherwise fingerprint from traffic —
-            # maker + OS (e.g. "TCL / Alcatel Android device"), seeded with the MAC
-            # vendor when we have one. A cryptic hostname (a model code like 9469X)
-            # doesn't win; the traffic guess does.
-            suggested = ""
-            if ident["hostname"] and ident["hostname"] != name and not is_cryptic_name(ident["hostname"]):
-                suggested = ident["hostname"]
+            # Give the parent BOTH who and what: keep the device's own human name
+            # (e.g. "sample-mobile-01") AND append what it is ("Samsung Android
+            # device") → "sample-mobile-01 — Samsung Android device". A cryptic
+            # name (a model code like 9469X, or a bare IP) tells a human nothing, so
+            # it's dropped in favour of the maker+OS guess alone.
+            _base = ident["hostname"] or name
+            for _suf in (".lan", ".local", ".home", ".internal"):
+                if _base.lower().endswith(_suf):
+                    _base = _base[: -len(_suf)]
+            if is_cryptic_name(_base):
+                _base = ""
+            _ven  = _short_vendor(ident.get("vendor", ""))   # 'Funai Electric Co., Ltd' -> 'Funai'
+            _what = identify_from_traffic(top_domains_map.get(name, []), _ven)
+            if not _what and _ven:
+                _what = f'{_ven} device'
+            if _base and _what and _base.lower() not in _what.lower():
+                suggested = f"{_base} — {_what}"
             else:
-                suggested = identify_from_traffic(top_domains_map.get(name, []), ident.get("vendor", ""))
-                if not suggested and ident["vendor"]:
-                    suggested = f'{ident["vendor"]} device'
+                suggested = _base or _what
             if suggested and suggested != name:
                 cur_label = suggested
                 name_hint = ' <span style="color:#94a3b8;font-weight:400">· suggested</span>'
