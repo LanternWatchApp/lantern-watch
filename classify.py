@@ -36,6 +36,10 @@ _INFRA_KW = (
     "laserjet", "mfc-", "canon", "epson", "pihole", "pi-hole", "raspberrypi",
     "raspberry", "homeassistant", "hassio", "proxmox", "esxi", "plex",
     "repeater", "extender",
+    # Wi-Fi mesh / booster nodes — MUST be infrastructure, never "person", or a
+    # bedtime schedule / Pause All would knock out the whole network's Wi-Fi.
+    "boost", "booster", "deco", "velop", "amplifi", "mesh", "wifi-point",
+    "google-nest-wifi", "nestwifi",
 )
 
 _SMART_KW = (
@@ -219,6 +223,7 @@ def refresh_oui_db(url="https://standards-oui.ieee.org/oui/oui.csv"):
 # and a TV wins over a bare "streaming" guess. Used only as a suggested label the
 # parent reviews and can overwrite, so a loose guess is harmless.
 _DOMAIN_LABEL = (
+    ("Eufy camera / hub",       ("eufylife", "eufy")),
     ("Roku",                    ("roku.com",)),
     ("Fire TV / Echo (Amazon)", ("aiv-delivery", "amazonvideo", "device-metrics", "kindle", "fireoscaptiveportal", "amazon-dss")),
     ("Apple TV / Apple device", ("aaplimg", "mzstatic", "push.apple", "appattest", "tvs.apple")),
@@ -361,10 +366,27 @@ def identify_from_traffic(domains, vendor=""):
     # Last resort: maker alone, or the vague fallback label (better than nothing).
     return _compose_identity(brand, "") or appliance
 
+
+def os_from_domains(domains):
+    """The general-purpose OS a device's traffic implies — 'Android', 'Windows',
+    'Mac', 'iPhone or iPad', or 'Fire OS' — or '' if none. A device with one of
+    these is a phone/tablet/computer (a person's device), which is what lets the
+    classifier type a cryptic kid's tablet as Personal instead of a Smart Device."""
+    hay = " ".join(d.lower() for d in (domains or []))
+    if not hay:
+        return ""
+    os_ = _match_first(_OS_DOMAIN, hay)
+    # An Apple device that also pinged a Google service (e.g. the YouTube app)
+    # shouldn't read as Android — trust the strong Apple brand signal.
+    if os_ == "Android" and _match_first(_BRAND_DOMAIN, hay) == "Apple":
+        return "iPhone or iPad"
+    return os_
+
 # Which traffic-fingerprint labels imply a smart device for *typing* purposes.
 # Every TV / streamer / speaker / camera / doorbell / console is a smart_device.
 # 'Google / Android device' is deliberately excluded — it's often just a phone.
 _LABEL_TYPE = {
+    "Eufy camera / hub": "smart_device",
     "Roku": "smart_device", "Fire TV / Echo (Amazon)": "smart_device",
     "Apple TV / Apple device": "smart_device", "Sonos speaker": "smart_device",
     "Nest / Google camera": "smart_device", "Ring doorbell": "smart_device",
@@ -406,6 +428,7 @@ _KIND_RULES = (
 
 # Traffic-brand label → friendly kind (cryptic devices only).
 _LABEL_KIND = {
+    "Eufy camera / hub": "security camera or smart-home hub",
     "Roku": "streaming device", "Fire TV / Echo (Amazon)": "Fire TV or Echo",
     "Apple TV / Apple device": "Apple TV or device", "Sonos speaker": "smart speaker",
     "Nest / Google camera": "security camera", "Ring doorbell": "video doorbell",
@@ -433,7 +456,20 @@ def device_kind(name, label="", ident=None, domains=None):
         if any(s in hay for s in sigs):
             return kind
     if is_cryptic_name(hostname):
-        k = _LABEL_KIND.get(label_from_domains(domains))
+        # A specific appliance wins; then a general-purpose OS reads as a
+        # phone/tablet/computer (so it matches the auto-name, not "smart TV").
+        lab = label_from_domains(domains)
+        if lab and lab not in _WEAK_LABELS:
+            k = _LABEL_KIND.get(lab)
+            if k:
+                return k
+        _os = os_from_domains(domains)
+        if _os == "Android":        return "phone or tablet"
+        if _os == "iPhone or iPad": return "iPhone or iPad"
+        if _os == "Mac":            return "Mac computer"
+        if _os == "Windows":        return "Windows computer"
+        if _os == "Fire OS":        return "Fire tablet or TV"
+        k = _LABEL_KIND.get(lab)
         if k:
             return k
         dhay = " ".join(d.lower() for d in (domains or []))
@@ -524,6 +560,18 @@ def classify_device(name, label="", config=None, domains=None):
     # hostname (Galaxy-S23, Bedroom-iPad) is a person's device even if it streams
     # Netflix; only an anonymous box gets typed by what it talks to.
     if is_cryptic_name(hostname or name):
+        # A SPECIFIC appliance (Roku / Xbox / Samsung TV / Eufy cam …) is a smart
+        # device. The vague "streaming/TV" and "Google/Android" catch-alls are not.
+        lab = label_from_domains(domains)
+        if lab and lab not in _WEAK_LABELS:
+            return _LABEL_TYPE.get(lab, "smart_device"), True
+        # A general-purpose OS (Android / iPhone-iPad / Mac / Windows) means a
+        # phone, tablet or computer → Personal (pauseable + scheduled). This is the
+        # safe parental-control call: a kid's cryptic-named Android tablet must not
+        # be typed a Smart Device, or Pause All / bedtime would skip it.
+        if os_from_domains(domains) in ("Android", "iPhone or iPad", "Mac", "Windows"):
+            return "person", True
+        # Fall back to the weak streaming/TV heuristic (an anonymous Netflix box).
         t = type_from_domains(domains)
         if t:
             return t, True

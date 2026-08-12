@@ -19,6 +19,30 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.15.6] — 2026-08-12
+
+### Fixed
+- **Device role detection now matches the smarter naming — and it matters for
+  Pause All and bedtime.** Two safety corrections:
+  - A cryptic-named phone or tablet (e.g. a kid's `9469X` Android tablet) is now
+    typed **Personal**, not "Smart Device" — so it's included in **Pause All** and
+    **bedtime/Focus schedules** instead of being skipped. Any device whose traffic
+    shows a phone/tablet/computer OS (Android, iPhone/iPad, Mac, Windows) is treated
+    as a person's device; genuine appliances (Roku, Fire TV, Eufy cam, …) stay Smart
+    Device.
+  - **Wi-Fi mesh nodes / boosters** (Boost, Deco, Velop, AmpliFi, Nest Wifi, …) are
+    now typed **Infrastructure**, so a schedule or Pause All can't accidentally knock
+    out the whole network's Wi-Fi.
+- The **"probably a…" hint now agrees with the name** — a device named "… Android
+  device" reads "probably a phone or tablet," not "probably a smart TV."
+
+### Changed
+- Eufy cameras/hubs are recognized from their traffic (`eufylife.com`).
+- Device names with a DHCP-escaped space (`Eufy\ Device`) now display cleanly
+  ("Eufy Device").
+- Auto-name no longer appends a vague label to an already-clear name (no more
+  "sample-nas-01 — Streaming device / TV").
+
 ## [0.15.5] — 2026-08-12
 
 ### Changed

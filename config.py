@@ -11,7 +11,7 @@ import re as _re
 # pre-1.0 the leading 0. signals it's still maturing: PATCH = fixes, MINOR = new
 # features. A pre-release tag (beta/rc) sorts BELOW the same numbered release.
 # See is_newer_version().
-VERSION          = "0.15.5"
+VERSION          = "0.15.6"
 # Update check reads the public GitHub repo directly — the newest git tag is the
 # single source of truth. No telemetry is sent; the router just asks GitHub for
 # the tag list, anonymously, like any visitor.
@@ -188,6 +188,8 @@ def label(name, config):
     router-local DNS suffix (.lan/.local/…) trimmed for display."""
     devices = config.get("devices", {})
     raw = devices[name].get("label", name) if name in devices else name
+    # DHCP hostnames escape spaces as "\ " (e.g. "Eufy\ Device") — show them clean.
+    raw = raw.replace("\\ ", " ").replace("\\", "")
     return _strip_dns_suffix(raw)
 
 

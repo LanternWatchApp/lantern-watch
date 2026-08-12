@@ -3045,13 +3045,23 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
             for _suf in (".lan", ".local", ".home", ".internal"):
                 if _base.lower().endswith(_suf):
                     _base = _base[: -len(_suf)]
+            _base = _base.replace("\\ ", " ").replace("\\", "").strip()  # DHCP escapes spaces as "\ "
             if is_cryptic_name(_base):
                 _base = ""
             _ven  = _short_vendor(ident.get("vendor", ""))   # 'Funai Electric Co., Ltd' -> 'Funai'
             _what = identify_from_traffic(top_domains_map.get(name, []), _ven)
             if not _what and _ven:
                 _what = f'{_ven} device'
-            if _base and _what and _base.lower() not in _what.lower():
+            # Combine "who — what" only when it adds info: skip if a real word of the
+            # guess already appears in the base (e.g. "iPhone" + "Apple iPhone or
+            # iPad", or "Eufy Device" + "Eufy camera / hub" → don't double up), and
+            # don't append a vague catch-all to an already-clear name (a NAS serving
+            # Plex shouldn't read "sample-nas-01 — Streaming device / TV").
+            _bl = _base.lower()
+            _vague = _what in ("Streaming device / TV", "Apple TV / Apple device",
+                               "Google / Android device")
+            if (_base and _what and not _vague
+                    and not any(w in _bl for w in _what.lower().split() if len(w) > 3)):
                 suggested = f"{_base} — {_what}"
             else:
                 suggested = _base or _what
