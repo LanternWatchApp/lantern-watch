@@ -19,6 +19,20 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.16.0] — 2026-08-12
+
+### Added
+- **Prevent DNS bypass — the filter can no longer be defeated by changing a
+  device's DNS.** A parental filter is only as good as its weakest bypass, and the
+  easiest one is setting a device's DNS to a public server like `8.8.8.8`. Lantern
+  Watch now **forces every device's plain DNS through the filter** automatically, so
+  that trick stops working — no hunting through router settings required. It's **on
+  by default** and re-applied on every boot (the firewall rule is scoped to your LAN,
+  so the router's own lookups are untouched). This completes the bypass story: plain
+  DNS is now sealed here, and encrypted DNS (DoH/DoT) was already handled by the
+  existing Encrypted-DNS protection. A new **Settings → Prevent DNS Bypass** toggle
+  lets you turn it off for a specific device that legitimately needs its own DNS.
+
 ## [0.15.6] — 2026-08-12
 
 ### Fixed

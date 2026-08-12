@@ -1531,6 +1531,51 @@ def apply_doh_iptables(enabled):
             print(f"[DoH] iptables error: {e}")
 
 
+_lan_if_cache = {"if": None}
+
+
+def lan_iface():
+    """The LAN bridge interface (br-lan on GL.iNet) — used to scope rules to
+    client traffic so the router's own lookups are never touched."""
+    if _lan_if_cache["if"] is None:
+        iface = ""
+        for key in ("network.lan.device", "network.lan.ifname"):
+            try:
+                r = subprocess.run(["uci", "get", key], capture_output=True, text=True, timeout=5)
+                iface = (r.stdout or "").strip()
+                if iface:
+                    break
+            except Exception:
+                pass
+        _lan_if_cache["if"] = iface or "br-lan"
+    return _lan_if_cache["if"]
+
+
+def apply_dns_force_redirect(enabled):
+    """Force every LAN client's plain DNS (UDP/TCP :53) through the local filtering
+    resolver, so a device pointed at 8.8.8.8 can't sidestep the filter. This is the
+    plain-DNS half of bypass protection; the encrypted half (DoH/DoT) is
+    apply_doh_iptables + apply_doh_dns_mitigation.
+
+    REDIRECT sends the packet to this router's own :53 (the dnsmasq→AdGuard front),
+    exactly mirroring GL.iNet's 'Override DNS Settings of All Clients'. Scoped to the
+    LAN bridge (-i <lan>) so the router's own upstream queries are untouched.
+    Idempotent (clears any existing copy first) and re-applied on boot, since nat
+    rules don't survive a reboot."""
+    iface = lan_iface()
+    for proto in ("udp", "tcp"):
+        rule = ["-i", iface, "-p", proto, "--dport", "53", "-j", "REDIRECT", "--to-ports", "53"]
+        while subprocess.run(
+            ["iptables", "-t", "nat", "-D", "PREROUTING"] + rule, capture_output=True,
+        ).returncode == 0:
+            pass
+        if enabled:
+            subprocess.run(
+                ["iptables", "-t", "nat", "-I", "PREROUTING"] + rule, capture_output=True,
+            )
+    print(f"[DNS] force-redirect {'enabled' if enabled else 'disabled'} on {iface}")
+
+
 # ── DHCP helpers (reads GL.iNet/dnsmasq lease file, UCI static leases) ───────
 
 def get_dhcp_leases():

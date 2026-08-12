@@ -3765,6 +3765,7 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
     )
     portal_on  = "checked" if config.get("captive_portal") else ""
     doh_on     = "checked" if config.get("doh_blocking") else ""
+    force_on   = "checked" if config.get("force_dns", True) else ""
     tel_on     = "checked" if config.get("telemetry_enabled") else ""
     acked_count = len(config.get("captive_portal_acked", []))
 
@@ -3895,6 +3896,10 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:10px">When enabled, new devices see a one-time acknowledgment page before browsing. Recommended for organizations, churches, or any shared network. Not needed for personal family use.</div>'
         + f'<label class="toggle-row"><input type="checkbox" name="captive_portal" {"checked" if portal_on else ""}>'
         + f'<span>Show network notice to new devices</span></label></div>'
+        + f'<div class="form-card"><div class="form-label">Prevent DNS Bypass</div>'
+        + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:10px">Forces <b>every device</b> to use your filter, even one set to a public DNS like <code>8.8.8.8</code> &mdash; so the filter can&rsquo;t be sidestepped by changing a device&rsquo;s DNS. <b>On by default</b>, and recommended: a parental filter shouldn&rsquo;t be defeatable by typing in another DNS server. (Encrypted DNS is handled separately below.) Turn this off only if a specific device legitimately needs its own DNS server.</div>'
+        + f'<label class="toggle-row"><input type="checkbox" name="force_dns" {force_on}>'
+        + f'<span>Force all devices through the filter (block plain-DNS bypass)</span></label></div>'
         + f'<div class="form-card" id="doh-setting" style="scroll-margin-top:70px"><div class="form-label">Strict Encrypted-DNS Enforcement</div>'
         + f'<div style="color:#94a3b8;font-size:0.78em;margin-bottom:10px">Lantern Watch already keeps browsers on your filter automatically &mdash; it tells Firefox to switch off its own encrypted DNS and blocks the common DoH providers, with no setup and no breakage. Turn this on for <b>strict enforcement</b>: it additionally blocks DoT (port 853) and known encrypted-DNS resolver IPs, closing more bypass routes for a determined, tech-savvy user. This one can interrupt some apps or smart TVs that insist on their own DNS, so leave it off for typical family use and enable it only if you suspect someone is getting around the filter.</div>'
         + f'<label class="toggle-row"><input type="checkbox" name="doh_blocking" {doh_on}>'

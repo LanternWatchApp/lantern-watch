@@ -11,7 +11,7 @@ import re as _re
 # pre-1.0 the leading 0. signals it's still maturing: PATCH = fixes, MINOR = new
 # features. A pre-release tag (beta/rc) sorts BELOW the same numbered release.
 # See is_newer_version().
-VERSION          = "0.15.6"
+VERSION          = "0.16.0"
 # Update check reads the public GitHub repo directly — the newest git tag is the
 # single source of truth. No telemetry is sent; the router just asks GitHub for
 # the tag list, anonymously, like any visitor.
@@ -104,6 +104,11 @@ DEFAULTS = {
         "Other": False,
     },
     "vpn_whitelist": [],
+    # Prevent DNS bypass: force every LAN device's plain DNS (:53) through the
+    # filter, so a device pointed at 8.8.8.8 can't escape it. Default ON — a
+    # parental filter shouldn't be defeatable by typing a public DNS server.
+    # The encrypted (DoH/DoT) half lives under `doh_blocking`.
+    "force_dns": True,
     "captive_portal": False,
     "captive_portal_acked": [],
     "social_safe_search": True,

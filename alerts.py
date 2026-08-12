@@ -807,9 +807,17 @@ def _ensure_oui_db():
 
 
 def _ensure_doh_blocking():
-    """Re-apply the DoH/DoT bypass-blocking firewall rules on startup if the user
-    enabled them — the iptables rules don't survive a reboot (the AGH domain rules
-    do). Keeps the protection whole after a power cycle."""
+    """Re-apply bypass-protection firewall rules on startup — the iptables nat/
+    FORWARD rules don't survive a reboot (the AGH domain rules do). Covers the
+    plain-DNS force-redirect (default on) and the opt-in DoH/DoT firewall blocking."""
+    try:
+        config = load_config()
+        from adguard import apply_dns_force_redirect
+        force = config.get("force_dns", True)
+        apply_dns_force_redirect(force)
+        print(f"[Bypass] DNS force-redirect re-applied on startup (force_dns={force})")
+    except Exception as e:
+        print(f"[Bypass] DNS force-redirect startup re-apply failed: {e}")
     try:
         config = load_config()
         if config.get("doh_blocking"):
