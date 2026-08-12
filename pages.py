@@ -2912,7 +2912,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
     rows_html    = ""
     TYPE_ICONS   = {"person": "👤", "parent": "🛡️", "infrastructure": "🖥️", "smart_device": "📡", "work_device": "💼"}
     TYPE_NAMES   = {"person": "Personal", "parent": "Admin", "infrastructure": "Infrastructure", "smart_device": "Smart Device", "work_device": "Work Device"}
-    from classify import classify_device, device_identity, label_from_domains, is_cryptic_name, device_kind
+    from classify import classify_device, device_identity, label_from_domains, is_cryptic_name, device_kind, identify_from_traffic
 
     # Build IP→hostname map once; used for devices whose client_name is a bare IP
     try:
@@ -2920,7 +2920,11 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
     except Exception:
         ip_hostnames = {}
     try:
-        top_domains_map = get_top_domains_map(per_device=6)
+        # Deep list so the maker/OS fingerprint can see lower-frequency tells like
+        # tct-rom.com (TCL) or settings-win.data.microsoft (Windows), which sit far
+        # down a device's domain list; display sites slice to [:3]. Same query cost
+        # (the cap is applied in Python), so depth is essentially free.
+        top_domains_map = get_top_domains_map(per_device=150)
     except Exception:
         top_domains_map = {}
 
@@ -3028,18 +3032,17 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         name_hint = ""
         _cur_lbl  = cfg.get("label", "")
         if autoname and (not _cur_lbl or _cur_lbl == name) and not config.get("demo_mode"):
-            # Prefer a real hostname, then the maker, then a traffic-based guess
-            # ("Chromecast / Google TV") for devices that hide both.
+            # Prefer a real, human hostname; otherwise fingerprint from traffic —
+            # maker + OS (e.g. "TCL / Alcatel Android device"), seeded with the MAC
+            # vendor when we have one. A cryptic hostname (a model code like 9469X)
+            # doesn't win; the traffic guess does.
             suggested = ""
-            if ident["hostname"] and ident["hostname"] != name:
+            if ident["hostname"] and ident["hostname"] != name and not is_cryptic_name(ident["hostname"]):
                 suggested = ident["hostname"]
-            elif ident["vendor"]:
-                suggested = f'{ident["vendor"]} device'
-            elif is_cryptic_name(ident["hostname"] or name):
-                # Only when the name itself tells us nothing (e.g. a model code, a bare
-                # IP) do we fall back to guessing from traffic. A real hostname
-                # like 'Galaxy-Pro' is left exactly as-is.
-                suggested = label_from_domains(top_domains_map.get(name, []))
+            else:
+                suggested = identify_from_traffic(top_domains_map.get(name, []), ident.get("vendor", ""))
+                if not suggested and ident["vendor"]:
+                    suggested = f'{ident["vendor"]} device'
             if suggested and suggested != name:
                 cur_label = suggested
                 name_hint = ' <span style="color:#94a3b8;font-weight:400">· suggested</span>'

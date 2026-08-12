@@ -269,6 +269,98 @@ def label_from_domains(domains):
             return label
     return ""
 
+
+# ── Maker + OS fingerprint (for phones/tablets/PCs a MAC lookup can't name) ────
+# A general-purpose device (phone, tablet, laptop) usually hides its maker behind
+# a randomized MAC and streams YouTube like a TV — so the plain _DOMAIN_LABEL
+# table mislabels it. These lower-frequency, maker/OS-specific domains are the
+# real tell: `tct-rom.com` → TCL/Alcatel, `mediatek.com` → the chipset,
+# `android.googleapis.com` → Android. Composed into "TCL / Alcatel Android device".
+
+_BRAND_DOMAIN = (
+    ("TCL / Alcatel",            ("tct-rom.com", "tclclouds", "alcatel")),
+    ("Motorola",                 ("mot-mobility", "motorola.com")),
+    ("Xiaomi",                   ("miui.com", "xiaomi", "aliott", "mi-img")),
+    ("Huawei / Honor",           ("hicloud.com", "huawei", "hihonor")),
+    ("OnePlus / Oppo / Realme",  ("heytapmobi", "heytapdownload", "oneplus", "oppomobile", "realme")),
+    ("Samsung",                  ("samsungcloud", "samsungdm", "samsungapps", "samsungqbe",
+                                  "samsungcloudsolution", "ospserver.net", "samsungosp")),
+    ("Apple",                    ("push.apple.com", "aaplimg", "mzstatic", "gsp-ssl.ls.apple",
+                                  "mesu.apple", "gateway.icloud", "itunes.apple")),
+)
+
+# OS/platform tells → the human phrase we render (composed with the maker). These
+# imply a general-purpose device (phone/tablet/computer) — checked BEFORE the
+# appliance heuristic so a phone with the Amazon app isn't mistaken for a Fire TV.
+_OS_DOMAIN = (
+    ("Windows",       ("settings-win.data.microsoft", "msftconnecttest", "windowsupdate",
+                       "ctldl.windowsupdate")),
+    ("Mac",           ("swscan.apple", "swcdn.apple", "swdist.apple")),
+    ("iPhone or iPad",("iphone-ld.apple",)),
+    ("Fire OS",       ("fireoscaptiveportal",)),
+    ("Android",       ("android.googleapis.com", "play.googleapis.com", "connectivitycheck.gstatic",
+                       "play-fe.googleapis", "android.clients.google", "mediatek.com")),
+)
+
+# Appliance labels too weak to beat a maker+OS guess: a phone streams YouTube too,
+# and "Apple TV / Apple device" is the same signature an iPhone/iPad/Mac emits.
+_WEAK_LABELS = {"Streaming device / TV", "Google / Android device", "Apple TV / Apple device"}
+
+
+def _match_first(table, hay):
+    for name, sigs in table:
+        if any(s in hay for s in sigs):
+            return name
+    return ""
+
+
+def _compose_identity(brand, os_):
+    """Combine a maker and an OS phrase into a friendly device name."""
+    if brand == "Apple":
+        # Apple's signal is strong+specific; an Android/Windows match on an Apple
+        # device is a stray Google/MS app domain — trust Apple, not the OS tell.
+        if os_ == "Mac":            return "Apple Mac"
+        if os_ == "iPhone or iPad": return "Apple iPhone or iPad"
+        return "Apple device"
+    if os_ == "Android":
+        return f"{brand} Android device" if brand else "Android device"
+    if os_ == "iPhone or iPad":
+        return "Apple iPhone or iPad"
+    if os_ == "Mac":
+        return "Apple Mac"
+    if os_ == "Windows":
+        return f"{brand} Windows PC" if (brand and brand != "Apple") else "Windows PC"
+    if os_ == "Fire OS":
+        return "Amazon Fire tablet"
+    if brand:
+        return f"{brand} device"
+    return ""
+
+
+def identify_from_traffic(domains, vendor=""):
+    """A richer maker+OS name guessed from a device's domains — e.g.
+    'TCL / Alcatel Android device' — for phones/tablets/PCs that hide their maker
+    behind a randomized MAC. `vendor` (from the MAC OUI, when known) seeds the
+    maker. '' if nothing recognizable."""
+    hay = " ".join(d.lower() for d in (domains or []))
+    if not hay and not vendor:
+        return ""
+    brand = vendor or _match_first(_BRAND_DOMAIN, hay)
+    os_   = _match_first(_OS_DOMAIN, hay)
+    # A general-purpose OS (Android / Mac / Windows / iPhone-iPad / Fire OS) means a
+    # phone, tablet or computer — trust it over the appliance heuristic so a phone
+    # with the Amazon or Prime Video app isn't mistaken for a Fire TV.
+    if os_:
+        g = _compose_identity(brand, os_)
+        if g:
+            return g
+    # No general-purpose OS → likely an appliance (TV / console / speaker / camera).
+    appliance = label_from_domains(domains)
+    if appliance and appliance not in _WEAK_LABELS:
+        return appliance
+    # Last resort: maker alone, or the vague fallback label (better than nothing).
+    return _compose_identity(brand, "") or appliance
+
 # Which traffic-fingerprint labels imply a smart device for *typing* purposes.
 # Every TV / streamer / speaker / camera / doorbell / console is a smart_device.
 # 'Google / Android device' is deliberately excluded — it's often just a phone.

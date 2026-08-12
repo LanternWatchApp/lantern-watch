@@ -19,6 +19,20 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.15.4] — 2026-08-12
+
+### Changed
+- **Smarter device auto-naming.** The Devices page **"Auto-name devices"** button now
+  recognizes a device's **maker and operating system** from the domains it talks to —
+  so a phone that hides its maker behind a randomized MAC and shows up as a cryptic
+  code (e.g. `9469X`) is suggested as **"TCL / Alcatel Android device"** instead of a
+  vague "Google / Android device." It reads low-frequency tells like `tct-rom.com`
+  (TCL/Alcatel), `mediatek.com` (chipset), `settings-win.data.microsoft` (Windows) and
+  the Google/Apple platform domains, and composes names like *Samsung Android device*,
+  *Windows PC*, *Apple iPhone or iPad*. A phone with a shopping/streaming app is no
+  longer mistaken for a Fire TV. As before, it's only a **suggestion you review and
+  can edit** before saving — nothing is applied automatically.
+
 ## [0.15.3] — 2026-08-10
 
 ### Changed
