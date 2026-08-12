@@ -15,14 +15,16 @@ Built on top of AdGuard Home, which handles the actual DNS blocking. Lantern Wat
 - **Screen time limits** — set a daily hour limit per device; get notified when it's reached
 - **Social media profiles** — Open / Moderate / Strict / Custom, applied instantly at the DNS level, plus a secure-by-default **YouTube Restricted Mode** toggle
 - **Device roles** — label devices as Personal, Admin, Work Device, Infrastructure, or Smart Device; controls dashboard grouping, whether Pause All applies, and reporting (every role stays fully filtered)
+- **Smart device naming** — a mystery device that hides its maker behind a randomized MAC and shows up as a cryptic code is identified from the domains it talks to. **Auto-name** suggests a name that keeps the person and adds the device — e.g. `sample-mobile-01` → **"sample-mobile-01 — Samsung Android device"** — and types it correctly: a kid's tablet becomes **Personal** (so Pause All and bedtime include it), while Wi-Fi mesh nodes become **Infrastructure** (so a schedule can't knock out the network). Every suggestion is yours to review before it saves
 - **Push notifications** — ntfy, Telegram, and Email alerts for blocked content, new devices, high block rates, possible VPN use, and screen time limits
 - **Daily and weekly summaries** — sent to your phone at a time you choose
 - **Notifications log** — in-dashboard history of every alert sent, with setup guides for each channel
-- **Query Log** — live, paginated DNS query viewer; filter by device, time window, domain search, or blocked-only; click any device to drill in; shows friendly device name and IP
+- **Query Log with Summary** — opens on an at-a-glance **Summary**: top devices (each with its block rate), top domains, and top blocked trackers over any time window — tap a device to drill into exactly what it's talking to. The full row-by-row viewer is one tap away (filter by device, time window, domain search, or blocked-only). Every blocked domain is labeled in plain English — *Ads & trackers, Adult content, Malware / phishing, Gambling, Dating, Safe search* — so you can see **what** was blocked, not just that it was
+- **Allow or preview a blocked site** — caught a real site by mistake? Tap any blocked domain for a details page that names what it is, then **Allow** it in one tap, **Preview** the real page for 15 minutes (it auto-reblocks unless you keep it), or safely **Peek** — the router privately fetches the site's title and description *without unblocking it*, so you can judge a cryptic domain (and it tells you when a domain is just a background ad/tracker with no real page). An **Allowed sites** list lets you re-block any of them anytime
 - **Router Health card** — live RAM, storage, CPU load, uptime, and DB size in Settings
 - **Query history retention** — configurable 7 / 14 / 30 / 60 / 90-day log window (default 60); auto-trims daily with storage-pressure override
 - **AdGuard first-run wizard** — adult content filters, malware blocking, and safe search applied in one click during setup
-- **Encrypted-DNS bypass protection** — keeps browsers on your filter automatically: it tells Firefox to disable its own DoH (via the standard `use-application-dns.net` canary) and blocks common public DoH providers, with no setup and no breakage. An optional **strict mode** adds DoT (port 853) + resolver-IP firewall blocking for determined bypassers
+- **DNS bypass protection** — a parental filter shouldn't be defeatable by changing a device's DNS, so Lantern Watch closes both routes. **Plain DNS is forced through the filter** automatically — a device pointed at a public server like `8.8.8.8` still gets filtered (on by default; a Settings toggle can exempt a device that legitimately needs its own DNS). **Encrypted DNS (DoH/DoT)** is handled too: it tells Firefox to disable its own DoH (via the standard `use-application-dns.net` canary) and blocks common public DoH providers, with no setup and no breakage. An optional **strict mode** adds DoT (port 853) + resolver-IP firewall blocking for determined bypassers
 - **Adult-content blocking on by default** — on **Full** routers a large, actively-maintained local pornography blocklist (HaGeZi NSFW, ~107K sites); on **Lite** routers the same protection comes from a Cloudflare for Families DNS upstream (server-side, so it costs almost no memory). Either way it's on out of the box (see [Protection profiles](#protection-profiles--lite-vs-full-automatic))
 - **Smart-TV tracking blocked by default** — stops smart TVs from phoning home about what you watch; optional gambling and extra ad/tracker lists are one tap away in Settings
 - **DNS Blocklist manager** — Settings → DNS Blocklists lets you turn any list on or off, grouped by Security / Family & Content / Ads, with each list's rule count and a live "rule budget" meter so you can tune protection vs. load on lighter routers
@@ -408,6 +410,9 @@ The Lantern Watch brand colour is **`#e8a000`** (orange). Always use this exact 
 | `config.py` | Config load/save helpers and default values |
 | `recovery.py` | In-memory OTP password recovery |
 | `portal.py` | Captive portal — iptables `lw_captive` chain management, per-IP acknowledgment tracking |
+| `classify.py` | Device identification — MAC/OUI vendor lookup + traffic-fingerprint maker/OS guessing, role/kind classification |
+| `blockserver.py` | Block-page HTTPS server (port 8444) for blocked-site interception on the block IP |
+| `backup.py` | Backup & restore of the config, plus USB auto-backup |
 | `lantern_watch_logo.svg` | Full brand logo — inlined as SVG on the login and block pages |
 | `lantern_logo.svg` | Lantern icon — used in the dashboard header |
 | `lanternwatch_config.example.json` | Template for the live config (never committed) |
