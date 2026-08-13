@@ -19,6 +19,12 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.16.4] — 2026-08-12
+
+### Changed
+- Housekeeping: replaced real device names used as examples in code comments and
+  docs with generic placeholders. No functional change.
+
 ## [0.16.3] — 2026-08-12
 
 ### Added
