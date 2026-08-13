@@ -576,14 +576,11 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     # Profile-appropriate optional lists + always-on DoH mitigation.
                     from adguard import (install_default_optional_lists, apply_doh_dns_mitigation,
-                                         apply_service_allowlist, apply_dns_force_redirect)
+                                         apply_service_allowlist)
                     try:
                         install_default_optional_lists(config)
                         apply_doh_dns_mitigation(config)
                         apply_service_allowlist(config)
-                        # Seal the plain-DNS bypass out of the box (default on), so a
-                        # fresh install can't be defeated by pointing a device at 8.8.8.8.
-                        apply_dns_force_redirect(config.get("force_dns", True))
                     except Exception as _e:
                         print(f"[Setup] optional/DoH defaults error: {_e}")
                     config["adguard_setup_complete"] = True
@@ -736,10 +733,6 @@ class Handler(BaseHTTPRequestHandler):
                 old_doh = config.get("doh_blocking", False)
                 new_doh = "doh_blocking" in params
                 config["doh_blocking"] = new_doh
-                # Plain-DNS bypass prevention (force all :53 through the filter)
-                old_force = config.get("force_dns", True)
-                new_force = "force_dns" in params
-                config["force_dns"] = new_force
                 old_tel = config.get("telemetry_enabled", False)
                 config["telemetry_enabled"] = "telemetry_enabled" in params
                 config["demo_mode"] = "demo_mode" in params
@@ -771,12 +764,6 @@ class Handler(BaseHTTPRequestHandler):
                         apply_doh_iptables(new_doh)
                     except Exception as _e:
                         print(f"[DoH] toggle error: {_e}")
-                if new_force != old_force:
-                    from adguard import apply_dns_force_redirect
-                    try:
-                        apply_dns_force_redirect(new_force)
-                    except Exception as _e:
-                        print(f"[Bypass] force_dns toggle error: {_e}")
                 try:
                     import backup as _bk; _bk.auto_backup_usb(config)
                 except Exception:

@@ -19,6 +19,30 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.16.2] — 2026-08-12
+
+### Changed
+- **Removed the "Prevent DNS Bypass" (plain-DNS forcing) feature added in 0.16.0.**
+  On GL.iNet routers it collided with the router's own DNS plumbing and per-device
+  tracking — with it on, the dashboard could show almost no devices (everything
+  attributed to the router). The idea is sound but not turnkey-safe to ship on by
+  default, so it's pulled; upgrading clears the leftover firewall rule automatically.
+  **Encrypted-DNS bypass protection (DoH/DoT) is unchanged.** Advanced users who
+  want to force all devices through the filter can use GL.iNet's built-in *Override
+  DNS Settings of All Clients* (with the caveat that it can affect per-device
+  reporting).
+
+## [0.16.1] — 2026-08-12
+
+### Fixed
+- **DNS-bypass prevention no longer breaks per-device tracking.** The 0.16.0
+  force-redirect sent client DNS to dnsmasq's port 53, which forwards to AdGuard as
+  the router — so every device collapsed to `127.0.0.1` and the dashboard showed
+  almost nothing. It now redirects straight to **AdGuard's DNS port** (auto-detected,
+  3053 on GL.iNet), which preserves the real client IP, so bypass is still blocked
+  *and* every device shows up correctly again. Fixes upgrades from 0.16.0
+  automatically on restart (the stale rule is cleared).
+
 ## [0.16.0] — 2026-08-12
 
 ### Added

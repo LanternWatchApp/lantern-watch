@@ -1551,29 +1551,67 @@ def lan_iface():
     return _lan_if_cache["if"]
 
 
+def _agh_dns_port():
+    """AdGuard Home's DNS listening port — where LAN client DNS must land to keep
+    the REAL client IP. Sending to dnsmasq's :53 instead makes dnsmasq forward to
+    AGH with the router as the source, collapsing every device to 127.0.0.1 and
+    breaking per-device tracking. GL.iNet's own `adg_redirect` already targets the
+    right port (3053) IP-preserving, so trust it first; then the AGH config; then
+    53 (a plain OpenWrt box where AGH binds :53 directly and no rewrite happens)."""
+    import re
+    try:
+        out = subprocess.run(["iptables", "-t", "nat", "-S", "adg_redirect"],
+                             capture_output=True, text=True, timeout=5).stdout
+        m = re.search(r"--to-ports\s+(\d+)", out)
+        if m:
+            return m.group(1)
+    except Exception:
+        pass
+    try:
+        with open("/etc/AdGuardHome/config.yaml") as f:
+            in_dns = False
+            for line in f:
+                if line.startswith("dns:"):
+                    in_dns = True
+                    continue
+                if in_dns:
+                    m = re.match(r"\s+port:\s*(\d+)", line)
+                    if m:
+                        return m.group(1)
+                    if line and not line[0].isspace():
+                        break
+    except Exception:
+        pass
+    return "53"
+
+
 def apply_dns_force_redirect(enabled):
     """Force every LAN client's plain DNS (UDP/TCP :53) through the local filtering
     resolver, so a device pointed at 8.8.8.8 can't sidestep the filter. This is the
     plain-DNS half of bypass protection; the encrypted half (DoH/DoT) is
     apply_doh_iptables + apply_doh_dns_mitigation.
 
-    REDIRECT sends the packet to this router's own :53 (the dnsmasq→AdGuard front),
-    exactly mirroring GL.iNet's 'Override DNS Settings of All Clients'. Scoped to the
-    LAN bridge (-i <lan>) so the router's own upstream queries are untouched.
-    Idempotent (clears any existing copy first) and re-applied on boot, since nat
-    rules don't survive a reboot."""
+    REDIRECT sends the packet straight to AdGuard Home's DNS port (3053 on GL.iNet),
+    which preserves the client's source IP so per-device tracking keeps working —
+    NOT to dnsmasq's :53, which would forward to AGH as the router and collapse
+    every device to 127.0.0.1. Scoped to the LAN bridge (-i <lan>) so the router's
+    own upstream queries are untouched. Idempotent (clears any prior copy, incl. the
+    old :53-target rule) and re-applied on boot, since nat rules don't survive one."""
     iface = lan_iface()
+    port  = _agh_dns_port()
     for proto in ("udp", "tcp"):
-        rule = ["-i", iface, "-p", proto, "--dport", "53", "-j", "REDIRECT", "--to-ports", "53"]
-        while subprocess.run(
-            ["iptables", "-t", "nat", "-D", "PREROUTING"] + rule, capture_output=True,
-        ).returncode == 0:
-            pass
+        rule = ["-i", iface, "-p", proto, "--dport", "53", "-j", "REDIRECT", "--to-ports", port]
+        old  = ["-i", iface, "-p", proto, "--dport", "53", "-j", "REDIRECT", "--to-ports", "53"]
+        for r in (rule, old):   # remove the correct-port copy AND any stale :53 copy
+            while subprocess.run(
+                ["iptables", "-t", "nat", "-D", "PREROUTING"] + r, capture_output=True,
+            ).returncode == 0:
+                pass
         if enabled:
             subprocess.run(
                 ["iptables", "-t", "nat", "-I", "PREROUTING"] + rule, capture_output=True,
             )
-    print(f"[DNS] force-redirect {'enabled' if enabled else 'disabled'} on {iface}")
+    print(f"[DNS] force-redirect {'enabled' if enabled else 'disabled'} on {iface} -> AGH :{port}")
 
 
 # ── DHCP helpers (reads GL.iNet/dnsmasq lease file, UCI static leases) ───────

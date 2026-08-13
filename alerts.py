@@ -811,13 +811,13 @@ def _ensure_doh_blocking():
     FORWARD rules don't survive a reboot (the AGH domain rules do). Covers the
     plain-DNS force-redirect (default on) and the opt-in DoH/DoT firewall blocking."""
     try:
-        config = load_config()
+        # The 0.16.0/0.16.1 plain-DNS force-redirect was pulled in 0.16.2 (it
+        # collided with GL.iNet per-device tracking). Clear any lingering rule on
+        # boot so an upgraded router doesn't keep it.
         from adguard import apply_dns_force_redirect
-        force = config.get("force_dns", True)
-        apply_dns_force_redirect(force)
-        print(f"[Bypass] DNS force-redirect re-applied on startup (force_dns={force})")
+        apply_dns_force_redirect(False)
     except Exception as e:
-        print(f"[Bypass] DNS force-redirect startup re-apply failed: {e}")
+        print(f"[Bypass] force-redirect cleanup failed: {e}")
     try:
         config = load_config()
         if config.get("doh_blocking"):

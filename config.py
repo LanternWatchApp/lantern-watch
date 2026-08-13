@@ -11,7 +11,7 @@ import re as _re
 # pre-1.0 the leading 0. signals it's still maturing: PATCH = fixes, MINOR = new
 # features. A pre-release tag (beta/rc) sorts BELOW the same numbered release.
 # See is_newer_version().
-VERSION          = "0.16.0"
+VERSION          = "0.16.2"
 # Update check reads the public GitHub repo directly — the newest git tag is the
 # single source of truth. No telemetry is sent; the router just asks GitHub for
 # the tag list, anonymously, like any visitor.
@@ -104,11 +104,12 @@ DEFAULTS = {
         "Other": False,
     },
     "vpn_whitelist": [],
-    # Prevent DNS bypass: force every LAN device's plain DNS (:53) through the
-    # filter, so a device pointed at 8.8.8.8 can't escape it. Default ON — a
-    # parental filter shouldn't be defeatable by typing a public DNS server.
-    # The encrypted (DoH/DoT) half lives under `doh_blocking`.
-    "force_dns": True,
+    # Plain-DNS bypass forcing (force every LAN device's :53 through the filter) was
+    # shipped in 0.16.0 but pulled in 0.16.2: on GL.iNet it collides with the
+    # router's own DNS plumbing and per-device tracking. Kept OFF/unused; GL.iNet's
+    # built-in "Override DNS Settings of All Clients" covers this for advanced users.
+    # The encrypted (DoH/DoT) bypass protection under `doh_blocking` is unaffected.
+    "force_dns": False,
     "captive_portal": False,
     "captive_portal_acked": [],
     "social_safe_search": True,
