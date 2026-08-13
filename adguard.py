@@ -2037,6 +2037,14 @@ def get_filter_names(config):
 
 _ALLOWLIST_MARKER = "# Lantern Watch — Allowed Domains"
 
+# Shipped-by-default allowlist: domains that sit on common ad/tracker blocklists
+# but BREAK important things when blocked — a non-technical family can't be
+# expected to diagnose them. metrics.brightcove.com is a Brightcove video-player
+# dependency: when it's blocked the player hangs and videos won't play, which is
+# exactly what breaks Homeschool Hub (and other Brightcove-powered sites). Seeded
+# on first run and kept reboot-durable via the config mirror below.
+DEFAULT_COMPAT_ALLOWLIST = ["metrics.brightcove.com"]
+
 
 def get_allowlisted_domains(config):
     """Return list of manually allowed domains from AGH custom rules."""
@@ -2056,6 +2064,24 @@ def get_allowlisted_domains(config):
     return domains
 
 
+def _mirror_allowlist_to_config(domain, add):
+    """Keep a durable copy of the allowlist in Lantern Watch's own config, so a
+    router reboot that resets AdGuard's custom rules can't lose it. AGH is the live
+    filter; config is the source of truth we re-apply from on startup (ensure_allowlist)."""
+    try:
+        from config import load_config, save_config
+        cfg = load_config()
+        al  = list(cfg.get("allowlist") or [])
+        if add and domain not in al:
+            al.append(domain)
+        elif not add and domain in al:
+            al.remove(domain)
+        cfg["allowlist"] = al
+        save_config(cfg)
+    except Exception as e:
+        print(f"[Allowlist] config mirror failed: {e}")
+
+
 def add_allowlist_domain(config, domain):
     domain = domain.strip().lower().lstrip("@@||").rstrip("^")
     if not domain:
@@ -2067,13 +2093,44 @@ def add_allowlist_domain(config, domain):
         current = get_allowlisted_domains(config)
         if domain not in current:
             current.append(domain)
-        return _save_allowlist(config, current)
+        ok = _save_allowlist(config, current)
+    _mirror_allowlist_to_config(domain, add=True)
+    return ok
 
 
 def remove_allowlist_domain(config, domain):
+    domain = domain.strip().lower()
     with _rules_lock:
-        current = [d for d in get_allowlisted_domains(config) if d != domain.strip().lower()]
-        return _save_allowlist(config, current)
+        current = [d for d in get_allowlisted_domains(config) if d != domain]
+        ok = _save_allowlist(config, current)
+    _mirror_allowlist_to_config(domain, add=False)
+    return ok
+
+
+def ensure_allowlist(config):
+    """On startup, make AdGuard's allowlist match the durable copy in config, and
+    seed the default compatibility allowlist on first run. This keeps a family's
+    allows — and the built-in Homeschool Hub / Brightcove video fix — alive across a
+    router reboot, which can reset AdGuard's custom rules. Only touches config once
+    AdGuard is reachable, so a slow-booting AGH can't wipe the durable record."""
+    from config import load_config, save_config
+    if not _ag_wait_ready(config, timeout=30):
+        print("[Allowlist] AdGuard not ready — skipping startup reconcile")
+        return
+    cfg   = load_config()
+    live  = get_allowlisted_domains(cfg)
+    saved = cfg.get("allowlist")
+    if saved is None:
+        # First run (or fresh install): adopt whatever's already allowed, plus the
+        # shipped defaults, as the durable record.
+        saved = sorted(set(live) | set(DEFAULT_COMPAT_ALLOWLIST))
+        cfg["allowlist"] = saved
+        save_config(cfg)
+    missing = [d for d in saved if d not in live]
+    for d in missing:
+        add_allowlist_domain(cfg, d)   # re-applies to AdGuard
+    if missing:
+        print(f"[Allowlist] restored {len(missing)} allow(s) on startup: {', '.join(missing)}")
 
 
 # ── Temporary "preview pass" allows (auto-reblock after N minutes) ─────────────

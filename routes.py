@@ -576,11 +576,14 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     # Profile-appropriate optional lists + always-on DoH mitigation.
                     from adguard import (install_default_optional_lists, apply_doh_dns_mitigation,
-                                         apply_service_allowlist)
+                                         apply_service_allowlist, ensure_allowlist)
                     try:
                         install_default_optional_lists(config)
                         apply_doh_dns_mitigation(config)
                         apply_service_allowlist(config)
+                        # Seed the default compatibility allowlist (Brightcove video
+                        # fix for Homeschool Hub, etc.) so a fresh install just works.
+                        ensure_allowlist(config)
                     except Exception as _e:
                         print(f"[Setup] optional/DoH defaults error: {_e}")
                     config["adguard_setup_complete"] = True

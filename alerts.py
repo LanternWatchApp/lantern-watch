@@ -971,6 +971,14 @@ def main():
     print("Lantern Watch alert system started")
     _ensure_oui_db()
     _ensure_doh_blocking()
+    try:
+        # Re-apply the allowlist on boot from Lantern Watch's durable copy — a
+        # router reboot can reset AdGuard's custom rules, and this restores the
+        # family's allows (and the built-in Homeschool Hub / Brightcove video fix).
+        from adguard import ensure_allowlist
+        ensure_allowlist(load_config())
+    except Exception as e:
+        print(f"[Allowlist] startup reconcile failed: {e}")
 
     # The one-time install record is attempted inside the loop below (after the
     # network has had time to come up) and retried until it actually lands, so a

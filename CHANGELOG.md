@@ -19,6 +19,22 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.16.3] — 2026-08-12
+
+### Added
+- **Homeschool Hub / Brightcove videos work out of the box.** A common ad/tracker
+  blocklist quietly blocks `metrics.brightcove.com`, which the Brightcove video
+  player waits on — so the video hangs and never plays. It's impossible for a
+  non-technical parent to diagnose. Lantern Watch now ships that domain allowed by
+  default, so Homeschool Hub (and other Brightcove-powered sites) just play.
+
+### Fixed
+- **Allowed sites now survive a router reboot.** The allowlist was stored only in
+  AdGuard, so if the router reset AdGuard's custom rules (e.g. after a firmware
+  upgrade or certain reboots), your allows vanished. Lantern Watch now keeps its own
+  durable copy and re-applies it on every boot — your allows (and the default video
+  fix) come back automatically.
+
 ## [0.16.2] — 2026-08-12
 
 ### Changed
