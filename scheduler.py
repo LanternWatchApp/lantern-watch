@@ -13,6 +13,9 @@ import urllib.request
 from datetime import datetime, timedelta
 
 from config import load_config, save_config, dashboard_url
+from db import DB_PATH   # single source of truth — the scheduler MUST read the same
+                         # database the collector writes to and the dashboard reads,
+                         # or screen-time (below) reads an empty/wrong file.
 
 _IS_IP = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 
@@ -42,7 +45,6 @@ def _resolve_name(raw_name, config):
             pass
     return raw_name
 
-DB_PATH     = "/root/lanternwatch.db"
 SESSION_GAP = 300  # seconds; matches db.py
 
 try:

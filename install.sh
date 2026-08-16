@@ -5,13 +5,16 @@
 #
 # Usage:
 #   sh install.sh [--profile=home|venue] [--force] [--adguard-pass=PASSWORD]
-#                 [--github-pat=TOKEN] [--skip-clone]
+#                 [--github-pat=TOKEN] [--skip-clone] [--wired-passthrough]
 #
-# --adguard-pass  Optional. If omitted, a random AdGuard service-account password
-#                 is generated automatically. You never need to know or type it.
-# --github-pat    Optional. Only needed if you fork into a PRIVATE repo — a GitHub
-#                 Personal Access Token (classic, repo scope) for the clone step.
-# --skip-clone    Skip git clone entirely — use files already in /root/lantern-watch.
+# --adguard-pass     Optional. If omitted, a random AdGuard service-account password
+#                    is generated automatically. You never need to know or type it.
+# --github-pat       Optional. Only needed if you fork into a PRIVATE repo — a GitHub
+#                    Personal Access Token (classic, repo scope) for the clone step.
+# --skip-clone       Skip git clone entirely — use files already in /root/lantern-watch.
+# --wired-passthrough  Disable the router's own Wi-Fi (for a wired pass-through box
+#                    behind a downstream AP/mesh). OFF by default — Wi-Fi stays on so
+#                    your SSID keeps working when you install on your Wi-Fi router.
 #
 # One-liner (fresh router):
 #   wget -O /tmp/install.sh \
@@ -64,6 +67,7 @@ FORCE="no"
 SKIP_CLONE="no"
 ADGUARD_PASS=""
 GITHUB_PAT=""
+WIRED_PASSTHROUGH="no"   # opt-in only: disable Wi-Fi for a wired pass-through box
 
 for arg in "$@"; do
     case "$arg" in
@@ -72,6 +76,10 @@ for arg in "$@"; do
         --force-full)     FORCE_PROT="full" ;;   # override RAM-based protection profile
         --force-lite)     FORCE_PROT="lite" ;;
         --skip-clone)     SKIP_CLONE="yes" ;;
+        # Disable the router's own Wi-Fi (for a wired pass-through deployment behind
+        # a downstream AP/mesh). OFF by default — most people install ON their Wi-Fi
+        # router and expect their SSID to keep working.
+        --wired-passthrough|--disable-wifi) WIRED_PASSTHROUGH="yes" ;;
         --adguard-pass=*) ADGUARD_PASS="${arg#--adguard-pass=}" ;;
         --github-pat=*)   GITHUB_PAT="${arg#--github-pat=}" ;;
     esac
@@ -140,7 +148,8 @@ case "$RAW_MODEL" in
     *MT6000*|*"Flint 2"*)
         MODEL_NAME="GL-MT6000"
         HAS_WIFI="yes"
-        DISABLE_WIFI="yes"   # deployed in wired pass-through mode
+        DISABLE_WIFI="no"    # leave Wi-Fi ON — most Flint 2 owners use it as their
+                             # Wi-Fi router (opt into pass-through with --wired-passthrough)
         LAN_IFACE="br-lan"
         WAN_IFACE="eth1"
         ;;
@@ -216,6 +225,13 @@ else
     PROT_PROFILE="full"
 fi
 log "Protection profile: $PROT_PROFILE (RAM ${MEM_MB}MB${FORCE_PROT:+, forced})"
+
+# Wi-Fi is left ON by default on every model. Only disable it when the operator
+# explicitly asks for a wired pass-through box (router in a closet behind an AP/mesh)
+# AND the unit actually has radios.
+if [ "$WIRED_PASSTHROUGH" = "yes" ] && [ "$HAS_WIFI" = "yes" ]; then
+    DISABLE_WIFI="yes"
+fi
 
 log "Model: $MODEL_NAME | RAM: ${MEM_MB}MB | Free overlay: ${OVERLAY_MB}MB"
 log "HAS_WIFI=$HAS_WIFI DISABLE_WIFI=$DISABLE_WIFI LOW_RAM=$LOW_RAM LARGE_STORAGE=$LARGE_STORAGE"
