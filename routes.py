@@ -26,7 +26,9 @@ from db import get_stats, DB_PATH, clear_notifications, get_all_known_devices, g
 from scheduler import pause_device, unpause_device
 from pages import (
     get_welcome_page, get_welcome_error_page, get_adguard_wizard_page,
-    get_adguard_enable_page, get_notifications_wizard_page, get_login_page,
+    get_adguard_enable_page, get_notifications_wizard_page, get_profile_wizard_page,
+    get_network_wizard_page, get_alerts_wizard_page, get_backup_wizard_page,
+    get_services_wizard_page, get_login_page,
     send_ntfy, send_test_ntfy, send_test_telegram, send_test_email,
     build_main, build_detail, build_domain_detail, build_schedule_page,
     build_social, build_findhelp, build_blocked_page, build_portal_page,
@@ -137,10 +139,72 @@ class Handler(BaseHTTPRequestHandler):
             elif parsed.path == "/setup/notifications":
                 html = get_notifications_wizard_page(config)
 
+            elif parsed.path == "/setup/profile":
+                # Step 3: household filtering profile. ?skip=1 applies the
+                # recommended default (Moderate, YouTube comments on) and moves on.
+                if parse_qs(parsed.query).get("skip", [""])[0] == "1":
+                    try:
+                        from adguard import (apply_social_profile, set_safesearch_engines,
+                                             SAFE_SEARCH_ENGINES, get_safesearch_status)
+                        # Recommended default = Moderate with Safe Search on, but
+                        # YouTube comments ON — so flip just the YouTube engine back
+                        # off, matching the form's default (Allow comments ticked).
+                        apply_social_profile("moderate", config, safe_search=True)
+                        cur = get_safesearch_status(config)
+                        eng = {e: bool(cur.get(e)) for e in SAFE_SEARCH_ENGINES}
+                        eng["youtube"] = False
+                        set_safesearch_engines(config, eng)
+                    except Exception as e:
+                        print(f"[Wizard] profile skip apply failed: {e}")
+                    config["social_profile"] = "moderate"
+                    save_config(config)
+                    self._redirect("/setup/services")
+                    return
+                html = get_profile_wizard_page(config)
+
+            elif parsed.path == "/setup/services":
+                # Step 3b: block specific apps/services. ?skip=1 leaves the current
+                # blocked-services set untouched and moves on.
+                if parse_qs(parsed.query).get("skip", [""])[0] == "1":
+                    self._redirect("/setup/network")
+                    return
+                html = get_services_wizard_page(config)
+
+            elif parsed.path == "/setup/network":
+                # Step 4: home vs business (Network Notice / captive portal).
+                # ?skip=1 keeps it a home (notice off) and moves on.
+                if parse_qs(parsed.query).get("skip", [""])[0] == "1":
+                    if config.get("captive_portal"):
+                        try:
+                            from portal import teardown_captive_portal
+                            teardown_captive_portal()
+                        except Exception as e:
+                            print(f"[Wizard] portal teardown failed: {e}")
+                    config["captive_portal"] = False
+                    save_config(config)
+                    self._redirect("/setup/alerts")
+                    return
+                html = get_network_wizard_page(config)
+
+            elif parsed.path == "/setup/alerts":
+                # Step 5: push notifications + alert types + optional summary.
+                # ?skip=1 leaves everything off and moves to the final step.
+                if parse_qs(parsed.query).get("skip", [""])[0] == "1":
+                    self._redirect("/setup/backup")
+                    return
+                html = get_alerts_wizard_page(config)
+
+            elif parsed.path == "/setup/backup":
+                # Step 6: hardware backup. ?skip=1 moves on without writing.
+                if parse_qs(parsed.query).get("skip", [""])[0] == "1":
+                    self._redirect("/setup/notifications")
+                    return
+                html = get_backup_wizard_page(config)
+
             elif parsed.path == "/setup/adguard":
                 # Skip if already applied (flag set) or if AdGuard already fully configured
                 if config.get("adguard_setup_complete"):
-                    self._redirect("/setup/notifications")
+                    self._redirect("/setup/profile")
                     return
                 status = get_adguard_setup_status(config)
                 if status["connected"]:
@@ -150,7 +214,7 @@ class Handler(BaseHTTPRequestHandler):
                     if already_done:
                         config["adguard_setup_complete"] = True
                         save_config(config)
-                        self._redirect("/setup/notifications")
+                        self._redirect("/setup/profile")
                         return
                 html = get_adguard_wizard_page()
 
@@ -539,6 +603,106 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"connected": connected}).encode())
+                return
+
+            # ── Wizard step 3 — household filtering profile ──────────────────────
+            elif parsed.path == "/setup/profile":
+                from adguard import normalize_profile, apply_social_profile
+                profile     = normalize_profile(params.get("profile", ["moderate"])[0])
+                comments_on = "youtube_comments" in params
+                try:
+                    # Applies the social rules + the profile's default Safe Search
+                    # (Open→off, Moderate/Strict→on, which also switches on YouTube
+                    # Restricted Mode).
+                    apply_social_profile(profile, config)
+                    # Moderate + "allow comments" is the one combination the profile
+                    # default doesn't cover: flip ONLY the YouTube engine back off so
+                    # comments return while the rest of Safe Search stays on. Strict
+                    # always keeps Restricted Mode on; Open has Safe Search off already.
+                    if profile == "moderate" and comments_on:
+                        from adguard import (set_safesearch_engines, SAFE_SEARCH_ENGINES,
+                                             get_safesearch_status)
+                        cur = get_safesearch_status(config)
+                        eng = {e: bool(cur.get(e)) for e in SAFE_SEARCH_ENGINES}
+                        eng["youtube"] = False
+                        set_safesearch_engines(config, eng)
+                except Exception as e:
+                    print(f"[Wizard] profile apply failed: {e}")
+                config["social_profile"] = profile
+                save_config(config)
+                self._redirect("/setup/services")
+                return
+
+            # ── Wizard step 3b — block specific apps/services ────────────────────
+            elif parsed.path == "/setup/services":
+                from adguard import get_blocked_services, set_blocked_services
+                from pages import _WIZARD_SERVICE_GROUPS
+                curated = {sid for _t, ids in _WIZARD_SERVICE_GROUPS for sid in ids}
+                selected = set(params.get("svc", []))
+                try:
+                    # Preserve anything blocked outside our curated shortlist (set
+                    # elsewhere), and replace only the curated ones with the ticks.
+                    _all, blocked = get_blocked_services(config)
+                    keep = (set(blocked) - curated) | (selected & curated)
+                    set_blocked_services(config, keep)
+                except Exception as e:
+                    print(f"[Wizard] blocked-services apply failed: {e}")
+                self._redirect("/setup/network")
+                return
+
+            # ── Wizard step 4 — home vs business (Network Notice) ────────────────
+            elif parsed.path == "/setup/network":
+                is_business = params.get("place", ["home"])[0] == "business"
+                old_portal  = config.get("captive_portal", False)
+                if is_business:
+                    config["org_name"]       = params.get("org_name", [""])[0].strip()[:60]
+                    config["captive_portal"] = True
+                else:
+                    config["captive_portal"] = False
+                save_config(config)
+                try:
+                    from portal import setup_captive_portal, teardown_captive_portal
+                    if config["captive_portal"] and not old_portal:
+                        setup_captive_portal(config)
+                    elif not config["captive_portal"] and old_portal:
+                        teardown_captive_portal()
+                except Exception as e:
+                    print(f"[Wizard] portal setup failed: {e}")
+                self._redirect("/setup/alerts")
+                return
+
+            # ── Wizard step 5 — notifications + alerts + summary ─────────────────
+            elif parsed.path == "/setup/alerts":
+                config.setdefault("alerts", {})
+                config.setdefault("summary", {})
+                config["ntfy_enabled"] = "ntfy_enabled" in params
+                config["ntfy_topic"]   = params.get("ntfy_topic", [""])[0].strip()
+                config["alerts"]["adult_content"]    = "alert_adult"     in params
+                config["alerts"]["new_device"]       = "alert_newdevice" in params
+                config["alerts"]["high_block_rate"]  = "alert_highblock" in params
+                config["alerts"]["update_available"] = "alert_update"    in params
+                cadence = params.get("cadence", ["never"])[0]
+                config["summary"]["daily"]  = (cadence == "daily")
+                config["summary"]["weekly"] = (cadence == "weekly")
+                try:
+                    config["summary"]["daily_hour"]  = int(params.get("daily_hour",  [20])[0])
+                    config["summary"]["weekly_day"]  = int(params.get("weekly_day",  [6])[0])
+                    config["summary"]["weekly_hour"] = int(params.get("weekly_hour", [20])[0])
+                except (ValueError, TypeError):
+                    pass
+                save_config(config)
+                self._redirect("/setup/backup")
+                return
+
+            # ── Wizard step 6 — hardware backup ──────────────────────────────────
+            elif parsed.path == "/setup/backup":
+                # Write the first USB backup if a drive is present (no-ops otherwise).
+                try:
+                    import backup as _bk
+                    _bk.maybe_write_usb_backup(config, force=True)
+                except Exception as e:
+                    print(f"[Wizard] initial USB backup failed: {e}")
+                self._redirect("/setup/notifications")
                 return
 
             # ── Final wizard step (stats opt-in) ─────────────────────────────────

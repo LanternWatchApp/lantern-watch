@@ -728,7 +728,7 @@ function applySetup() {
       if (d.ok) {
         document.getElementById('mainContent').style.display = 'none';
         document.getElementById('successWrap').style.display = 'block';
-        setTimeout(function() { window.location.href = '/setup/notifications'; }, 1500);
+        setTimeout(function() { window.location.href = '/setup/profile'; }, 1500);
       } else {
         document.getElementById('errMsg').style.display = 'block';
         btn.disabled = false;
@@ -775,7 +775,7 @@ input:focus{outline:none;border-color:#e8a000;box-shadow:0 0 0 3px rgba(232,160,
 <div class="box">
   <div style="text-align:center;font-size:2.5em;margin-bottom:12px">&#x1F389;</div>
   <h1>You&#x2019;re all set!</h1>
-  <p class="sub">Notifications (ntfy, Telegram, email), schedules, and social profiles are all waiting in the dashboard whenever you want them.</p>
+  <p class="sub">Your filtering, network notice, and alerts are all set. Schedules, screen-time limits, and per-device tweaks are waiting in the dashboard whenever you want them.</p>
   <form method="POST" action="/setup/notifications">
     <div class="card" style="border:2px solid #e8d080;background:#fffbf0">
       <div class="card-title">&#x1F4CA; Help keep Lantern Watch free <span class="badge">Optional</span></div>
@@ -796,6 +796,500 @@ input:focus{outline:none;border-color:#e8a000;box-shadow:0 0 0 3px rgba(232,160,
   </form>
 </div>
 </body></html>""")
+
+
+def get_profile_wizard_page(config):
+    """Step 3 of first-run: pick a household filtering profile. Moderate is
+    pre-selected (the recommended default), and YouTube comments default ON —
+    matching the wizard's 'skip with defaults' behaviour."""
+    from adguard import normalize_profile
+    current = normalize_profile(config.get("social_profile", "moderate"))
+
+    cards = ""
+    for pid, name, desc, icon, color, bg, border in [
+        ("open",     "Open",     "All social media allowed, Safe Search off. Best for older teens you trust.", "&#x1F513;", "#16A34A", "#F0FDF4", "#86EFAC"),
+        ("moderate", "Moderate", "All social media allowed, but adult content is blocked and Safe Search is on. A balanced default.", "&#x1F6E1;&#xFE0F;", "#D97706", "#FFFBF0", "#FEF3C7"),
+        ("strict",   "Strict",   "Social media blocked, Safe Search and YouTube Restricted Mode on. Best for younger children.", "&#x1F512;", "#DC6B5F", "#FFF7F7", "#FCA5A5"),
+    ]:
+        checked   = "checked" if pid == current else ""
+        rec_badge = ('<span class="rec">Recommended</span>' if pid == "moderate" else "")
+        cards += (
+            f'<label class="opt" data-pid="{pid}">'
+            f'<input type="radio" name="profile" value="{pid}" {checked} onchange="lwSel()">'
+            f'<span class="dot" style="--c:{color}"></span>'
+            f'<span class="opt-body">'
+            f'<span class="opt-title" style="color:{color}">{icon} {name}{rec_badge}</span>'
+            f'<span class="opt-desc">{desc}</span>'
+            f'</span></label>'
+        )
+
+    return ("""<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Choose a Filtering Level — Lantern Watch</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#faf8f3;color:#3a3a3a;-webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+.box{background:#fff;border-radius:16px;padding:32px;width:100%;max-width:480px;box-shadow:0 8px 30px rgba(26,26,26,0.06);border:1px solid #e8e6e0}
+.step-badge{text-align:center;font-size:0.75em;color:#6b6b6b;letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase;font-weight:600}
+.icon{text-align:center;font-size:2.6em;margin-bottom:10px}
+h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-align:center;margin-bottom:8px}
+.sub{color:#6b6b6b;font-size:0.88em;text-align:center;margin-bottom:22px;line-height:1.5}
+.opt{display:flex;align-items:flex-start;gap:12px;border:1.5px solid #e8e6e0;border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color .12s,background .12s}
+.opt input{position:absolute;opacity:0;pointer-events:none}
+.opt.sel{border-color:#e8a000;background:#fffdf7}
+.dot{width:20px;height:20px;border-radius:50%;border:2px solid #d4d2cc;flex-shrink:0;margin-top:2px;position:relative;transition:border-color .12s}
+.opt.sel .dot{border-color:var(--c)}
+.opt.sel .dot:after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--c)}
+.opt-body{display:flex;flex-direction:column;gap:3px}
+.opt-title{font-weight:800;font-size:0.95em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.opt-desc{font-size:0.8em;color:#6b6b6b;line-height:1.45}
+.rec{background:#eaf7ef;color:#16a34a;font-size:0.62em;padding:2px 7px;border-radius:99px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase}
+.yt{border:1px solid #e8e6e0;border-radius:12px;padding:14px 16px;margin:14px 0 4px}
+.yt-row{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+.yt-row input{margin-top:2px;width:18px;height:18px;accent-color:#e8a000;flex-shrink:0}
+.yt-row b{font-size:0.9em;color:#1a1a1a}
+.yt-desc{font-size:0.78em;color:#6b6b6b;line-height:1.45;margin-top:6px}
+.btn{width:100%;padding:14px;background:#e8a000;border:none;border-radius:20px;color:white;font-size:1em;font-weight:700;cursor:pointer;font-family:inherit;margin-top:18px;box-shadow:0 4px 14px rgba(232,160,0,.28);transition:transform .12s,box-shadow .12s;display:flex;align-items:center;justify-content:center;gap:10px}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(232,160,0,.36)}
+.btn:disabled{background:#ccc;box-shadow:none;transform:none;cursor:not-allowed}
+.spinner{width:18px;height:18px;border:3px solid rgba(255,255,255,0.4);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.skip{display:block;text-align:center;color:#6b6b6b;font-size:0.82em;margin-top:14px;text-decoration:none;cursor:pointer}
+.skip:hover{color:#e8a000}
+.hint{color:#94a3b8;font-size:0.76em;text-align:center;margin-top:12px;line-height:1.4}
+</style></head><body>
+<div class="box">
+  <div class="step-badge">Family filtering</div>
+  <div class="icon">&#x1F3AF;</div>
+  <h1>Choose a filtering level</h1>
+  <p class="sub">This sets what's allowed for the whole home. You can fine-tune it &mdash; and set it per-device &mdash; anytime.</p>
+  <form method="POST" action="/setup/profile" id="pform">
+    """ + cards + """
+    <div class="yt">
+      <label class="yt-row">
+        <input type="checkbox" name="youtube_comments" id="ytc" checked>
+        <b>&#x1F4FA; Allow YouTube comments</b>
+      </label>
+      <div class="yt-desc">Leave this on for normal YouTube. Untick it to hide comments and mature videos (YouTube Restricted Mode). Strict always turns Restricted Mode on regardless.</div>
+    </div>
+    <button type="submit" class="btn" id="go">
+      <span id="gotext">Continue</span><span class="spinner" id="sp"></span>
+    </button>
+  </form>
+  <a class="skip" href="/setup/profile?skip=1">Skip &mdash; use recommended (Moderate)</a>
+  <p class="hint">Applying your choice sets up AdGuard's rules &mdash; takes a couple of seconds.</p>
+</div>
+<script>
+function lwSel(){
+  document.querySelectorAll('.opt').forEach(function(o){
+    o.classList.toggle('sel', o.querySelector('input').checked);
+  });
+}
+lwSel();
+document.getElementById('pform').addEventListener('submit',function(){
+  document.getElementById('go').disabled=true;
+  document.getElementById('gotext').textContent='Applying…';
+  document.getElementById('sp').style.display='block';
+});
+</script>
+</body></html>""")
+
+
+def get_network_wizard_page(config):
+    """First-run step: is this a home, or a business/organisation? A business
+    switches on the Network Notice (captive portal) so new devices see a one-time
+    acceptable-use notice; a home leaves it off. Home is the recommended default.
+
+    Dynamic bits are injected by token replacement (not f-strings/.format) because
+    the page's CSS is full of literal braces. The JS lwNet() sets the .sel / .show
+    classes on load from whichever radio carries `checked`, so Python only has to
+    place `checked` on the right radio and fill the saved org name."""
+    portal_on = bool(config.get("captive_portal"))
+    org       = (config.get("org_name", "") or "").replace('"', "&quot;")
+
+    page = ("""<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Network Notice — Lantern Watch</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#faf8f3;color:#3a3a3a;-webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+.box{background:#fff;border-radius:16px;padding:32px;width:100%;max-width:480px;box-shadow:0 8px 30px rgba(26,26,26,0.06);border:1px solid #e8e6e0}
+.step-badge{text-align:center;font-size:0.75em;color:#6b6b6b;letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase;font-weight:600}
+.icon{text-align:center;font-size:2.6em;margin-bottom:10px}
+h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-align:center;margin-bottom:8px}
+.sub{color:#6b6b6b;font-size:0.88em;text-align:center;margin-bottom:22px;line-height:1.5}
+.opt{display:flex;align-items:flex-start;gap:12px;border:1.5px solid #e8e6e0;border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color .12s,background .12s}
+.opt input{position:absolute;opacity:0;pointer-events:none}
+.opt.sel{border-color:#e8a000;background:#fffdf7}
+.dot{width:20px;height:20px;border-radius:50%;border:2px solid #d4d2cc;flex-shrink:0;margin-top:2px;position:relative}
+.opt.sel .dot{border-color:#e8a000}
+.opt.sel .dot:after{content:"";position:absolute;inset:3px;border-radius:50%;background:#e8a000}
+.opt-body{display:flex;flex-direction:column;gap:3px}
+.opt-title{font-weight:800;font-size:0.95em;display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#1a1a1a}
+.opt-desc{font-size:0.8em;color:#6b6b6b;line-height:1.45}
+.rec{background:#eaf7ef;color:#16a34a;font-size:0.62em;padding:2px 7px;border-radius:99px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase}
+#orgwrap{display:none;margin:2px 0 4px;padding:0 2px}
+#orgwrap.show{display:block}
+label.fl{display:block;font-size:0.72em;font-weight:700;color:#6b6b6b;text-transform:uppercase;letter-spacing:0.8px;margin:8px 0 5px}
+input[type=text]{width:100%;padding:11px 12px;border:1.5px solid #e8e6e0;border-radius:10px;font-size:0.92em;color:#1a1a1a;font-family:inherit}
+input[type=text]:focus{outline:none;border-color:#e8a000;box-shadow:0 0 0 3px rgba(232,160,0,0.12)}
+.btn{width:100%;padding:14px;background:#e8a000;border:none;border-radius:20px;color:white;font-size:1em;font-weight:700;cursor:pointer;font-family:inherit;margin-top:18px;box-shadow:0 4px 14px rgba(232,160,0,.28);transition:transform .12s,box-shadow .12s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(232,160,0,.36)}
+.skip{display:block;text-align:center;color:#6b6b6b;font-size:0.82em;margin-top:14px;text-decoration:none}
+.skip:hover{color:#e8a000}
+</style></head><body>
+<div class="box">
+  <div class="step-badge">Network notice</div>
+  <div class="icon">&#x1F3E0;</div>
+  <h1>Where is this network?</h1>
+  <p class="sub">A home network just works quietly. A business or organisation can show every new device a one-time notice that the network is filtered &mdash; useful for an acceptable-use policy.</p>
+  <form method="POST" action="/setup/network" id="nform">
+    <label class="opt" data-v="home">
+      <input type="radio" name="place" value="home" __HOME_CHK__ onchange="lwNet()">
+      <span class="dot"></span>
+      <span class="opt-body">
+        <span class="opt-title">&#x1F3E0; A home <span class="rec">Recommended</span></span>
+        <span class="opt-desc">No notice. Filtering runs silently in the background &mdash; the usual choice for families.</span>
+      </span>
+    </label>
+    <label class="opt" data-v="business">
+      <input type="radio" name="place" value="business" __BIZ_CHK__ onchange="lwNet()">
+      <span class="dot"></span>
+      <span class="opt-body">
+        <span class="opt-title">&#x1F3E2; A business or organisation</span>
+        <span class="opt-desc">Show new devices a one-time Network Notice with your name and an acceptable-use message.</span>
+      </span>
+    </label>
+    <div id="orgwrap">
+      <label class="fl">Organisation name (shown on the notice)</label>
+      <input type="text" name="org_name" value="__ORG__" placeholder="e.g. Maple Street Library" maxlength="60">
+    </div>
+    <button type="submit" class="btn">Continue</button>
+  </form>
+  <a class="skip" href="/setup/network?skip=1">Skip &mdash; it's a home</a>
+</div>
+<script>
+function lwNet(){
+  document.querySelectorAll('.opt').forEach(function(o){
+    o.classList.toggle('sel', o.querySelector('input').checked);
+  });
+  var biz = document.querySelector('input[value="business"]').checked;
+  document.getElementById('orgwrap').classList.toggle('show', biz);
+}
+lwNet();
+</script>
+</body></html>""")
+    return (page
+            .replace("__HOME_CHK__", "" if portal_on else "checked")
+            .replace("__BIZ_CHK__", "checked" if portal_on else "")
+            .replace("__ORG__", org))
+
+
+def get_alerts_wizard_page(config):
+    """First-run step: push notifications + which alerts + an optional daily/weekly
+    summary. ntfy is offered as the zero-setup push channel — a random topic is
+    suggested; the parent installs the free ntfy app and subscribes to it. Alert
+    defaults are the intentional-navigation ones (adult content, new device)."""
+    import secrets
+    a       = config.get("alerts", {}) or {}
+    s       = config.get("summary", {}) or {}
+    topic   = (config.get("ntfy_topic", "") or "").strip() or ("lantern-" + secrets.token_hex(4))
+    ntfy_on = "checked" if config.get("ntfy_enabled", True) else ""
+
+    def ck(key, default):
+        return "checked" if a.get(key, default) else ""
+
+    # Summary cadence radios: default "never" (neither daily nor weekly on).
+    if s.get("weekly"):
+        cadence = "weekly"
+    elif s.get("daily"):
+        cadence = "daily"
+    else:
+        cadence = "never"
+    d_hour = int(s.get("daily_hour", 20))
+    w_day  = int(s.get("weekly_day", 6))
+    w_hour = int(s.get("weekly_hour", 20))
+
+    hour_opts = "".join(
+        f'<option value="{h}"{" selected" if h == d_hour else ""}>{h:02d}:00</option>'
+        for h in range(24))
+    whour_opts = "".join(
+        f'<option value="{h}"{" selected" if h == w_hour else ""}>{h:02d}:00</option>'
+        for h in range(24))
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    day_opts = "".join(
+        f'<option value="{i}"{" selected" if i == w_day else ""}>{name}</option>'
+        for i, name in enumerate(days))
+
+    alert_rows = "".join([
+        f'<label class="ck"><input type="checkbox" name="alert_adult" {ck("adult_content", True)}>'
+        f'<span><b>Adult content blocked</b><br><i>When a device is stopped from reaching an adult site.</i></span></label>',
+        f'<label class="ck"><input type="checkbox" name="alert_newdevice" {ck("new_device", True)}>'
+        f'<span><b>A new device joins</b><br><i>When something connects to your network for the first time.</i></span></label>',
+        f'<label class="ck"><input type="checkbox" name="alert_highblock" {ck("high_block_rate", False)}>'
+        f'<span><b>Unusually high blocking</b><br><i>When one device trips a lot of blocks in a short time.</i></span></label>',
+        f'<label class="ck"><input type="checkbox" name="alert_update" {ck("update_available", True)}>'
+        f'<span><b>A new Lantern Watch version</b><br><i>An anonymous check &mdash; sends no data.</i></span></label>',
+    ])
+
+    page = ("""<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Stay in the Loop — Lantern Watch</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#faf8f3;color:#3a3a3a;-webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+.box{background:#fff;border-radius:16px;padding:32px;width:100%;max-width:480px;box-shadow:0 8px 30px rgba(26,26,26,0.06);border:1px solid #e8e6e0}
+.step-badge{text-align:center;font-size:0.75em;color:#6b6b6b;letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase;font-weight:600}
+.icon{text-align:center;font-size:2.6em;margin-bottom:10px}
+h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-align:center;margin-bottom:8px}
+.sub{color:#6b6b6b;font-size:0.88em;text-align:center;margin-bottom:20px;line-height:1.5}
+.card{border:1px solid #e8e6e0;border-radius:12px;padding:16px;margin-bottom:14px}
+.card-h{font-weight:800;font-size:0.95em;color:#1a1a1a;margin-bottom:4px}
+.card-s{font-size:0.8em;color:#6b6b6b;line-height:1.45;margin-bottom:10px}
+.tog{display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:700;font-size:0.9em;color:#1a1a1a}
+.tog input{width:18px;height:18px;accent-color:#e8a000}
+#ntfybody{margin-top:12px}
+label.fl{display:block;font-size:0.72em;font-weight:700;color:#6b6b6b;text-transform:uppercase;letter-spacing:0.8px;margin:8px 0 5px}
+input[type=text],select{width:100%;padding:11px 12px;border:1.5px solid #e8e6e0;border-radius:10px;font-size:0.92em;color:#1a1a1a;font-family:inherit;background:#fff}
+input[type=text]:focus,select:focus{outline:none;border-color:#e8a000;box-shadow:0 0 0 3px rgba(232,160,0,0.12)}
+.steps{font-size:0.8em;color:#6b6b6b;line-height:1.7;margin-top:10px}
+.steps b{color:#0ea5e9}
+.ck{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #f0eee8;cursor:pointer;font-size:0.86em}
+.ck:last-child{border-bottom:none}
+.ck input{margin-top:2px;width:17px;height:17px;accent-color:#e8a000;flex-shrink:0}
+.ck i{color:#94a3b8;font-style:normal;font-size:0.92em}
+.row{display:flex;gap:10px}
+.row>div{flex:1}
+.btn{width:100%;padding:14px;background:#e8a000;border:none;border-radius:20px;color:white;font-size:1em;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px;box-shadow:0 4px 14px rgba(232,160,0,.28);transition:transform .12s,box-shadow .12s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(232,160,0,.36)}
+.skip{display:block;text-align:center;color:#6b6b6b;font-size:0.82em;margin-top:14px;text-decoration:none}
+.skip:hover{color:#e8a000}
+.hide{display:none}
+</style></head><body>
+<div class="box">
+  <div class="step-badge">Notifications</div>
+  <div class="icon">&#x1F514;</div>
+  <h1>Stay in the loop</h1>
+  <p class="sub">Get a heads-up on your phone when something matters &mdash; free, private, and optional. You can change all of this later in Settings.</p>
+  <form method="POST" action="/setup/alerts" id="aform">
+    <div class="card">
+      <label class="tog"><input type="checkbox" name="ntfy_enabled" id="ntfytog" __NTFY_ON__ onchange="lwNtfy()">
+        <span>&#x1F4F1; Push notifications (via the free ntfy app)</span></label>
+      <div id="ntfybody">
+        <label class="fl">Your private topic</label>
+        <input type="text" name="ntfy_topic" value="__TOPIC__" placeholder="a hard-to-guess name">
+        <div class="steps">
+          1. Install the free <b>ntfy</b> app (iOS / Android)<br>
+          2. In the app, subscribe to the topic above<br>
+          3. That's it &mdash; alerts arrive as push notifications
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h">Which alerts?</div>
+      __ALERT_ROWS__
+    </div>
+    <div class="card">
+      <div class="card-h">Recap summary</div>
+      <div class="card-s">An optional digest of the day or week.</div>
+      <label class="fl">How often</label>
+      <select name="cadence" id="cad" onchange="lwCad()">
+        <option value="never" __NEVER__>Never</option>
+        <option value="daily" __DAILY__>Daily</option>
+        <option value="weekly" __WEEKLY__>Weekly</option>
+      </select>
+      <div id="dailyrow" class="hide"><label class="fl">Time</label>
+        <select name="daily_hour">__HOUR_OPTS__</select></div>
+      <div id="weeklyrow" class="hide"><div class="row">
+        <div><label class="fl">Day</label><select name="weekly_day">__DAY_OPTS__</select></div>
+        <div><label class="fl">Time</label><select name="weekly_hour">__WHOUR_OPTS__</select></div>
+      </div></div>
+    </div>
+    <button type="submit" class="btn">Continue</button>
+  </form>
+  <a class="skip" href="/setup/alerts?skip=1">Skip &mdash; set up later</a>
+</div>
+<script>
+function lwNtfy(){document.getElementById('ntfybody').style.display=document.getElementById('ntfytog').checked?'block':'none';}
+function lwCad(){
+  var v=document.getElementById('cad').value;
+  document.getElementById('dailyrow').classList.toggle('hide', v!=='daily');
+  document.getElementById('weeklyrow').classList.toggle('hide', v!=='weekly');
+}
+lwNtfy();lwCad();
+</script>
+</body></html>""")
+    return (page
+            .replace("__NTFY_ON__", ntfy_on)
+            .replace("__TOPIC__", topic)
+            .replace("__ALERT_ROWS__", alert_rows)
+            .replace("__NEVER__",  "selected" if cadence == "never"  else "")
+            .replace("__DAILY__",  "selected" if cadence == "daily"  else "")
+            .replace("__WEEKLY__", "selected" if cadence == "weekly" else "")
+            .replace("__HOUR_OPTS__", hour_opts)
+            .replace("__DAY_OPTS__", day_opts)
+            .replace("__WHOUR_OPTS__", whour_opts))
+
+
+def get_backup_wizard_page(config):
+    """First-run step: hardware backup. If a USB drive is plugged in, Lantern Watch
+    keeps a hands-off backup on it automatically (and we write the first one on
+    Continue). If not, the parent can download a backup file to keep somewhere safe.
+    Backups mean a factory reset or a swapped router doesn't lose the whole setup."""
+    try:
+        import backup as _bk
+        st = _bk.usb_status()
+    except Exception:
+        st = {"present": False}
+
+    if st.get("present"):
+        free = st.get("free_mb")
+        free_txt = f" &middot; {free} MB free" if isinstance(free, int) else ""
+        usb_block = (
+            '<div class="card ok">'
+            '<div class="card-h">&#x2705; USB drive found' + free_txt + '</div>'
+            '<div class="card-s">Lantern Watch will keep an automatic backup on it and refresh it '
+            'whenever you change a setting &mdash; no effort needed. We\'ll save the first one when you continue.</div>'
+            '</div>'
+        )
+    else:
+        usb_block = (
+            '<div class="card">'
+            '<div class="card-h">&#x1F50C; No USB drive detected</div>'
+            '<div class="card-s">Plug a small USB drive into the router for automatic, hands-off backups that '
+            'survive a factory reset. You can add one anytime &mdash; or just download a backup file below to keep safe.</div>'
+            '<a class="ghost" href="/setup/backup">Check again</a>'
+            '</div>'
+        )
+
+    page = ("""<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Back Up Your Setup — Lantern Watch</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#faf8f3;color:#3a3a3a;-webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+.box{background:#fff;border-radius:16px;padding:32px;width:100%;max-width:460px;box-shadow:0 8px 30px rgba(26,26,26,0.06);border:1px solid #e8e6e0}
+.step-badge{text-align:center;font-size:0.75em;color:#6b6b6b;letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase;font-weight:600}
+.icon{text-align:center;font-size:2.6em;margin-bottom:10px}
+h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-align:center;margin-bottom:8px}
+.sub{color:#6b6b6b;font-size:0.88em;text-align:center;margin-bottom:20px;line-height:1.5}
+.card{border:1px solid #e8e6e0;border-radius:12px;padding:16px;margin-bottom:14px}
+.card.ok{border-color:#b5e2c5;background:#f5fbf7}
+.card-h{font-weight:800;font-size:0.95em;color:#1a1a1a;margin-bottom:5px}
+.card-s{font-size:0.82em;color:#6b6b6b;line-height:1.5}
+.ghost{display:inline-block;margin-top:10px;font-size:0.82em;color:#e8a000;font-weight:700;text-decoration:none}
+.ghost:hover{text-decoration:underline}
+.dl{display:block;text-align:center;border:1.5px solid #e8e6e0;border-radius:14px;padding:12px;font-size:0.9em;font-weight:700;color:#3a3a3a;text-decoration:none;margin-bottom:14px}
+.dl:hover{border-color:#e8a000;color:#e8a000}
+.btn{width:100%;padding:14px;background:#e8a000;border:none;border-radius:20px;color:white;font-size:1em;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(232,160,0,.28);transition:transform .12s,box-shadow .12s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(232,160,0,.36)}
+.skip{display:block;text-align:center;color:#6b6b6b;font-size:0.82em;margin-top:14px;text-decoration:none}
+.skip:hover{color:#e8a000}
+</style></head><body>
+<div class="box">
+  <div class="step-badge">Backup</div>
+  <div class="icon">&#x1F4BE;</div>
+  <h1>Back up your setup</h1>
+  <p class="sub">A backup means a factory reset or a new router won't cost you all your settings, device names, and schedules.</p>
+  __USB_BLOCK__
+  <a class="dl" href="/admin/backup/download">&#x2B07;&#xFE0F; Download a backup file</a>
+  <form method="POST" action="/setup/backup">
+    <button type="submit" class="btn">Continue</button>
+  </form>
+  <a class="skip" href="/setup/backup?skip=1">Skip for now</a>
+</div>
+</body></html>""")
+    return page.replace("__USB_BLOCK__", usb_block)
+
+
+# Curated shortlist for the first-run "Services" step, grouped. These are the
+# apps parents most often ask to block outright; pure social platforms are left
+# to the filtering-level step. Rendered against AdGuard's live catalog, so any ID
+# the router's AGH build doesn't have is simply skipped.
+_WIZARD_SERVICE_GROUPS = [
+    ("&#x1F3AC; Streaming &amp; video", ["youtube", "tiktok", "netflix", "twitch",
+                                         "disneyplus", "hulu", "max", "crunchyroll"]),
+    ("&#x1F3AE; Gaming",                ["roblox", "minecraft", "steam", "epic_games",
+                                         "nintendo", "playstation", "xboxlive"]),
+    ("&#x1F4AC; Chat &amp; messaging",  ["discord", "snapchat", "whatsapp", "telegram"]),
+    ("&#x1F916; AI chatbots",           ["chatgpt", "claude"]),
+]
+
+
+def get_services_wizard_page(config):
+    """First-run step: block specific apps/services for the whole home. Driven by
+    AdGuard's Blocked Services catalog (get_blocked_services) so only services the
+    router actually knows about are shown; anything already blocked is pre-ticked.
+    Nothing is checked by default — parents opt in to what they want blocked."""
+    try:
+        from adguard import get_blocked_services
+        all_svcs, blocked = get_blocked_services(config)
+    except Exception:
+        all_svcs, blocked = [], set()
+    names = {s["id"]: s["name"] for s in all_svcs}
+
+    groups_html = ""
+    for title, ids in _WIZARD_SERVICE_GROUPS:
+        rows = ""
+        for sid in ids:
+            if sid not in names:
+                continue
+            chk = "checked" if sid in blocked else ""
+            rows += (
+                f'<label class="svc"><input type="checkbox" name="svc" value="{sid}" {chk}>'
+                f'<span>{names[sid]}</span></label>'
+            )
+        if rows:
+            groups_html += f'<div class="grp"><div class="grp-h">{title}</div><div class="grp-b">{rows}</div></div>'
+
+    if not groups_html:
+        # AGH unreachable / empty catalog — don't strand the user mid-wizard.
+        groups_html = ('<div class="grp"><div class="grp-b" style="padding:14px;color:#94a3b8;'
+                       'font-size:0.85em">Couldn\'t reach the service list right now. You can set '
+                       'this up anytime from <b>Blocked Services</b> in the dashboard.</div></div>')
+
+    page = ("""<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Block Apps &amp; Services — Lantern Watch</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#faf8f3;color:#3a3a3a;-webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+.box{background:#fff;border-radius:16px;padding:32px;width:100%;max-width:480px;box-shadow:0 8px 30px rgba(26,26,26,0.06);border:1px solid #e8e6e0}
+.step-badge{text-align:center;font-size:0.75em;color:#6b6b6b;letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase;font-weight:600}
+.icon{text-align:center;font-size:2.6em;margin-bottom:10px}
+h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-align:center;margin-bottom:8px}
+.sub{color:#6b6b6b;font-size:0.88em;text-align:center;margin-bottom:20px;line-height:1.5}
+.grp{border:1px solid #e8e6e0;border-radius:12px;margin-bottom:12px;overflow:hidden}
+.grp-h{background:#faf8f3;padding:10px 14px;font-weight:800;font-size:0.85em;color:#1a1a1a;border-bottom:1px solid #e8e6e0}
+.grp-b{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px}
+.svc{display:flex;align-items:center;gap:7px;border:1.5px solid #e8e6e0;border-radius:10px;padding:8px 11px;cursor:pointer;font-size:0.84em;font-weight:600;color:#3a3a3a;transition:border-color .12s,background .12s;user-select:none}
+.svc input{width:16px;height:16px;accent-color:#dc6b5f}
+.svc:has(input:checked){border-color:#dc6b5f;background:#fff7f7;color:#dc6b5f}
+.note{font-size:0.78em;color:#94a3b8;text-align:center;line-height:1.5;margin:4px 0 16px}
+.btn{width:100%;padding:14px;background:#e8a000;border:none;border-radius:20px;color:white;font-size:1em;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(232,160,0,.28);transition:transform .12s,box-shadow .12s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(232,160,0,.36)}
+.skip{display:block;text-align:center;color:#6b6b6b;font-size:0.82em;margin-top:14px;text-decoration:none}
+.skip:hover{color:#e8a000}
+</style></head><body>
+<div class="box">
+  <div class="step-badge">Apps &amp; services</div>
+  <div class="icon">&#x1F6AB;</div>
+  <h1>Block specific apps</h1>
+  <p class="sub">Tick anything you'd like blocked for the whole home. Leave it all unticked to allow everything &mdash; you can change this per-device later.</p>
+  <p class="note">Social media is handled by your filtering level. These are extra apps &amp; services.</p>
+  <form method="POST" action="/setup/services">
+    __GROUPS__
+    <button type="submit" class="btn">Continue</button>
+  </form>
+  <a class="skip" href="/setup/services?skip=1">Skip &mdash; allow everything</a>
+</div>
+</body></html>""")
+    return page.replace("__GROUPS__", groups_html)
 
 
 _LOGO_B64 = (
