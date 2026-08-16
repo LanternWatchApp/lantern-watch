@@ -102,27 +102,67 @@ def get_paused_devices(config):
     return config.get("paused_devices", {})
 
 
-def pause_device(ip, friendly_name, config, scheduled=False):
-    """
-    Block internet for a device via iptables.
-    Clears any existing DROP rules for the IP first to prevent stacking.
-    """
+def _mac_for_ip(ip):
+    """Best-effort MAC for a LAN IP (ARP table first, then DHCP leases). Pausing by
+    MAC — not just IP — also blocks the device's IPv6 and survives a DHCP address
+    change, so a device can't slip a pause the way an IP-only rule allows."""
     try:
-        # Drain existing rules before inserting a fresh one
-        while subprocess.run(
-            ["iptables", "-D", "FORWARD", "-s", ip, "-j", "DROP"],
-            capture_output=True,
-        ).returncode == 0:
+        with open("/proc/net/arp") as f:
+            next(f)
+            for line in f:
+                p = line.split()
+                if len(p) >= 4 and p[0] == ip and p[3] not in ("00:00:00:00:00:00", ""):
+                    return p[3].lower()
+    except Exception:
+        pass
+    try:
+        with open("/tmp/dhcp.leases") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 3 and parts[2] == ip and ":" in parts[1]:
+                    return parts[1].lower()
+    except Exception:
+        pass
+    return ""
+
+
+def _pause_rule_specs(ip, mac):
+    """The (command, match-args) pairs that make up a device's pause: IPv4 by source
+    IP (works even if we can't resolve a MAC), plus — when we know the MAC — a rule
+    on BOTH iptables (v4) and ip6tables (v6) so IPv6 traffic and post-DHCP addresses
+    are covered too."""
+    specs = [("iptables", ["-s", ip])]
+    if mac:
+        specs.append(("iptables",  ["-m", "mac", "--mac-source", mac]))
+        specs.append(("ip6tables", ["-m", "mac", "--mac-source", mac]))
+    return specs
+
+
+def _clear_pause_rules(ip, mac):
+    for cmd, match in _pause_rule_specs(ip, mac):
+        while subprocess.run([cmd, "-D", "FORWARD"] + match + ["-j", "DROP"],
+                             capture_output=True).returncode == 0:
             pass
-        subprocess.run(
-            ["iptables", "-I", "FORWARD", "-s", ip, "-j", "DROP"],
-            check=True,
-        )
+
+
+def _add_pause_rules(ip, mac):
+    _clear_pause_rules(ip, mac)   # never stack duplicates
+    for cmd, match in _pause_rule_specs(ip, mac):
+        subprocess.run([cmd, "-I", "FORWARD"] + match + ["-j", "DROP"], capture_output=True)
+
+
+def pause_device(ip, friendly_name, config, scheduled=False):
+    """Block internet for a device: IPv4 by source IP + (when resolvable) by MAC on
+    both IPv4 and IPv6, so the device can't bypass the pause over IPv6 or a new lease."""
+    try:
+        mac = _mac_for_ip(ip)
+        _add_pause_rules(ip, mac)
         paused = config.get("paused_devices", {})
         paused[ip] = {
             "name":      friendly_name,
             "paused_at": datetime.now().isoformat(),
             "scheduled": scheduled,
+            "mac":       mac,
         }
         config["paused_devices"] = paused
         save_config(config)
@@ -133,16 +173,11 @@ def pause_device(ip, friendly_name, config, scheduled=False):
 
 
 def unpause_device(ip, config):
-    """
-    Remove all DROP rules for a device and mark it as unpaused in config.
-    """
+    """Remove all DROP rules (v4 by IP, v4+v6 by MAC) for a device and clear it."""
     try:
-        while subprocess.run(
-            ["iptables", "-D", "FORWARD", "-s", ip, "-j", "DROP"],
-            capture_output=True,
-        ).returncode == 0:
-            pass
         paused = config.get("paused_devices", {})
+        mac    = (paused.get(ip) or {}).get("mac", "") or _mac_for_ip(ip)
+        _clear_pause_rules(ip, mac)
         paused.pop(ip, None)
         config["paused_devices"] = paused
         save_config(config)
@@ -153,10 +188,11 @@ def unpause_device(ip, config):
 
 
 def restore_paused_on_boot(config):
-    """Re-apply iptables DROP rules for any devices that were paused before restart."""
+    """Re-apply DROP rules (v4 by IP + v4/v6 by MAC) for devices paused before restart."""
     paused = config.get("paused_devices", {})
-    for ip in paused:
-        subprocess.run(["iptables", "-I", "FORWARD", "-s", ip, "-j", "DROP"])
+    for ip, info in paused.items():
+        mac = (info or {}).get("mac", "") or _mac_for_ip(ip)
+        _add_pause_rules(ip, mac)
     if paused:
         print(f"Restored {len(paused)} paused device(s) from config")
 
