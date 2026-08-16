@@ -191,6 +191,25 @@ Go to **http://192.168.8.1:8081** — on a fresh install it takes you straight t
 
 ---
 
+## What the installer changes on your router
+
+In the spirit of no surprises, here's exactly what the installer does — and what it backs up first so you can undo it.
+
+**It snapshots first.** Before changing anything, the installer copies your existing **AdGuard, DHCP, wireless, network and firewall** config (and any prior Lantern Watch config) to `/etc/lanternwatch.bak.<timestamp>/`, with a `RESTORE.txt` showing how to roll each file back.
+
+**Then it configures the router to do the filtering:**
+- **Sets up AdGuard Home** — enables it and applies family protection (blocklists, Safe Browsing, safe search, and encrypted DNS upstreams to Cloudflare + Quad9). It won't remove blocklists you've already added; it only adds what's missing.
+- **Creates a dedicated `lanternwatch` AdGuard login** (an API service account) with a random password stored locally in `lanternwatch_config.json`. This is a *separate* login from your GL.iNet admin account.
+- **Switches AdGuard to standard authentication** (removes GL.iNet's `--glinet` flag from the AdGuard init script) so Lantern Watch can manage it through the AdGuard API.
+- **Points dnsmasq (port 53) at AdGuard (port 3053)** — this is what preserves *per-device* visibility, so each device shows up individually instead of everything appearing as the router.
+- **Requires a manual confirm before firmware upgrades** (stable channel), so an unattended over-the-air update can't silently wipe the install. Skip this with `--keep-auto-update`, or re-enable automatic updates anytime in the GL.iNet panel.
+- **Leaves your Wi-Fi on.** Install on your Wi-Fi router and your SSID keeps working. Only pass `--wired-passthrough` if you run the box wired behind a downstream AP/mesh and want its radios off.
+- **Registers an auto-start service** and adds Lantern Watch's paths to `/etc/sysupgrade.conf` so a "Keep Settings" firmware upgrade preserves it.
+
+**One-time blip:** AdGuard and dnsmasq restart during install, so DNS pauses for a few seconds. Nothing leaves your network — no cloud, no account, no remote access.
+
+---
+
 ## First-run wizard
 
 The wizard runs once on a fresh install. It has three steps:
