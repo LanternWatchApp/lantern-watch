@@ -775,7 +775,7 @@ input:focus{outline:none;border-color:#e8a000;box-shadow:0 0 0 3px rgba(232,160,
 <div class="box">
   <div style="text-align:center;font-size:2.5em;margin-bottom:12px">&#x1F389;</div>
   <h1>You&#x2019;re all set!</h1>
-  <p class="sub">Notifications (ntfy, Telegram, email), schedules, and social profiles are all waiting in the dashboard whenever you want them.</p>
+  <p class="sub">Your filtering, network notice, and alerts are all set. Schedules, screen-time limits, and per-device tweaks are waiting in the dashboard whenever you want them.</p>
   <form method="POST" action="/setup/notifications">
     <div class="card" style="border:2px solid #e8d080;background:#fffbf0">
       <div class="card-title">&#x1F4CA; Help keep Lantern Watch free <span class="badge">Optional</span></div>
@@ -985,6 +985,153 @@ lwNet();
             .replace("__HOME_CHK__", "" if portal_on else "checked")
             .replace("__BIZ_CHK__", "checked" if portal_on else "")
             .replace("__ORG__", org))
+
+
+def get_alerts_wizard_page(config):
+    """First-run step: push notifications + which alerts + an optional daily/weekly
+    summary. ntfy is offered as the zero-setup push channel — a random topic is
+    suggested; the parent installs the free ntfy app and subscribes to it. Alert
+    defaults are the intentional-navigation ones (adult content, new device)."""
+    import secrets
+    a       = config.get("alerts", {}) or {}
+    s       = config.get("summary", {}) or {}
+    topic   = (config.get("ntfy_topic", "") or "").strip() or ("lantern-" + secrets.token_hex(4))
+    ntfy_on = "checked" if config.get("ntfy_enabled", True) else ""
+
+    def ck(key, default):
+        return "checked" if a.get(key, default) else ""
+
+    # Summary cadence radios: default "never" (neither daily nor weekly on).
+    if s.get("weekly"):
+        cadence = "weekly"
+    elif s.get("daily"):
+        cadence = "daily"
+    else:
+        cadence = "never"
+    d_hour = int(s.get("daily_hour", 20))
+    w_day  = int(s.get("weekly_day", 6))
+    w_hour = int(s.get("weekly_hour", 20))
+
+    hour_opts = "".join(
+        f'<option value="{h}"{" selected" if h == d_hour else ""}>{h:02d}:00</option>'
+        for h in range(24))
+    whour_opts = "".join(
+        f'<option value="{h}"{" selected" if h == w_hour else ""}>{h:02d}:00</option>'
+        for h in range(24))
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    day_opts = "".join(
+        f'<option value="{i}"{" selected" if i == w_day else ""}>{name}</option>'
+        for i, name in enumerate(days))
+
+    alert_rows = "".join([
+        f'<label class="ck"><input type="checkbox" name="alert_adult" {ck("adult_content", True)}>'
+        f'<span><b>Adult content blocked</b><br><i>When a device is stopped from reaching an adult site.</i></span></label>',
+        f'<label class="ck"><input type="checkbox" name="alert_newdevice" {ck("new_device", True)}>'
+        f'<span><b>A new device joins</b><br><i>When something connects to your network for the first time.</i></span></label>',
+        f'<label class="ck"><input type="checkbox" name="alert_highblock" {ck("high_block_rate", False)}>'
+        f'<span><b>Unusually high blocking</b><br><i>When one device trips a lot of blocks in a short time.</i></span></label>',
+        f'<label class="ck"><input type="checkbox" name="alert_update" {ck("update_available", True)}>'
+        f'<span><b>A new Lantern Watch version</b><br><i>An anonymous check &mdash; sends no data.</i></span></label>',
+    ])
+
+    page = ("""<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Stay in the Loop — Lantern Watch</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#faf8f3;color:#3a3a3a;-webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+.box{background:#fff;border-radius:16px;padding:32px;width:100%;max-width:480px;box-shadow:0 8px 30px rgba(26,26,26,0.06);border:1px solid #e8e6e0}
+.step-badge{text-align:center;font-size:0.75em;color:#6b6b6b;letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase;font-weight:600}
+.icon{text-align:center;font-size:2.6em;margin-bottom:10px}
+h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-align:center;margin-bottom:8px}
+.sub{color:#6b6b6b;font-size:0.88em;text-align:center;margin-bottom:20px;line-height:1.5}
+.card{border:1px solid #e8e6e0;border-radius:12px;padding:16px;margin-bottom:14px}
+.card-h{font-weight:800;font-size:0.95em;color:#1a1a1a;margin-bottom:4px}
+.card-s{font-size:0.8em;color:#6b6b6b;line-height:1.45;margin-bottom:10px}
+.tog{display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:700;font-size:0.9em;color:#1a1a1a}
+.tog input{width:18px;height:18px;accent-color:#e8a000}
+#ntfybody{margin-top:12px}
+label.fl{display:block;font-size:0.72em;font-weight:700;color:#6b6b6b;text-transform:uppercase;letter-spacing:0.8px;margin:8px 0 5px}
+input[type=text],select{width:100%;padding:11px 12px;border:1.5px solid #e8e6e0;border-radius:10px;font-size:0.92em;color:#1a1a1a;font-family:inherit;background:#fff}
+input[type=text]:focus,select:focus{outline:none;border-color:#e8a000;box-shadow:0 0 0 3px rgba(232,160,0,0.12)}
+.steps{font-size:0.8em;color:#6b6b6b;line-height:1.7;margin-top:10px}
+.steps b{color:#0ea5e9}
+.ck{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #f0eee8;cursor:pointer;font-size:0.86em}
+.ck:last-child{border-bottom:none}
+.ck input{margin-top:2px;width:17px;height:17px;accent-color:#e8a000;flex-shrink:0}
+.ck i{color:#94a3b8;font-style:normal;font-size:0.92em}
+.row{display:flex;gap:10px}
+.row>div{flex:1}
+.btn{width:100%;padding:14px;background:#e8a000;border:none;border-radius:20px;color:white;font-size:1em;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px;box-shadow:0 4px 14px rgba(232,160,0,.28);transition:transform .12s,box-shadow .12s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(232,160,0,.36)}
+.skip{display:block;text-align:center;color:#6b6b6b;font-size:0.82em;margin-top:14px;text-decoration:none}
+.skip:hover{color:#e8a000}
+.hide{display:none}
+</style></head><body>
+<div class="box">
+  <div class="step-badge">Notifications</div>
+  <div class="icon">&#x1F514;</div>
+  <h1>Stay in the loop</h1>
+  <p class="sub">Get a heads-up on your phone when something matters &mdash; free, private, and optional. You can change all of this later in Settings.</p>
+  <form method="POST" action="/setup/alerts" id="aform">
+    <div class="card">
+      <label class="tog"><input type="checkbox" name="ntfy_enabled" id="ntfytog" __NTFY_ON__ onchange="lwNtfy()">
+        <span>&#x1F4F1; Push notifications (via the free ntfy app)</span></label>
+      <div id="ntfybody">
+        <label class="fl">Your private topic</label>
+        <input type="text" name="ntfy_topic" value="__TOPIC__" placeholder="a hard-to-guess name">
+        <div class="steps">
+          1. Install the free <b>ntfy</b> app (iOS / Android)<br>
+          2. In the app, subscribe to the topic above<br>
+          3. That's it &mdash; alerts arrive as push notifications
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h">Which alerts?</div>
+      __ALERT_ROWS__
+    </div>
+    <div class="card">
+      <div class="card-h">Recap summary</div>
+      <div class="card-s">An optional digest of the day or week.</div>
+      <label class="fl">How often</label>
+      <select name="cadence" id="cad" onchange="lwCad()">
+        <option value="never" __NEVER__>Never</option>
+        <option value="daily" __DAILY__>Daily</option>
+        <option value="weekly" __WEEKLY__>Weekly</option>
+      </select>
+      <div id="dailyrow" class="hide"><label class="fl">Time</label>
+        <select name="daily_hour">__HOUR_OPTS__</select></div>
+      <div id="weeklyrow" class="hide"><div class="row">
+        <div><label class="fl">Day</label><select name="weekly_day">__DAY_OPTS__</select></div>
+        <div><label class="fl">Time</label><select name="weekly_hour">__WHOUR_OPTS__</select></div>
+      </div></div>
+    </div>
+    <button type="submit" class="btn">Continue</button>
+  </form>
+  <a class="skip" href="/setup/alerts?skip=1">Skip &mdash; set up later</a>
+</div>
+<script>
+function lwNtfy(){document.getElementById('ntfybody').style.display=document.getElementById('ntfytog').checked?'block':'none';}
+function lwCad(){
+  var v=document.getElementById('cad').value;
+  document.getElementById('dailyrow').classList.toggle('hide', v!=='daily');
+  document.getElementById('weeklyrow').classList.toggle('hide', v!=='weekly');
+}
+lwNtfy();lwCad();
+</script>
+</body></html>""")
+    return (page
+            .replace("__NTFY_ON__", ntfy_on)
+            .replace("__TOPIC__", topic)
+            .replace("__ALERT_ROWS__", alert_rows)
+            .replace("__NEVER__",  "selected" if cadence == "never"  else "")
+            .replace("__DAILY__",  "selected" if cadence == "daily"  else "")
+            .replace("__WEEKLY__", "selected" if cadence == "weekly" else "")
+            .replace("__HOUR_OPTS__", hour_opts)
+            .replace("__DAY_OPTS__", day_opts)
+            .replace("__WHOUR_OPTS__", whour_opts))
 
 
 _LOGO_B64 = (

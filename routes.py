@@ -27,7 +27,7 @@ from scheduler import pause_device, unpause_device
 from pages import (
     get_welcome_page, get_welcome_error_page, get_adguard_wizard_page,
     get_adguard_enable_page, get_notifications_wizard_page, get_profile_wizard_page,
-    get_network_wizard_page, get_login_page,
+    get_network_wizard_page, get_alerts_wizard_page, get_login_page,
     send_ntfy, send_test_ntfy, send_test_telegram, send_test_email,
     build_main, build_detail, build_domain_detail, build_schedule_page,
     build_social, build_findhelp, build_blocked_page, build_portal_page,
@@ -165,9 +165,17 @@ class Handler(BaseHTTPRequestHandler):
                             print(f"[Wizard] portal teardown failed: {e}")
                     config["captive_portal"] = False
                     save_config(config)
-                    self._redirect("/setup/notifications")
+                    self._redirect("/setup/alerts")
                     return
                 html = get_network_wizard_page(config)
+
+            elif parsed.path == "/setup/alerts":
+                # Step 5: push notifications + alert types + optional summary.
+                # ?skip=1 leaves everything off and moves to the final step.
+                if parse_qs(parsed.query).get("skip", [""])[0] == "1":
+                    self._redirect("/setup/notifications")
+                    return
+                html = get_alerts_wizard_page(config)
 
             elif parsed.path == "/setup/adguard":
                 # Skip if already applied (flag set) or if AdGuard already fully configured
@@ -619,6 +627,29 @@ class Handler(BaseHTTPRequestHandler):
                         teardown_captive_portal()
                 except Exception as e:
                     print(f"[Wizard] portal setup failed: {e}")
+                self._redirect("/setup/alerts")
+                return
+
+            # ── Wizard step 5 — notifications + alerts + summary ─────────────────
+            elif parsed.path == "/setup/alerts":
+                config.setdefault("alerts", {})
+                config.setdefault("summary", {})
+                config["ntfy_enabled"] = "ntfy_enabled" in params
+                config["ntfy_topic"]   = params.get("ntfy_topic", [""])[0].strip()
+                config["alerts"]["adult_content"]    = "alert_adult"     in params
+                config["alerts"]["new_device"]       = "alert_newdevice" in params
+                config["alerts"]["high_block_rate"]  = "alert_highblock" in params
+                config["alerts"]["update_available"] = "alert_update"    in params
+                cadence = params.get("cadence", ["never"])[0]
+                config["summary"]["daily"]  = (cadence == "daily")
+                config["summary"]["weekly"] = (cadence == "weekly")
+                try:
+                    config["summary"]["daily_hour"]  = int(params.get("daily_hour",  [20])[0])
+                    config["summary"]["weekly_day"]  = int(params.get("weekly_day",  [6])[0])
+                    config["summary"]["weekly_hour"] = int(params.get("weekly_hour", [20])[0])
+                except (ValueError, TypeError):
+                    pass
+                save_config(config)
                 self._redirect("/setup/notifications")
                 return
 
