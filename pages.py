@@ -1134,6 +1134,78 @@ lwNtfy();lwCad();
             .replace("__WHOUR_OPTS__", whour_opts))
 
 
+def get_backup_wizard_page(config):
+    """First-run step: hardware backup. If a USB drive is plugged in, Lantern Watch
+    keeps a hands-off backup on it automatically (and we write the first one on
+    Continue). If not, the parent can download a backup file to keep somewhere safe.
+    Backups mean a factory reset or a swapped router doesn't lose the whole setup."""
+    try:
+        import backup as _bk
+        st = _bk.usb_status()
+    except Exception:
+        st = {"present": False}
+
+    if st.get("present"):
+        free = st.get("free_mb")
+        free_txt = f" &middot; {free} MB free" if isinstance(free, int) else ""
+        usb_block = (
+            '<div class="card ok">'
+            '<div class="card-h">&#x2705; USB drive found' + free_txt + '</div>'
+            '<div class="card-s">Lantern Watch will keep an automatic backup on it and refresh it '
+            'whenever you change a setting &mdash; no effort needed. We\'ll save the first one when you continue.</div>'
+            '</div>'
+        )
+    else:
+        usb_block = (
+            '<div class="card">'
+            '<div class="card-h">&#x1F50C; No USB drive detected</div>'
+            '<div class="card-s">Plug a small USB drive into the router for automatic, hands-off backups that '
+            'survive a factory reset. You can add one anytime &mdash; or just download a backup file below to keep safe.</div>'
+            '<a class="ghost" href="/setup/backup">Check again</a>'
+            '</div>'
+        )
+
+    page = ("""<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Back Up Your Setup — Lantern Watch</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#faf8f3;color:#3a3a3a;-webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+.box{background:#fff;border-radius:16px;padding:32px;width:100%;max-width:460px;box-shadow:0 8px 30px rgba(26,26,26,0.06);border:1px solid #e8e6e0}
+.step-badge{text-align:center;font-size:0.75em;color:#6b6b6b;letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase;font-weight:600}
+.icon{text-align:center;font-size:2.6em;margin-bottom:10px}
+h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-align:center;margin-bottom:8px}
+.sub{color:#6b6b6b;font-size:0.88em;text-align:center;margin-bottom:20px;line-height:1.5}
+.card{border:1px solid #e8e6e0;border-radius:12px;padding:16px;margin-bottom:14px}
+.card.ok{border-color:#b5e2c5;background:#f5fbf7}
+.card-h{font-weight:800;font-size:0.95em;color:#1a1a1a;margin-bottom:5px}
+.card-s{font-size:0.82em;color:#6b6b6b;line-height:1.5}
+.ghost{display:inline-block;margin-top:10px;font-size:0.82em;color:#e8a000;font-weight:700;text-decoration:none}
+.ghost:hover{text-decoration:underline}
+.dl{display:block;text-align:center;border:1.5px solid #e8e6e0;border-radius:14px;padding:12px;font-size:0.9em;font-weight:700;color:#3a3a3a;text-decoration:none;margin-bottom:14px}
+.dl:hover{border-color:#e8a000;color:#e8a000}
+.btn{width:100%;padding:14px;background:#e8a000;border:none;border-radius:20px;color:white;font-size:1em;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(232,160,0,.28);transition:transform .12s,box-shadow .12s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(232,160,0,.36)}
+.skip{display:block;text-align:center;color:#6b6b6b;font-size:0.82em;margin-top:14px;text-decoration:none}
+.skip:hover{color:#e8a000}
+</style></head><body>
+<div class="box">
+  <div class="step-badge">Backup</div>
+  <div class="icon">&#x1F4BE;</div>
+  <h1>Back up your setup</h1>
+  <p class="sub">A backup means a factory reset or a new router won't cost you all your settings, device names, and schedules.</p>
+  __USB_BLOCK__
+  <a class="dl" href="/admin/backup/download">&#x2B07;&#xFE0F; Download a backup file</a>
+  <form method="POST" action="/setup/backup">
+    <button type="submit" class="btn">Continue</button>
+  </form>
+  <a class="skip" href="/setup/backup?skip=1">Skip for now</a>
+</div>
+</body></html>""")
+    return page.replace("__USB_BLOCK__", usb_block)
+
+
 _LOGO_B64 = (
     "iVBORw0KGgoAAAANSUhEUgAAAJYAAAEBCAYAAACaFVytAAAAAXNSR0IArs4c6QAAAARnQU1BAACx"
     "jwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAGwGSURBVHhe7Z0HmGRlme//G+/e3b27d6/rquua"

@@ -27,7 +27,7 @@ from scheduler import pause_device, unpause_device
 from pages import (
     get_welcome_page, get_welcome_error_page, get_adguard_wizard_page,
     get_adguard_enable_page, get_notifications_wizard_page, get_profile_wizard_page,
-    get_network_wizard_page, get_alerts_wizard_page, get_login_page,
+    get_network_wizard_page, get_alerts_wizard_page, get_backup_wizard_page, get_login_page,
     send_ntfy, send_test_ntfy, send_test_telegram, send_test_email,
     build_main, build_detail, build_domain_detail, build_schedule_page,
     build_social, build_findhelp, build_blocked_page, build_portal_page,
@@ -173,9 +173,16 @@ class Handler(BaseHTTPRequestHandler):
                 # Step 5: push notifications + alert types + optional summary.
                 # ?skip=1 leaves everything off and moves to the final step.
                 if parse_qs(parsed.query).get("skip", [""])[0] == "1":
-                    self._redirect("/setup/notifications")
+                    self._redirect("/setup/backup")
                     return
                 html = get_alerts_wizard_page(config)
+
+            elif parsed.path == "/setup/backup":
+                # Step 6: hardware backup. ?skip=1 moves on without writing.
+                if parse_qs(parsed.query).get("skip", [""])[0] == "1":
+                    self._redirect("/setup/notifications")
+                    return
+                html = get_backup_wizard_page(config)
 
             elif parsed.path == "/setup/adguard":
                 # Skip if already applied (flag set) or if AdGuard already fully configured
@@ -650,6 +657,17 @@ class Handler(BaseHTTPRequestHandler):
                 except (ValueError, TypeError):
                     pass
                 save_config(config)
+                self._redirect("/setup/backup")
+                return
+
+            # ── Wizard step 6 — hardware backup ──────────────────────────────────
+            elif parsed.path == "/setup/backup":
+                # Write the first USB backup if a drive is present (no-ops otherwise).
+                try:
+                    import backup as _bk
+                    _bk.maybe_write_usb_backup(config, force=True)
+                except Exception as e:
+                    print(f"[Wizard] initial USB backup failed: {e}")
                 self._redirect("/setup/notifications")
                 return
 
