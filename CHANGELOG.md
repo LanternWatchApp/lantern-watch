@@ -19,6 +19,36 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.16.5] — 2026-08-16
+
+Fixes and hardening from a detailed community code review (thanks pspr33).
+
+### Fixed
+- **Screen-time limits now actually enforce.** The scheduler was reading the wrong
+  database path, so it always saw zero usage and never paused a device that hit its
+  daily limit. It now reads the same database the dashboard does. (Existing bedtime
+  and Focus Time schedules were unaffected — only screen-time totals.)
+- **Pausing a device now also blocks its IPv6.** Pause rules were IPv4-only, so a
+  device with routed IPv6 could slip past a bedtime or manual pause. Pauses are now
+  applied by hardware (MAC) address on both IPv4 and IPv6, which also keeps a pause
+  attached to the right device if its DHCP address changes.
+
+### Changed
+- **The installer no longer turns off Wi-Fi by default.** Install on your main
+  Wi-Fi router and your network keeps working. Turning the radios off is now opt-in
+  (`--wired-passthrough`), for people who run the box wired behind their own AP/mesh.
+- **The installer backs up your router config before changing anything.** It
+  snapshots your AdGuard, DHCP, wireless, network and firewall settings to
+  `/etc/lanternwatch.bak.<timestamp>/` with a `RESTORE.txt` showing how to roll back.
+- **Firmware auto-update is only changed if you allow it.** To stop an unattended
+  over-the-air update from wiping the install, the installer sets firmware upgrades
+  to require a manual confirm — but this is now logged plainly and can be skipped
+  with `--keep-auto-update`.
+- **New README section — "What the installer changes on your router"** — documents
+  exactly what's modified (AdGuard setup, the dedicated `lanternwatch` API account,
+  dnsmasq→AdGuard forwarding for per-device visibility, the firmware-confirm) and
+  that it's all local, with a snapshot taken first.
+
 ## [0.16.4] — 2026-08-12
 
 ### Changed
