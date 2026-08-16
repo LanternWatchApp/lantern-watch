@@ -143,8 +143,16 @@ class Handler(BaseHTTPRequestHandler):
                 # recommended default (Moderate, YouTube comments on) and moves on.
                 if parse_qs(parsed.query).get("skip", [""])[0] == "1":
                     try:
-                        from adguard import apply_social_profile
+                        from adguard import (apply_social_profile, set_safesearch_engines,
+                                             SAFE_SEARCH_ENGINES, get_safesearch_status)
+                        # Recommended default = Moderate with Safe Search on, but
+                        # YouTube comments ON — so flip just the YouTube engine back
+                        # off, matching the form's default (Allow comments ticked).
                         apply_social_profile("moderate", config, safe_search=True)
+                        cur = get_safesearch_status(config)
+                        eng = {e: bool(cur.get(e)) for e in SAFE_SEARCH_ENGINES}
+                        eng["youtube"] = False
+                        set_safesearch_engines(config, eng)
                     except Exception as e:
                         print(f"[Wizard] profile skip apply failed: {e}")
                     config["social_profile"] = "moderate"
