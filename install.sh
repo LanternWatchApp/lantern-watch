@@ -6,6 +6,7 @@
 # Usage:
 #   sh install.sh [--profile=home|venue] [--force] [--adguard-pass=PASSWORD]
 #                 [--github-pat=TOKEN] [--skip-clone] [--wired-passthrough]
+#                 [--keep-auto-update]
 #
 # --adguard-pass     Optional. If omitted, a random AdGuard service-account password
 #                    is generated automatically. You never need to know or type it.
@@ -15,6 +16,9 @@
 # --wired-passthrough  Disable the router's own Wi-Fi (for a wired pass-through box
 #                    behind a downstream AP/mesh). OFF by default — Wi-Fi stays on so
 #                    your SSID keeps working when you install on your Wi-Fi router.
+# --keep-auto-update Leave GL.iNet firmware-update settings alone. By default the
+#                    installer makes firmware upgrades require a manual confirm, so
+#                    an unattended OTA can't silently wipe the install.
 #
 # One-liner (fresh router):
 #   wget -O /tmp/install.sh \
@@ -68,6 +72,7 @@ SKIP_CLONE="no"
 ADGUARD_PASS=""
 GITHUB_PAT=""
 WIRED_PASSTHROUGH="no"   # opt-in only: disable Wi-Fi for a wired pass-through box
+KEEP_AUTO_UPDATE="no"    # opt-in: leave GL.iNet firmware auto-update settings alone
 
 for arg in "$@"; do
     case "$arg" in
@@ -80,6 +85,10 @@ for arg in "$@"; do
         # a downstream AP/mesh). OFF by default — most people install ON their Wi-Fi
         # router and expect their SSID to keep working.
         --wired-passthrough|--disable-wifi) WIRED_PASSTHROUGH="yes" ;;
+        # Leave GL.iNet's firmware update settings untouched (default: require a
+        # manual confirm before a firmware upgrade, so an unattended OTA can't wipe
+        # the install — an actual thing that happened during development).
+        --keep-auto-update) KEEP_AUTO_UPDATE="yes" ;;
         --adguard-pass=*) ADGUARD_PASS="${arg#--adguard-pass=}" ;;
         --github-pat=*)   GITHUB_PAT="${arg#--github-pat=}" ;;
     esac
@@ -401,13 +410,19 @@ fi
 # silent overnight wipes that destroy the Lantern Watch installation.
 # ══════════════════════════════════════════════════════════════════════════════
 
-log "[3/9] Disabling GL.iNet auto-upgrade..."
-
-uci set upgrade.general.prompt='1'
-uci set upgrade.general.gray_prompt='1'
-uci set upgrade.general.method='stable'
-uci commit upgrade
-log "Auto-upgrade: prompt required, channel set to stable."
+if [ "$KEEP_AUTO_UPDATE" = "yes" ]; then
+    log "[3/9] Leaving GL.iNet firmware-update settings unchanged (--keep-auto-update)."
+else
+    log "[3/9] Requiring confirmation before firmware upgrades..."
+    uci set upgrade.general.prompt='1'
+    uci set upgrade.general.gray_prompt='1'
+    uci set upgrade.general.method='stable'
+    uci commit upgrade
+    log "  Firmware upgrades now require a manual confirm (stable channel), so an"
+    log "  unattended OTA update can't silently wipe Lantern Watch. Re-enable"
+    log "  automatic updates anytime in the GL.iNet panel, or install with"
+    log "  --keep-auto-update to skip this."
+fi
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 5 — BACKUP EXISTING CONFIG
