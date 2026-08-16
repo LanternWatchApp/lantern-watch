@@ -19,6 +19,25 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.17.0] — 2026-08-16
+
+### Added
+- **A guided first-run setup wizard.** After you set your password and turn on
+  family protection, Lantern Watch now walks you through the choices that used to
+  be scattered across the dashboard — each step skippable, with sensible defaults:
+  - **Filtering level** — pick **Open**, **Moderate** (recommended), or **Strict**
+    for the whole home, with a one-tap **Allow YouTube comments** toggle.
+  - **Block specific apps** — tick streaming, gaming, messaging, or AI-chatbot
+    services to block household-wide, drawn from AdGuard's live service list.
+  - **Network notice** — say whether this is a **home** (quiet) or a **business**
+    (shows new devices a one-time acceptable-use notice with your organisation name).
+  - **Notifications** — set up free **ntfy** push (with a suggested private topic),
+    choose which alerts you want, and optionally schedule a daily or weekly recap.
+  - **Backup** — detects a plugged-in USB drive for hands-off backups, offers a
+    downloadable backup file, and saves the first backup for you.
+  - **Skip → recommended defaults** on any step applies Moderate filtering with
+    YouTube comments on, so you're never stuck.
+
 ## [0.16.5] — 2026-08-16
 
 Fixes and hardening from a detailed community code review (thanks pspr33).
