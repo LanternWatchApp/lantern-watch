@@ -26,7 +26,8 @@ from db import get_stats, DB_PATH, clear_notifications, get_all_known_devices, g
 from scheduler import pause_device, unpause_device
 from pages import (
     get_welcome_page, get_welcome_error_page, get_adguard_wizard_page,
-    get_adguard_enable_page, get_notifications_wizard_page, get_profile_wizard_page, get_login_page,
+    get_adguard_enable_page, get_notifications_wizard_page, get_profile_wizard_page,
+    get_network_wizard_page, get_login_page,
     send_ntfy, send_test_ntfy, send_test_telegram, send_test_email,
     build_main, build_detail, build_domain_detail, build_schedule_page,
     build_social, build_findhelp, build_blocked_page, build_portal_page,
@@ -148,9 +149,25 @@ class Handler(BaseHTTPRequestHandler):
                         print(f"[Wizard] profile skip apply failed: {e}")
                     config["social_profile"] = "moderate"
                     save_config(config)
-                    self._redirect("/setup/notifications")
+                    self._redirect("/setup/network")
                     return
                 html = get_profile_wizard_page(config)
+
+            elif parsed.path == "/setup/network":
+                # Step 4: home vs business (Network Notice / captive portal).
+                # ?skip=1 keeps it a home (notice off) and moves on.
+                if parse_qs(parsed.query).get("skip", [""])[0] == "1":
+                    if config.get("captive_portal"):
+                        try:
+                            from portal import teardown_captive_portal
+                            teardown_captive_portal()
+                        except Exception as e:
+                            print(f"[Wizard] portal teardown failed: {e}")
+                    config["captive_portal"] = False
+                    save_config(config)
+                    self._redirect("/setup/notifications")
+                    return
+                html = get_network_wizard_page(config)
 
             elif parsed.path == "/setup/adguard":
                 # Skip if already applied (flag set) or if AdGuard already fully configured
@@ -581,6 +598,27 @@ class Handler(BaseHTTPRequestHandler):
                     print(f"[Wizard] profile apply failed: {e}")
                 config["social_profile"] = profile
                 save_config(config)
+                self._redirect("/setup/network")
+                return
+
+            # ── Wizard step 4 — home vs business (Network Notice) ────────────────
+            elif parsed.path == "/setup/network":
+                is_business = params.get("place", ["home"])[0] == "business"
+                old_portal  = config.get("captive_portal", False)
+                if is_business:
+                    config["org_name"]       = params.get("org_name", [""])[0].strip()[:60]
+                    config["captive_portal"] = True
+                else:
+                    config["captive_portal"] = False
+                save_config(config)
+                try:
+                    from portal import setup_captive_portal, teardown_captive_portal
+                    if config["captive_portal"] and not old_portal:
+                        setup_captive_portal(config)
+                    elif not config["captive_portal"] and old_portal:
+                        teardown_captive_portal()
+                except Exception as e:
+                    print(f"[Wizard] portal setup failed: {e}")
                 self._redirect("/setup/notifications")
                 return
 

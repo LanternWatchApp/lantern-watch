@@ -860,7 +860,7 @@ h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-ali
 .hint{color:#94a3b8;font-size:0.76em;text-align:center;margin-top:12px;line-height:1.4}
 </style></head><body>
 <div class="box">
-  <div class="step-badge">Step 3 of 4</div>
+  <div class="step-badge">Family filtering</div>
   <div class="icon">&#x1F3AF;</div>
   <h1>Choose a filtering level</h1>
   <p class="sub">This sets what's allowed for the whole home. You can fine-tune it &mdash; and set it per-device &mdash; anytime.</p>
@@ -894,6 +894,97 @@ document.getElementById('pform').addEventListener('submit',function(){
 });
 </script>
 </body></html>""")
+
+
+def get_network_wizard_page(config):
+    """First-run step: is this a home, or a business/organisation? A business
+    switches on the Network Notice (captive portal) so new devices see a one-time
+    acceptable-use notice; a home leaves it off. Home is the recommended default.
+
+    Dynamic bits are injected by token replacement (not f-strings/.format) because
+    the page's CSS is full of literal braces. The JS lwNet() sets the .sel / .show
+    classes on load from whichever radio carries `checked`, so Python only has to
+    place `checked` on the right radio and fill the saved org name."""
+    portal_on = bool(config.get("captive_portal"))
+    org       = (config.get("org_name", "") or "").replace('"', "&quot;")
+
+    page = ("""<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Network Notice — Lantern Watch</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#faf8f3;color:#3a3a3a;-webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+.box{background:#fff;border-radius:16px;padding:32px;width:100%;max-width:480px;box-shadow:0 8px 30px rgba(26,26,26,0.06);border:1px solid #e8e6e0}
+.step-badge{text-align:center;font-size:0.75em;color:#6b6b6b;letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase;font-weight:600}
+.icon{text-align:center;font-size:2.6em;margin-bottom:10px}
+h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-align:center;margin-bottom:8px}
+.sub{color:#6b6b6b;font-size:0.88em;text-align:center;margin-bottom:22px;line-height:1.5}
+.opt{display:flex;align-items:flex-start;gap:12px;border:1.5px solid #e8e6e0;border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color .12s,background .12s}
+.opt input{position:absolute;opacity:0;pointer-events:none}
+.opt.sel{border-color:#e8a000;background:#fffdf7}
+.dot{width:20px;height:20px;border-radius:50%;border:2px solid #d4d2cc;flex-shrink:0;margin-top:2px;position:relative}
+.opt.sel .dot{border-color:#e8a000}
+.opt.sel .dot:after{content:"";position:absolute;inset:3px;border-radius:50%;background:#e8a000}
+.opt-body{display:flex;flex-direction:column;gap:3px}
+.opt-title{font-weight:800;font-size:0.95em;display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#1a1a1a}
+.opt-desc{font-size:0.8em;color:#6b6b6b;line-height:1.45}
+.rec{background:#eaf7ef;color:#16a34a;font-size:0.62em;padding:2px 7px;border-radius:99px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase}
+#orgwrap{display:none;margin:2px 0 4px;padding:0 2px}
+#orgwrap.show{display:block}
+label.fl{display:block;font-size:0.72em;font-weight:700;color:#6b6b6b;text-transform:uppercase;letter-spacing:0.8px;margin:8px 0 5px}
+input[type=text]{width:100%;padding:11px 12px;border:1.5px solid #e8e6e0;border-radius:10px;font-size:0.92em;color:#1a1a1a;font-family:inherit}
+input[type=text]:focus{outline:none;border-color:#e8a000;box-shadow:0 0 0 3px rgba(232,160,0,0.12)}
+.btn{width:100%;padding:14px;background:#e8a000;border:none;border-radius:20px;color:white;font-size:1em;font-weight:700;cursor:pointer;font-family:inherit;margin-top:18px;box-shadow:0 4px 14px rgba(232,160,0,.28);transition:transform .12s,box-shadow .12s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(232,160,0,.36)}
+.skip{display:block;text-align:center;color:#6b6b6b;font-size:0.82em;margin-top:14px;text-decoration:none}
+.skip:hover{color:#e8a000}
+</style></head><body>
+<div class="box">
+  <div class="step-badge">Network notice</div>
+  <div class="icon">&#x1F3E0;</div>
+  <h1>Where is this network?</h1>
+  <p class="sub">A home network just works quietly. A business or organisation can show every new device a one-time notice that the network is filtered &mdash; useful for an acceptable-use policy.</p>
+  <form method="POST" action="/setup/network" id="nform">
+    <label class="opt" data-v="home">
+      <input type="radio" name="place" value="home" __HOME_CHK__ onchange="lwNet()">
+      <span class="dot"></span>
+      <span class="opt-body">
+        <span class="opt-title">&#x1F3E0; A home <span class="rec">Recommended</span></span>
+        <span class="opt-desc">No notice. Filtering runs silently in the background &mdash; the usual choice for families.</span>
+      </span>
+    </label>
+    <label class="opt" data-v="business">
+      <input type="radio" name="place" value="business" __BIZ_CHK__ onchange="lwNet()">
+      <span class="dot"></span>
+      <span class="opt-body">
+        <span class="opt-title">&#x1F3E2; A business or organisation</span>
+        <span class="opt-desc">Show new devices a one-time Network Notice with your name and an acceptable-use message.</span>
+      </span>
+    </label>
+    <div id="orgwrap">
+      <label class="fl">Organisation name (shown on the notice)</label>
+      <input type="text" name="org_name" value="__ORG__" placeholder="e.g. Maple Street Library" maxlength="60">
+    </div>
+    <button type="submit" class="btn">Continue</button>
+  </form>
+  <a class="skip" href="/setup/network?skip=1">Skip &mdash; it's a home</a>
+</div>
+<script>
+function lwNet(){
+  document.querySelectorAll('.opt').forEach(function(o){
+    o.classList.toggle('sel', o.querySelector('input').checked);
+  });
+  var biz = document.querySelector('input[value="business"]').checked;
+  document.getElementById('orgwrap').classList.toggle('show', biz);
+}
+lwNet();
+</script>
+</body></html>""")
+    return (page
+            .replace("__HOME_CHK__", "" if portal_on else "checked")
+            .replace("__BIZ_CHK__", "checked" if portal_on else "")
+            .replace("__ORG__", org))
 
 
 _LOGO_B64 = (
