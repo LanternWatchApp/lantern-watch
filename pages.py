@@ -1206,6 +1206,92 @@ h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-ali
     return page.replace("__USB_BLOCK__", usb_block)
 
 
+# Curated shortlist for the first-run "Services" step, grouped. These are the
+# apps parents most often ask to block outright; pure social platforms are left
+# to the filtering-level step. Rendered against AdGuard's live catalog, so any ID
+# the router's AGH build doesn't have is simply skipped.
+_WIZARD_SERVICE_GROUPS = [
+    ("&#x1F3AC; Streaming &amp; video", ["youtube", "tiktok", "netflix", "twitch",
+                                         "disneyplus", "hulu", "max", "crunchyroll"]),
+    ("&#x1F3AE; Gaming",                ["roblox", "minecraft", "steam", "epic_games",
+                                         "nintendo", "playstation", "xboxlive"]),
+    ("&#x1F4AC; Chat &amp; messaging",  ["discord", "snapchat", "whatsapp", "telegram"]),
+    ("&#x1F916; AI chatbots",           ["chatgpt", "claude"]),
+]
+
+
+def get_services_wizard_page(config):
+    """First-run step: block specific apps/services for the whole home. Driven by
+    AdGuard's Blocked Services catalog (get_blocked_services) so only services the
+    router actually knows about are shown; anything already blocked is pre-ticked.
+    Nothing is checked by default — parents opt in to what they want blocked."""
+    try:
+        from adguard import get_blocked_services
+        all_svcs, blocked = get_blocked_services(config)
+    except Exception:
+        all_svcs, blocked = [], set()
+    names = {s["id"]: s["name"] for s in all_svcs}
+
+    groups_html = ""
+    for title, ids in _WIZARD_SERVICE_GROUPS:
+        rows = ""
+        for sid in ids:
+            if sid not in names:
+                continue
+            chk = "checked" if sid in blocked else ""
+            rows += (
+                f'<label class="svc"><input type="checkbox" name="svc" value="{sid}" {chk}>'
+                f'<span>{names[sid]}</span></label>'
+            )
+        if rows:
+            groups_html += f'<div class="grp"><div class="grp-h">{title}</div><div class="grp-b">{rows}</div></div>'
+
+    if not groups_html:
+        # AGH unreachable / empty catalog — don't strand the user mid-wizard.
+        groups_html = ('<div class="grp"><div class="grp-b" style="padding:14px;color:#94a3b8;'
+                       'font-size:0.85em">Couldn\'t reach the service list right now. You can set '
+                       'this up anytime from <b>Blocked Services</b> in the dashboard.</div></div>')
+
+    page = ("""<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Block Apps &amp; Services — Lantern Watch</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#faf8f3;color:#3a3a3a;-webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+.box{background:#fff;border-radius:16px;padding:32px;width:100%;max-width:480px;box-shadow:0 8px 30px rgba(26,26,26,0.06);border:1px solid #e8e6e0}
+.step-badge{text-align:center;font-size:0.75em;color:#6b6b6b;letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase;font-weight:600}
+.icon{text-align:center;font-size:2.6em;margin-bottom:10px}
+h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-align:center;margin-bottom:8px}
+.sub{color:#6b6b6b;font-size:0.88em;text-align:center;margin-bottom:20px;line-height:1.5}
+.grp{border:1px solid #e8e6e0;border-radius:12px;margin-bottom:12px;overflow:hidden}
+.grp-h{background:#faf8f3;padding:10px 14px;font-weight:800;font-size:0.85em;color:#1a1a1a;border-bottom:1px solid #e8e6e0}
+.grp-b{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px}
+.svc{display:flex;align-items:center;gap:7px;border:1.5px solid #e8e6e0;border-radius:10px;padding:8px 11px;cursor:pointer;font-size:0.84em;font-weight:600;color:#3a3a3a;transition:border-color .12s,background .12s;user-select:none}
+.svc input{width:16px;height:16px;accent-color:#dc6b5f}
+.svc:has(input:checked){border-color:#dc6b5f;background:#fff7f7;color:#dc6b5f}
+.note{font-size:0.78em;color:#94a3b8;text-align:center;line-height:1.5;margin:4px 0 16px}
+.btn{width:100%;padding:14px;background:#e8a000;border:none;border-radius:20px;color:white;font-size:1em;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(232,160,0,.28);transition:transform .12s,box-shadow .12s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(232,160,0,.36)}
+.skip{display:block;text-align:center;color:#6b6b6b;font-size:0.82em;margin-top:14px;text-decoration:none}
+.skip:hover{color:#e8a000}
+</style></head><body>
+<div class="box">
+  <div class="step-badge">Apps &amp; services</div>
+  <div class="icon">&#x1F6AB;</div>
+  <h1>Block specific apps</h1>
+  <p class="sub">Tick anything you'd like blocked for the whole home. Leave it all unticked to allow everything &mdash; you can change this per-device later.</p>
+  <p class="note">Social media is handled by your filtering level. These are extra apps &amp; services.</p>
+  <form method="POST" action="/setup/services">
+    __GROUPS__
+    <button type="submit" class="btn">Continue</button>
+  </form>
+  <a class="skip" href="/setup/services?skip=1">Skip &mdash; allow everything</a>
+</div>
+</body></html>""")
+    return page.replace("__GROUPS__", groups_html)
+
+
 _LOGO_B64 = (
     "iVBORw0KGgoAAAANSUhEUgAAAJYAAAEBCAYAAACaFVytAAAAAXNSR0IArs4c6QAAAARnQU1BAACx"
     "jwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAGwGSURBVHhe7Z0HmGRlme//G+/e3b27d6/rquua"

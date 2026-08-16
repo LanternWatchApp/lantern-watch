@@ -27,7 +27,8 @@ from scheduler import pause_device, unpause_device
 from pages import (
     get_welcome_page, get_welcome_error_page, get_adguard_wizard_page,
     get_adguard_enable_page, get_notifications_wizard_page, get_profile_wizard_page,
-    get_network_wizard_page, get_alerts_wizard_page, get_backup_wizard_page, get_login_page,
+    get_network_wizard_page, get_alerts_wizard_page, get_backup_wizard_page,
+    get_services_wizard_page, get_login_page,
     send_ntfy, send_test_ntfy, send_test_telegram, send_test_email,
     build_main, build_detail, build_domain_detail, build_schedule_page,
     build_social, build_findhelp, build_blocked_page, build_portal_page,
@@ -157,9 +158,17 @@ class Handler(BaseHTTPRequestHandler):
                         print(f"[Wizard] profile skip apply failed: {e}")
                     config["social_profile"] = "moderate"
                     save_config(config)
-                    self._redirect("/setup/network")
+                    self._redirect("/setup/services")
                     return
                 html = get_profile_wizard_page(config)
+
+            elif parsed.path == "/setup/services":
+                # Step 3b: block specific apps/services. ?skip=1 leaves the current
+                # blocked-services set untouched and moves on.
+                if parse_qs(parsed.query).get("skip", [""])[0] == "1":
+                    self._redirect("/setup/network")
+                    return
+                html = get_services_wizard_page(config)
 
             elif parsed.path == "/setup/network":
                 # Step 4: home vs business (Network Notice / captive portal).
@@ -621,6 +630,23 @@ class Handler(BaseHTTPRequestHandler):
                     print(f"[Wizard] profile apply failed: {e}")
                 config["social_profile"] = profile
                 save_config(config)
+                self._redirect("/setup/services")
+                return
+
+            # ── Wizard step 3b — block specific apps/services ────────────────────
+            elif parsed.path == "/setup/services":
+                from adguard import get_blocked_services, set_blocked_services
+                from pages import _WIZARD_SERVICE_GROUPS
+                curated = {sid for _t, ids in _WIZARD_SERVICE_GROUPS for sid in ids}
+                selected = set(params.get("svc", []))
+                try:
+                    # Preserve anything blocked outside our curated shortlist (set
+                    # elsewhere), and replace only the curated ones with the ticks.
+                    _all, blocked = get_blocked_services(config)
+                    keep = (set(blocked) - curated) | (selected & curated)
+                    set_blocked_services(config, keep)
+                except Exception as e:
+                    print(f"[Wizard] blocked-services apply failed: {e}")
                 self._redirect("/setup/network")
                 return
 
