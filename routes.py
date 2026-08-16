@@ -26,7 +26,7 @@ from db import get_stats, DB_PATH, clear_notifications, get_all_known_devices, g
 from scheduler import pause_device, unpause_device
 from pages import (
     get_welcome_page, get_welcome_error_page, get_adguard_wizard_page,
-    get_adguard_enable_page, get_notifications_wizard_page, get_login_page,
+    get_adguard_enable_page, get_notifications_wizard_page, get_profile_wizard_page, get_login_page,
     send_ntfy, send_test_ntfy, send_test_telegram, send_test_email,
     build_main, build_detail, build_domain_detail, build_schedule_page,
     build_social, build_findhelp, build_blocked_page, build_portal_page,
@@ -137,10 +137,25 @@ class Handler(BaseHTTPRequestHandler):
             elif parsed.path == "/setup/notifications":
                 html = get_notifications_wizard_page(config)
 
+            elif parsed.path == "/setup/profile":
+                # Step 3: household filtering profile. ?skip=1 applies the
+                # recommended default (Moderate, YouTube comments on) and moves on.
+                if parse_qs(parsed.query).get("skip", [""])[0] == "1":
+                    try:
+                        from adguard import apply_social_profile
+                        apply_social_profile("moderate", config, safe_search=True)
+                    except Exception as e:
+                        print(f"[Wizard] profile skip apply failed: {e}")
+                    config["social_profile"] = "moderate"
+                    save_config(config)
+                    self._redirect("/setup/notifications")
+                    return
+                html = get_profile_wizard_page(config)
+
             elif parsed.path == "/setup/adguard":
                 # Skip if already applied (flag set) or if AdGuard already fully configured
                 if config.get("adguard_setup_complete"):
-                    self._redirect("/setup/notifications")
+                    self._redirect("/setup/profile")
                     return
                 status = get_adguard_setup_status(config)
                 if status["connected"]:
@@ -150,7 +165,7 @@ class Handler(BaseHTTPRequestHandler):
                     if already_done:
                         config["adguard_setup_complete"] = True
                         save_config(config)
-                        self._redirect("/setup/notifications")
+                        self._redirect("/setup/profile")
                         return
                 html = get_adguard_wizard_page()
 
@@ -539,6 +554,34 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"connected": connected}).encode())
+                return
+
+            # ── Wizard step 3 — household filtering profile ──────────────────────
+            elif parsed.path == "/setup/profile":
+                from adguard import normalize_profile, apply_social_profile
+                profile     = normalize_profile(params.get("profile", ["moderate"])[0])
+                comments_on = "youtube_comments" in params
+                try:
+                    # Applies the social rules + the profile's default Safe Search
+                    # (Open→off, Moderate/Strict→on, which also switches on YouTube
+                    # Restricted Mode).
+                    apply_social_profile(profile, config)
+                    # Moderate + "allow comments" is the one combination the profile
+                    # default doesn't cover: flip ONLY the YouTube engine back off so
+                    # comments return while the rest of Safe Search stays on. Strict
+                    # always keeps Restricted Mode on; Open has Safe Search off already.
+                    if profile == "moderate" and comments_on:
+                        from adguard import (set_safesearch_engines, SAFE_SEARCH_ENGINES,
+                                             get_safesearch_status)
+                        cur = get_safesearch_status(config)
+                        eng = {e: bool(cur.get(e)) for e in SAFE_SEARCH_ENGINES}
+                        eng["youtube"] = False
+                        set_safesearch_engines(config, eng)
+                except Exception as e:
+                    print(f"[Wizard] profile apply failed: {e}")
+                config["social_profile"] = profile
+                save_config(config)
+                self._redirect("/setup/notifications")
                 return
 
             # ── Final wizard step (stats opt-in) ─────────────────────────────────

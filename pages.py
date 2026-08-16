@@ -728,7 +728,7 @@ function applySetup() {
       if (d.ok) {
         document.getElementById('mainContent').style.display = 'none';
         document.getElementById('successWrap').style.display = 'block';
-        setTimeout(function() { window.location.href = '/setup/notifications'; }, 1500);
+        setTimeout(function() { window.location.href = '/setup/profile'; }, 1500);
       } else {
         document.getElementById('errMsg').style.display = 'block';
         btn.disabled = false;
@@ -795,6 +795,104 @@ input:focus{outline:none;border-color:#e8a000;box-shadow:0 0 0 3px rgba(232,160,
     <button type="submit" class="btn-submit">Go to Dashboard</button>
   </form>
 </div>
+</body></html>""")
+
+
+def get_profile_wizard_page(config):
+    """Step 3 of first-run: pick a household filtering profile. Moderate is
+    pre-selected (the recommended default), and YouTube comments default ON —
+    matching the wizard's 'skip with defaults' behaviour."""
+    from adguard import normalize_profile
+    current = normalize_profile(config.get("social_profile", "moderate"))
+
+    cards = ""
+    for pid, name, desc, icon, color, bg, border in [
+        ("open",     "Open",     "All social media allowed, Safe Search off. Best for older teens you trust.", "&#x1F513;", "#16A34A", "#F0FDF4", "#86EFAC"),
+        ("moderate", "Moderate", "All social media allowed, but adult content is blocked and Safe Search is on. A balanced default.", "&#x1F6E1;&#xFE0F;", "#D97706", "#FFFBF0", "#FEF3C7"),
+        ("strict",   "Strict",   "Social media blocked, Safe Search and YouTube Restricted Mode on. Best for younger children.", "&#x1F512;", "#DC6B5F", "#FFF7F7", "#FCA5A5"),
+    ]:
+        checked   = "checked" if pid == current else ""
+        rec_badge = ('<span class="rec">Recommended</span>' if pid == "moderate" else "")
+        cards += (
+            f'<label class="opt" data-pid="{pid}">'
+            f'<input type="radio" name="profile" value="{pid}" {checked} onchange="lwSel()">'
+            f'<span class="dot" style="--c:{color}"></span>'
+            f'<span class="opt-body">'
+            f'<span class="opt-title" style="color:{color}">{icon} {name}{rec_badge}</span>'
+            f'<span class="opt-desc">{desc}</span>'
+            f'</span></label>'
+        )
+
+    return ("""<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Choose a Filtering Level — Lantern Watch</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#faf8f3;color:#3a3a3a;-webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+.box{background:#fff;border-radius:16px;padding:32px;width:100%;max-width:480px;box-shadow:0 8px 30px rgba(26,26,26,0.06);border:1px solid #e8e6e0}
+.step-badge{text-align:center;font-size:0.75em;color:#6b6b6b;letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase;font-weight:600}
+.icon{text-align:center;font-size:2.6em;margin-bottom:10px}
+h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-align:center;margin-bottom:8px}
+.sub{color:#6b6b6b;font-size:0.88em;text-align:center;margin-bottom:22px;line-height:1.5}
+.opt{display:flex;align-items:flex-start;gap:12px;border:1.5px solid #e8e6e0;border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color .12s,background .12s}
+.opt input{position:absolute;opacity:0;pointer-events:none}
+.opt.sel{border-color:#e8a000;background:#fffdf7}
+.dot{width:20px;height:20px;border-radius:50%;border:2px solid #d4d2cc;flex-shrink:0;margin-top:2px;position:relative;transition:border-color .12s}
+.opt.sel .dot{border-color:var(--c)}
+.opt.sel .dot:after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--c)}
+.opt-body{display:flex;flex-direction:column;gap:3px}
+.opt-title{font-weight:800;font-size:0.95em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.opt-desc{font-size:0.8em;color:#6b6b6b;line-height:1.45}
+.rec{background:#eaf7ef;color:#16a34a;font-size:0.62em;padding:2px 7px;border-radius:99px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase}
+.yt{border:1px solid #e8e6e0;border-radius:12px;padding:14px 16px;margin:14px 0 4px}
+.yt-row{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+.yt-row input{margin-top:2px;width:18px;height:18px;accent-color:#e8a000;flex-shrink:0}
+.yt-row b{font-size:0.9em;color:#1a1a1a}
+.yt-desc{font-size:0.78em;color:#6b6b6b;line-height:1.45;margin-top:6px}
+.btn{width:100%;padding:14px;background:#e8a000;border:none;border-radius:20px;color:white;font-size:1em;font-weight:700;cursor:pointer;font-family:inherit;margin-top:18px;box-shadow:0 4px 14px rgba(232,160,0,.28);transition:transform .12s,box-shadow .12s;display:flex;align-items:center;justify-content:center;gap:10px}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(232,160,0,.36)}
+.btn:disabled{background:#ccc;box-shadow:none;transform:none;cursor:not-allowed}
+.spinner{width:18px;height:18px;border:3px solid rgba(255,255,255,0.4);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.skip{display:block;text-align:center;color:#6b6b6b;font-size:0.82em;margin-top:14px;text-decoration:none;cursor:pointer}
+.skip:hover{color:#e8a000}
+.hint{color:#94a3b8;font-size:0.76em;text-align:center;margin-top:12px;line-height:1.4}
+</style></head><body>
+<div class="box">
+  <div class="step-badge">Step 3 of 4</div>
+  <div class="icon">&#x1F3AF;</div>
+  <h1>Choose a filtering level</h1>
+  <p class="sub">This sets what's allowed for the whole home. You can fine-tune it &mdash; and set it per-device &mdash; anytime.</p>
+  <form method="POST" action="/setup/profile" id="pform">
+    """ + cards + """
+    <div class="yt">
+      <label class="yt-row">
+        <input type="checkbox" name="youtube_comments" id="ytc" checked>
+        <b>&#x1F4FA; Allow YouTube comments</b>
+      </label>
+      <div class="yt-desc">Leave this on for normal YouTube. Untick it to hide comments and mature videos (YouTube Restricted Mode). Strict always turns Restricted Mode on regardless.</div>
+    </div>
+    <button type="submit" class="btn" id="go">
+      <span id="gotext">Continue</span><span class="spinner" id="sp"></span>
+    </button>
+  </form>
+  <a class="skip" href="/setup/profile?skip=1">Skip &mdash; use recommended (Moderate)</a>
+  <p class="hint">Applying your choice sets up AdGuard's rules &mdash; takes a couple of seconds.</p>
+</div>
+<script>
+function lwSel(){
+  document.querySelectorAll('.opt').forEach(function(o){
+    o.classList.toggle('sel', o.querySelector('input').checked);
+  });
+}
+lwSel();
+document.getElementById('pform').addEventListener('submit',function(){
+  document.getElementById('go').disabled=true;
+  document.getElementById('gotext').textContent='Applying…';
+  document.getElementById('sp').style.display='block';
+});
+</script>
 </body></html>""")
 
 
