@@ -417,17 +417,34 @@ log "[4/9] Backing up existing config..."
 
 CONFIG="$INSTALL_DIR/lanternwatch_config.json"
 BAK_DIR="/etc/lanternwatch.bak.$TIMESTAMP"
+mkdir -p "$BAK_DIR"
 
+# Lantern Watch's own config (recovery after a firmware wipe)
 if [ -f "$CONFIG" ]; then
-    mkdir -p "$BAK_DIR"
     cp "$CONFIG" "$BAK_DIR/lanternwatch_config.json"
-    log "Existing config backed up to $BAK_DIR"
+    log "Existing Lantern Watch config backed up to $BAK_DIR"
 elif [ -f "/etc/lanternwatch_config.json" ]; then
     # Recovery: config survived in /etc even if /root/lantern-watch was wiped
-    mkdir -p "$BAK_DIR"
     cp "/etc/lanternwatch_config.json" "$BAK_DIR/lanternwatch_config.json"
     log "Found config in /etc — backed up to $BAK_DIR"
 fi
+
+# Pre-install snapshot of everything the installer will modify, so the router can
+# be restored to its prior state if desired (per the GL.iNet forum review).
+[ -f /etc/AdGuardHome/config.yaml ] && cp /etc/AdGuardHome/config.yaml "$BAK_DIR/AdGuardHome_config.yaml" 2>/dev/null
+[ -f /etc/config/dhcp ]     && cp /etc/config/dhcp     "$BAK_DIR/config_dhcp"     2>/dev/null
+[ -f /etc/config/wireless ] && cp /etc/config/wireless "$BAK_DIR/config_wireless" 2>/dev/null
+[ -f /etc/config/network ]  && cp /etc/config/network  "$BAK_DIR/config_network"  2>/dev/null
+[ -f /etc/config/firewall ] && cp /etc/config/firewall "$BAK_DIR/config_firewall" 2>/dev/null
+cat > "$BAK_DIR/RESTORE.txt" <<'EOR'
+Pre-install snapshot of the router config Lantern Watch modified.
+To roll a file back, copy it to its original path and restart that service, e.g.:
+  cp config_wireless          /etc/config/wireless        && wifi
+  cp config_dhcp              /etc/config/dhcp            && /etc/init.d/dnsmasq restart
+  cp config_firewall          /etc/config/firewall        && /etc/init.d/firewall restart
+  cp AdGuardHome_config.yaml  /etc/AdGuardHome/config.yaml && /etc/init.d/adguardhome restart
+EOR
+log "Pre-install snapshot (AdGuard, DHCP, wireless, network, firewall) saved to $BAK_DIR"
 
 # Keep only the 3 most recent backups
 ls -dt /etc/lanternwatch.bak.* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
