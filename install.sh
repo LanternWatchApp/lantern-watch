@@ -370,16 +370,16 @@ else:
     print("WARNING: could not locate a users: section in AdGuard config — check format", file=sys.stderr)
     sys.exit(1)
 
-# Bind AdGuard's admin API to loopback (defense-in-depth). It's reached only via
-# the nginx proxy (GL.iNet's own AdGuard screen) and the LW collector, both over
-# 127.0.0.1 — so LAN devices (a kid's laptop, a guest phone) shouldn't have, and
-# don't need, direct access to the AdGuard admin login on 0.0.0.0:3000.
-# Idempotent: no-op if already loopback. DNS is unaffected (separate bind_hosts).
-bind_changed = re.search(r'^\s*address:\s*0\.0\.0\.0:3000\s*$', new_conf, re.MULTILINE) is not None
-if bind_changed:
-    new_conf = re.sub(r'^(\s*address:\s*)0\.0\.0\.0:3000\s*$',
-                      lambda m: m.group(1) + "127.0.0.1:3000",
-                      new_conf, count=1, flags=re.MULTILINE)
+# AdGuard's admin API stays on 0.0.0.0:3000. Loopback-binding it (0.17.5) hardened
+# the LAN but broke GL.iNet's "Tools -> AdGuard Home" link, which opens AdGuard's
+# full web UI directly at http://<router>:3000 (nginx only proxies the /control/
+# API, not the UI). The login is already password-gated, so the exposure is a
+# password page, not open access — not worth breaking the admin's AdGuard screen.
+# Actively restore 0.0.0.0 to undo a 0.17.5 loopback bind for anyone who got it
+# (idempotent — no match on a config that's already 0.0.0.0).
+new_conf = re.sub(r'^(\s*address:\s*)127\.0\.0\.1:3000\s*$',
+                  lambda m: m.group(1) + "0.0.0.0:3000",
+                  new_conf, count=1, flags=re.MULTILINE)
 
 if new_conf == conf:
     print("WARNING: AdGuard user block unchanged — check config format", file=sys.stderr)
@@ -387,8 +387,6 @@ if new_conf == conf:
 with open(conf_path, "w") as f:
     f.write(new_conf)
 print("  AdGuard: " + action)
-if bind_changed:
-    print("  AdGuard: bound admin API to loopback (127.0.0.1:3000) — off the LAN")
 PYEOF
 log "  AdGuard: restarting to apply user credentials..."
 /etc/init.d/adguardhome restart >> "$LOGFILE" 2>&1

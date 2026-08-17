@@ -19,6 +19,16 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.17.6] — 2026-08-17
+
+### Fixed
+- **Reverted the 0.17.5 AdGuard loopback change.** Binding AdGuard's admin API to
+  loopback closed a minor LAN exposure, but it also broke GL.iNet's built-in
+  **Tools → AdGuard Home** link, which opens AdGuard's full web UI directly at
+  `http://<router>:3000` (only the API is proxied, not the UI). Since the AdGuard
+  login is already password-protected, that trade wasn't worth it. AdGuard's UI is
+  reachable again; the revert applies automatically on update.
+
 ## [0.17.5] — 2026-08-17
 
 ### Security
@@ -28,6 +38,7 @@ Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version
   bound to the router itself (loopback only). Lantern Watch and GL.iNet's own
   AdGuard screen keep working exactly as before (both reach it internally), and
   DNS filtering is completely unaffected. Applied automatically on update.
+  **(Reverted in 0.17.6 — it broke GL.iNet's AdGuard menu link.)**
 
 ## [0.17.4] — 2026-08-17
 
