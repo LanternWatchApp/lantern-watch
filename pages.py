@@ -3744,7 +3744,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
                 f'<option value="{g}" {"selected" if _cg == g else ""}>{g}</option>'
                 for g in _custom_groups)
             group_select = (
-                f'<div style="flex:1;min-width:120px"><div class="form-label">Group</div>'
+                f'<div class="grp-field" style="flex:1;min-width:120px"><div class="form-label">Group</div>'
                 f'<select name="group_{enc}">{_opts}</select></div>'
             )
         sub_html    = f'<div style="font-size:0.75em;color:#94a3b8">{subtitle}</div>' if subtitle else ""
@@ -3869,7 +3869,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
         )
     else:
         redetect_controls = (
-            '<div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+            '<div style="margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">'
             '<a href="/admin/devices?redetect=1" class="btn" '
             'style="width:auto;padding:9px 16px;font-size:0.85em;margin-bottom:0">&#x1F504; Re-detect all types</a>'
             '<a href="/admin/devices?autoname=1" class="btn" '
@@ -3929,7 +3929,10 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
         + '"infrastructure":"Routers, NAS, printers and servers — shown separately and kept out of reports.",'
         + '"smart_device":"TVs, cameras, speakers, thermostats, vehicles and other connected devices."'
         + '};'
-        + 'function lwRoleDesc(s){var d=s.nextElementSibling;if(d&&d.className=="role-desc")d.textContent=LW_ROLE_DESC[s.value]||"";}'
+        + 'function lwRoleDesc(s){var d=s.nextElementSibling;if(d&&d.className=="role-desc")d.textContent=LW_ROLE_DESC[s.value]||"";'
+        + 'var card=s.closest(".form-card");if(card){var gf=card.querySelector(".grp-field");'
+        + 'if(gf){var ok=(s.value=="person"||s.value=="smart_device"||s.value=="work_device");gf.style.display=ok?"":"none";'
+        + 'if(!ok){var sel=gf.querySelector("select");if(sel)sel.value="";}}}}'
         + 'document.querySelectorAll(\'select[name^="type_"]\').forEach(lwRoleDesc);'
         + '</script>'
         + '</div></body></html>'
