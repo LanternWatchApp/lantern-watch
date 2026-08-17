@@ -849,7 +849,9 @@ def get_blocked_services(config):
     """
     all_svcs, blocked = [], set()
     try:
-        with urllib.request.urlopen(_ag_request(config, "/control/blocked_services/all"), timeout=5) as r:
+        # The /all catalog is ~280KB; give it room so a busy AdGuard right after
+        # boot/setup doesn't time out and blank the page.
+        with urllib.request.urlopen(_ag_request(config, "/control/blocked_services/all"), timeout=12) as r:
             data = json.loads(r.read().decode())
             all_svcs = sorted(
                 [{"id": s["id"], "name": s["name"]} for s in data.get("blocked_services", [])],

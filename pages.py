@@ -3844,9 +3844,7 @@ def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg=
         f'Turn it on from the <a href="/social" style="color:#e8a000;font-weight:600">Social page</a>.</div>'
     )
 
-    if not all_svcs:
-        body = '<div class="section"><p style="color:#94a3b8;font-size:0.9em">Could not load service list from AdGuard. Check AdGuard is running and credentials are correct.</p></div>'
-    else:
+    if True:
         from adguard import (AGH_SERVICE_GROUPS, CATEGORY_PACKS,
                              get_blocked_pack_domains, service_notify_enabled)
         checked_count = len(blocked_ids)
@@ -3894,20 +3892,35 @@ def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg=
             )
 
         cat_blocks, cat_idx, used = "", 0, set()
-        for cat, ids in AGH_SERVICE_GROUPS.items():
-            present = [(i, id_to_name[i], i in blocked_ids) for i in ids if i in id_to_name]
-            if not present:
-                continue
-            used.update(i for i, _, _ in present)
-            cat_blocks += _cat_block(cat, present, cat_idx, "svc",
-                                     service_notify_enabled(cat, config), show_notify=True)
-            cat_idx += 1
-        # AGH services not in any named group
-        leftovers = [(s["id"], s["name"], s["id"] in blocked_ids) for s in all_svcs if s["id"] not in used]
-        if leftovers:
-            cat_blocks += _cat_block("Other", leftovers, cat_idx, "svc",
-                                     service_notify_enabled("Other", config), show_notify=True)
-            cat_idx += 1
+        if all_svcs:
+            for cat, ids in AGH_SERVICE_GROUPS.items():
+                present = [(i, id_to_name[i], i in blocked_ids) for i in ids if i in id_to_name]
+                if not present:
+                    continue
+                used.update(i for i, _, _ in present)
+                cat_blocks += _cat_block(cat, present, cat_idx, "svc",
+                                         service_notify_enabled(cat, config), show_notify=True)
+                cat_idx += 1
+            # AGH services not in any named group
+            leftovers = [(s["id"], s["name"], s["id"] in blocked_ids) for s in all_svcs if s["id"] not in used]
+            if leftovers:
+                cat_blocks += _cat_block("Other", leftovers, cat_idx, "svc",
+                                         service_notify_enabled("Other", config), show_notify=True)
+                cat_idx += 1
+        else:
+            # AdGuard's built-in catalog didn't load (it may still be starting).
+            # Show a non-fatal notice and a marker so /blocked-services/save knows
+            # NOT to wipe the existing blocked-services set — the curated packs and
+            # custom blocks below don't depend on the catalog and still work.
+            cat_blocks = (
+                '<input type="hidden" name="svc_unavailable" value="1">'
+                '<div style="padding:12px 14px;background:#fffbf0;border:1px solid #e8d080;'
+                'border-radius:8px;font-size:0.85em;color:#7a5c00;margin-bottom:16px">'
+                '&#x26A0;&#xFE0F; Couldn\'t load AdGuard\'s built-in service list right now '
+                '(AdGuard may still be starting). Your currently-blocked services are safe. '
+                'The categories below still work &mdash; reload in a moment to manage '
+                'streaming, gaming and messaging services.</div>'
+            )
 
         # Curated packs — individual sites, so a parent can block ChatGPT but keep
         # Claude. A site's checkbox value is its domain(s), comma-joined.
@@ -3926,7 +3939,7 @@ def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg=
             f'<h2>Blocked Services</h2>'
             f'<div style="font-size:0.82em;color:#64748b;margin-bottom:12px">'
             f'Block whole categories or individual services for <strong>everyone</strong> on the network. '
-            f'{checked_count} of {len(all_svcs)} services currently blocked. '
+            f'{(str(checked_count) + " of " + str(len(all_svcs)) + " services currently blocked. ") if all_svcs else ""}'
             f'Per-device overrides are on each device\'s Schedule page.</div>'
             f'<div style="display:flex;gap:8px;margin-bottom:16px">'
             f'<button type="button" onclick="allToggle(true)" class="btn btn-secondary" style="font-size:0.8em;padding:6px 12px">Block All</button>'

@@ -420,11 +420,20 @@ class Handler(BaseHTTPRequestHandler):
                     html = build_admin(config, adguard_applied=True)
 
             elif parsed.path == "/blocked-services":
+                # Keep the two AdGuard calls independent so a safe-search hiccup can't
+                # blank the service list, and retry once if the catalog comes back
+                # empty (AdGuard can be briefly busy right after boot/setup).
                 try:
                     all_svcs, blocked_ids = get_blocked_services(config)
+                    if not all_svcs:
+                        import time as _t; _t.sleep(0.4)
+                        all_svcs, blocked_ids = get_blocked_services(config)
+                except Exception:
+                    all_svcs, blocked_ids = [], set()
+                try:
                     ss_on = get_safesearch_status(config).get("enabled", False)
                 except Exception:
-                    all_svcs, blocked_ids, ss_on = [], set(), False
+                    ss_on = False
                 saved = "saved" in parse_qs(parsed.query)
                 html = build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg="&#x2705; Saved!" if saved else "")
 
@@ -1271,11 +1280,15 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             elif parsed.path == "/blocked-services/save":
-                selected = set(params.get("svc", []))
-                try:
-                    set_blocked_services(config, selected)
-                except Exception as e:
-                    print(f"[BlockedServices] save error: {e}")
+                # If the page rendered without AdGuard's catalog (svc_unavailable),
+                # there were no service checkboxes — do NOT push an empty set, which
+                # would unblock everything. Only touch services when the list loaded.
+                if "svc_unavailable" not in params:
+                    selected = set(params.get("svc", []))
+                    try:
+                        set_blocked_services(config, selected)
+                    except Exception as e:
+                        print(f"[BlockedServices] save error: {e}")
                 try:
                     from adguard import set_blocked_pack_domains
                     doms = [d for grp in params.get("packdom", []) for d in grp.split(",")]

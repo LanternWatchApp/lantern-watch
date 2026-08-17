@@ -19,6 +19,18 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.17.1] — 2026-08-17
+
+### Fixed
+- **The Blocked Services page no longer goes blank if AdGuard is briefly busy.**
+  If AdGuard's built-in service list can't be fetched in the moment (e.g. right
+  after setup while it's still starting), the page used to replace *everything* —
+  including the curated Lingerie/Swimwear/AI category packs and the "block a
+  specific site" box, which don't even need AdGuard — with an error. Now it shows
+  a small notice for just the built-in list and keeps the rest of the page usable,
+  retries the fetch once, and gives the large catalog more time to load. Saving
+  while the list is unavailable can no longer accidentally unblock services.
+
 ## [0.17.0] — 2026-08-16
 
 ### Added
