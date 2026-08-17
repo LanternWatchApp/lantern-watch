@@ -11,7 +11,7 @@ import socket
 import struct
 import sqlite3
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote, unquote
 
@@ -39,6 +39,20 @@ from pages import (
 
 # ── Session store (in-memory; resets on restart) ──────────────────────────────
 SESSIONS: set = set()
+
+
+def _pause_until(spec):
+    """Turn a pause-duration choice from the UI into an ISO timestamp for auto-resume
+    (or None for an open-ended pause). 'today' means the rest of the day — it lifts
+    at 6 AM tomorrow, before the school day."""
+    now = datetime.now()
+    if spec == "30":
+        return (now + timedelta(minutes=30)).isoformat()
+    if spec == "60":
+        return (now + timedelta(hours=1)).isoformat()
+    if spec == "today":
+        return (now + timedelta(days=1)).replace(hour=6, minute=0, second=0, microsecond=0).isoformat()
+    return None  # 'off' / open-ended — stays until a parent turns it back on
 
 
 def make_session_token() -> str:
@@ -244,8 +258,9 @@ class Handler(BaseHTTPRequestHandler):
                 ip            = params.get("ip",   [""])[0]
                 name          = params.get("name", [""])[0]
                 friendly_name = label(unquote(name), config)
+                until         = _pause_until(params.get("for", ["off"])[0])
                 if ip:
-                    pause_device(ip, friendly_name, config)
+                    pause_device(ip, friendly_name, config, until=until)
                 dest = (f"/device?name={quote(unquote(name))}&ip={quote(ip)}"
                         if params.get("ref", [""])[0] == "device" else "/")
                 self._redirect(dest)

@@ -173,6 +173,18 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;accent-color:var(-
 .btn-secondary:hover{background:var(--amber-soft);border-color:var(--orange)}
 .btn-danger{background:var(--bg-card);border:1px solid #f0bcbc;color:var(--danger);box-shadow:none}
 .btn-danger:hover{background:#fdeaea}
+/* Pause duration picker (a no-JS <details> popover) */
+.pmenu{position:relative;display:inline-block}
+.pmenu>summary{list-style:none;cursor:pointer;display:inline-flex}
+.pmenu>summary::-webkit-details-marker{display:none}
+.pchip{background:#FEE2E2;color:#DC6B5F;padding:3px 10px;border-radius:99px;font-size:0.75em;font-weight:700;border:1px solid #FCA5A5;white-space:nowrap}
+.pmenu[open]>summary .pchip{background:#DC6B5F;color:#fff;border-color:#DC6B5F}
+.pmenu-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:60;background:var(--bg-card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(26,26,26,.15);padding:6px;min-width:196px;display:flex;flex-direction:column;gap:1px;text-align:left}
+.pmenu-pop .phdr{font-size:0.66em;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:6px 12px 5px;font-weight:700}
+.pmenu-pop a{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 12px;border-radius:8px;font-size:0.84em;font-weight:600;color:var(--ink);text-decoration:none}
+.pmenu-pop a small{color:var(--muted);font-weight:500;font-size:0.82em}
+.pmenu-pop a:hover{background:#FEE2E2;color:var(--danger)}
+.pmenu-pop a:hover small{color:var(--danger)}
 .success{margin:0 0 12px;padding:14px;background:#eaf7ef;border:1px solid #b5e2c5;border-radius:12px;color:var(--ok);text-align:center;font-weight:700}
 .tag{display:inline-block;padding:2px 10px;border-radius:99px;font-size:0.8em;font-weight:600;margin-right:4px}
 .tag-gold{background:var(--amber-soft);color:var(--orange-dark)}
@@ -2273,18 +2285,36 @@ def make_card(d, screen_times, max_queries, config, ip_hostnames=None):
     else:
         schedule_info = ""
 
-    # Pause button
+    # Pause button — a duration picker when running, a clear "paused until…"
+    # state when paused. Timed pauses auto-resume; open-ended ones wait for a tap.
     if is_paused:
+        pinfo     = paused.get(client_ip, {}) or {}
+        until_txt = ""
+        if pinfo.get("until") and not pinfo.get("scheduled"):
+            try:
+                _u = datetime.fromisoformat(pinfo["until"])
+                _h = _u.hour % 12 or 12
+                until_txt = f" until {_h}:{_u.minute:02d} {'AM' if _u.hour < 12 else 'PM'}"
+            except Exception:
+                until_txt = ""
         pause_btn  = (f'<a href="/device/unpause?ip={quote(client_ip)}&name={enc}">'
                       f'<span style="background:#FEF3C7;color:#D97706;padding:3px 10px;border-radius:99px;'
                       f'font-size:0.75em;font-weight:700;border:1px solid #F4B942">'
-                      f'&#x23F5; Paused - Tap to Resume</span></a>')
+                      f'&#x23F5; Paused{until_txt} &middot; Resume</span></a>')
         card_style = "background:#FFFBF0;border-color:#F4B942"
     else:
-        pause_btn  = (f'<a href="/device/pause?ip={quote(client_ip)}&name={enc}">'
-                      f'<span style="background:#FEE2E2;color:#DC6B5F;padding:3px 10px;border-radius:99px;'
-                      f'font-size:0.75em;font-weight:700;border:1px solid #FCA5A5">'
-                      f'&#x23F8; Pause</span></a>')
+        _pbase    = f'/device/pause?ip={quote(client_ip)}&name={enc}'
+        pause_btn = (
+            '<details class="pmenu">'
+            '<summary><span class="pchip">&#x23F8; Pause</span></summary>'
+            '<div class="pmenu-pop">'
+            '<div class="phdr">Pause this device for&hellip;</div>'
+            f'<a href="{_pbase}&for=30">30 minutes</a>'
+            f'<a href="{_pbase}&for=60">1 hour</a>'
+            f'<a href="{_pbase}&for=today">Rest of today <small>till morning</small></a>'
+            f'<a href="{_pbase}&for=off">Until I turn it back on</a>'
+            '</div></details>'
+        )
         card_style = ""
 
     return (
