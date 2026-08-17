@@ -2525,11 +2525,24 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
     kids_total   = len(pauseable)
     pause_label  = f"Pause All Personal ({kids_total - kids_paused} online)" if kids_total - kids_paused else "Pause All Personal"
     resume_label = f"Resume All Personal ({kids_paused} paused)" if kids_paused else "Resume All Personal"
-    pause_dim    = "" if kids_total - kids_paused else "opacity:0.4;pointer-events:none;"
     resume_dim   = "" if kids_paused             else "opacity:0.4;pointer-events:none;"
+    if kids_total - kids_paused:
+        pause_control = (
+            '<details class="pmenu" style="flex:1">'
+            f'<summary style="display:block"><span class="btn btn-danger" style="width:100%;display:block;text-align:center">&#x1F507; {pause_label}</span></summary>'
+            '<div class="pmenu-pop" style="left:0;right:auto;min-width:200px">'
+            '<div class="phdr">Pause all of these for&hellip;</div>'
+            '<a href="/pause_all?for=30">30 minutes</a>'
+            '<a href="/pause_all?for=60">1 hour</a>'
+            '<a href="/pause_all?for=today">Rest of today <small>till morning</small></a>'
+            '<a href="/pause_all?for=off">Until I turn it back on</a>'
+            '</div></details>'
+        )
+    else:
+        pause_control = f'<span class="btn btn-danger" style="flex:1;text-align:center;opacity:0.4;pointer-events:none">&#x1F507; {pause_label}</span>'
     pause_bar    = (
         f'<div style="display:flex;gap:10px;margin-bottom:16px">'
-        f'<a href="/pause_all" class="btn btn-danger" style="flex:1;text-align:center;{pause_dim}">&#x1F507; {pause_label}</a>'
+        f'{pause_control}'
         f'<a href="/unpause_all" class="btn btn-secondary" style="flex:1;text-align:center;{resume_dim}">&#x25B6; {resume_label}</a>'
         f'</div>'
     )
@@ -2659,15 +2672,34 @@ def build_detail(client_name, config, client_ip_param=""):
     pause_key   = (client_ip_param or eff_ip) if (client_ip_param or eff_ip) in paused_devs else \
                   next((k for k, v in paused_devs.items() if v.get("name", "") == friendly), client_ip_param or eff_ip)
 
-    pause_btn = (
-        f'<a href="/device/unpause?ip={quote(pause_key)}&name={quote(hostname)}&ref=device">'
-        f'<span style="background:#FEF3C7;color:#D97706;padding:6px 14px;border-radius:99px;font-size:0.82em;font-weight:700;border:1px solid #F4B942">'
-        f'&#x23F5; Paused - Tap to Resume</span></a>'
-        if is_paused else
-        f'<a href="/device/pause?ip={quote(pause_key)}&name={quote(hostname)}&ref=device">'
-        f'<span style="background:#FEE2E2;color:#DC6B5F;padding:6px 14px;border-radius:99px;font-size:0.82em;font-weight:700;border:1px solid #FCA5A5">'
-        f'&#x23F8; Pause</span></a>'
-    )
+    if is_paused:
+        _pinfo    = paused_devs.get(pause_key, {}) or {}
+        _until_tx = ""
+        if _pinfo.get("until") and not _pinfo.get("scheduled"):
+            try:
+                _u = datetime.fromisoformat(_pinfo["until"])
+                _h = _u.hour % 12 or 12
+                _until_tx = f" until {_h}:{_u.minute:02d} {'AM' if _u.hour < 12 else 'PM'}"
+            except Exception:
+                _until_tx = ""
+        pause_btn = (
+            f'<a href="/device/unpause?ip={quote(pause_key)}&name={quote(hostname)}&ref=device">'
+            f'<span style="background:#FEF3C7;color:#D97706;padding:6px 14px;border-radius:99px;font-size:0.82em;font-weight:700;border:1px solid #F4B942">'
+            f'&#x23F5; Paused{_until_tx} &middot; Resume</span></a>'
+        )
+    else:
+        _dbase    = f'/device/pause?ip={quote(pause_key)}&name={quote(hostname)}&ref=device'
+        pause_btn = (
+            '<details class="pmenu">'
+            '<summary><span class="pchip" style="padding:6px 14px;font-size:0.82em">&#x23F8; Pause</span></summary>'
+            '<div class="pmenu-pop">'
+            '<div class="phdr">Pause this device for&hellip;</div>'
+            f'<a href="{_dbase}&for=30">30 minutes</a>'
+            f'<a href="{_dbase}&for=60">1 hour</a>'
+            f'<a href="{_dbase}&for=today">Rest of today <small>till morning</small></a>'
+            f'<a href="{_dbase}&for=off">Until I turn it back on</a>'
+            '</div></details>'
+        )
 
     return (
         f'<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg"><meta charset="UTF-8">'

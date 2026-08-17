@@ -512,12 +512,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             elif parsed.path == "/pause_all":
+                until = _pause_until(parse_qs(parsed.query).get("for", ["off"])[0])
                 for dev in get_all_known_devices():
                     name = dev["client_name"]
                     ip   = dev["client_ip"]
                     if ip and is_pauseable(name, config):
                         if ip not in config.get("paused_devices", {}):
-                            pause_device(ip, label(name, config), config)
+                            pause_device(ip, label(name, config), config, until=until)
                             config = load_config()
                 self._redirect("/")
                 return
