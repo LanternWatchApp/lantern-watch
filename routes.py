@@ -33,7 +33,7 @@ from pages import (
     build_main, build_detail, build_domain_detail, build_schedule_page,
     build_social, build_findhelp, build_blocked_page, build_portal_page,
     build_devices_page, build_admin,
-    build_notifications, build_querylog_page, build_blocked_services_page, build_groups_page,
+    build_notifications, build_querylog_page, build_blocked_services_page,
     _demo, _FAVICON_SVG,
 )
 
@@ -434,10 +434,6 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     html = build_admin(config, adguard_applied=True)
 
-            elif parsed.path == "/groups":
-                saved = "saved" in parse_qs(parsed.query)
-                html  = build_groups_page(config, get_all_known_devices(), saved)
-
             elif parsed.path == "/blocked-services":
                 # Keep the two AdGuard calls independent so a safe-search hiccup can't
                 # blank the service list, and retry once if the catalog comes back
@@ -549,7 +545,10 @@ class Handler(BaseHTTPRequestHandler):
                 params  = parse_qs(parsed.query)
                 gname   = unquote(params.get("name", [""])[0])
                 until   = _pause_until(params.get("for", ["off"])[0])
-                members = set(config.get("groups", {}).get(gname, []))
+                # Members = Personal devices tagged into this group. is_pauseable
+                # guarantees only person-type devices — never Admin/Smart/Infra.
+                members = [n for n, d in config.get("devices", {}).items()
+                           if d.get("group") == gname and is_pauseable(n, config)]
                 if members:
                     name_to_ip = {d["client_name"]: d["client_ip"] for d in get_all_known_devices()}
                     for cname in members:
@@ -562,7 +561,7 @@ class Handler(BaseHTTPRequestHandler):
 
             elif parsed.path == "/group/unpause":
                 gname   = unquote(parse_qs(parsed.query).get("name", [""])[0])
-                members = set(config.get("groups", {}).get(gname, []))
+                members = {n for n, d in config.get("devices", {}).items() if d.get("group") == gname}
                 name_to_ip = {d["client_name"]: d["client_ip"] for d in get_all_known_devices()}
                 member_ips = {name_to_ip.get(c, "") for c in members}
                 for ip in list(config.get("paused_devices", {}).keys()):
@@ -1020,6 +1019,11 @@ class Handler(BaseHTTPRequestHandler):
 
             elif parsed.path == "/admin/devices/save":
                 devices = config.get("devices", {})
+                # Custom groups: a comma-separated list of names (sub-categories of
+                # Personal devices) the parent manages right here on the Devices page.
+                raw_groups = params.get("custom_groups", [""])[0]
+                config["custom_groups"] = [g.strip() for g in raw_groups.split(",") if g.strip()][:20]
+                valid_groups = set(config["custom_groups"])
                 for key in params:
                     if key.startswith("label_"):
                         enc_name = key[6:]
@@ -1032,6 +1036,13 @@ class Handler(BaseHTTPRequestHandler):
                             devices[name]["label"] = params[key][0]
                         devices[name]["type"]    = params.get(f"type_{enc_name}", ["person"])[0]
                         devices[name]["monitor"] = f"monitor_{enc_name}" in params
+                        # Group tag — only meaningful for Personal devices; dropped
+                        # otherwise so a smart device / router can never be grouped.
+                        grp = params.get(f"group_{enc_name}", [""])[0].strip()
+                        if grp and grp in valid_groups and devices[name]["type"] == "person":
+                            devices[name]["group"] = grp
+                        else:
+                            devices[name].pop("group", None)
                 config["devices"] = devices
                 save_config(config)
                 # No device type is exempt from filtering. A work laptop's real
@@ -1206,41 +1217,6 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps(resp).encode())
-                return
-
-            # ── Device groups (opt-in) ──────────────────────────────────────────
-            elif parsed.path == "/groups/toggle":
-                config["groups_enabled"] = "groups_enabled" in params
-                save_config(config)
-                self._redirect("/groups")
-                return
-
-            elif parsed.path == "/groups/create":
-                name = params.get("name", [""])[0].strip()[:40]
-                if name:
-                    groups = config.setdefault("groups", {})
-                    groups.setdefault(name, [])
-                    save_config(config)
-                self._redirect("/groups")
-                return
-
-            elif parsed.path == "/groups/delete":
-                name   = params.get("name", [""])[0]
-                groups = config.get("groups", {})
-                if name in groups:
-                    del groups[name]
-                    save_config(config)
-                self._redirect("/groups")
-                return
-
-            elif parsed.path == "/groups/members":
-                # Save a group's device list from the checkbox form.
-                name = params.get("name", [""])[0]
-                groups = config.get("groups", {})
-                if name in groups:
-                    groups[name] = params.get("member", [])
-                    save_config(config)
-                self._redirect("/groups")
                 return
 
             elif parsed.path == "/notifications/save":

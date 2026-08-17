@@ -494,7 +494,6 @@ def build_header(subtitle="Light for your home network", config=None):
         f'<a href="/notifications">{_ic("bell",16)}Notifications</a>'
         f'<a href="/social">{_ic("users",16)}Social</a>'
         f'<a href="/blocked-services">{_ic("shield",16)}Services</a>'
-        f'<a href="/groups">{_ic("grid",16)}Device Groups</a>'
         '</div></div>'
         '</nav>'
         '<div class="header-actions"><a class="header-link signout" href="/logout">Sign Out</a></div>'
@@ -515,7 +514,6 @@ def build_header(subtitle="Light for your home network", config=None):
         f'<a href="/notifications">{_ic("bell",16)}Notifications</a>'
         f'<a href="/social">{_ic("users",16)}Social</a>'
         f'<a href="/blocked-services">{_ic("shield",16)}Services</a>'
-        f'<a href="/groups">{_ic("grid",16)}Device Groups</a>'
         '<a href="/logout" class="signout">Sign Out</a>'
         '</nav>'
         '<script>'
@@ -2525,29 +2523,56 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
     pauseable    = [d for d in people if is_pauseable(d["client_name"], config)]
     kids_paused  = sum(1 for d in pauseable if d["client_ip"] in paused)
     kids_total   = len(pauseable)
-    pause_label  = f"Pause All Personal ({kids_total - kids_paused} online)" if kids_total - kids_paused else "Pause All Personal"
-    resume_label = f"Resume All Personal ({kids_paused} paused)" if kids_paused else "Resume All Personal"
-    resume_dim   = "" if kids_paused             else "opacity:0.4;pointer-events:none;"
-    if kids_total - kids_paused:
-        pause_control = (
+    resume_label = f"Resume everyone ({kids_paused} paused)" if kids_paused else "Resume everyone"
+    resume_dim   = "" if kids_paused else "opacity:0.4;pointer-events:none;"
+
+    def _pause_picker(label_txt, base, online):
+        """A red pause button that opens the 30/60/today/off duration menu, or a
+        dimmed button when there's nobody online to pause. `base` is the pause URL
+        (everyone = /pause_all, a group = /group/pause?name=…)."""
+        if not online:
+            return (f'<span class="btn btn-danger" style="flex:1;text-align:center;'
+                    f'opacity:0.4;pointer-events:none;margin:0">&#x1F507; {label_txt}</span>')
+        sep = "&" if "?" in base else "?"
+        return (
             '<details class="pmenu" style="flex:1">'
-            f'<summary style="display:block"><span class="btn btn-danger" style="width:100%;display:block;text-align:center">&#x1F507; {pause_label}</span></summary>'
+            f'<summary style="display:block"><span class="btn btn-danger" style="width:100%;display:block;text-align:center;margin:0">&#x1F507; {label_txt}</span></summary>'
             '<div class="pmenu-pop" style="left:0;right:auto;min-width:200px">'
-            '<div class="phdr">Pause all of these for&hellip;</div>'
-            '<a href="/pause_all?for=30">30 minutes</a>'
-            '<a href="/pause_all?for=60">1 hour</a>'
-            '<a href="/pause_all?for=today">Rest of today <small>till morning</small></a>'
-            '<a href="/pause_all?for=off">Until I turn it back on</a>'
+            '<div class="phdr">Pause for&hellip;</div>'
+            f'<a href="{base}{sep}for=30">30 minutes</a>'
+            f'<a href="{base}{sep}for=60">1 hour</a>'
+            f'<a href="{base}{sep}for=today">Rest of today <small>till morning</small></a>'
+            f'<a href="{base}{sep}for=off">Until I turn it back on</a>'
             '</div></details>'
         )
-    else:
-        pause_control = f'<span class="btn btn-danger" style="flex:1;text-align:center;opacity:0.4;pointer-events:none">&#x1F507; {pause_label}</span>'
-    pause_bar    = (
-        f'<div style="display:flex;gap:10px;margin-bottom:16px">'
-        f'{pause_control}'
-        f'<a href="/unpause_all" class="btn btn-secondary" style="flex:1;text-align:center;{resume_dim}">&#x25B6; {resume_label}</a>'
-        f'</div>'
+
+    everyone_online = kids_total - kids_paused
+    everyone_label  = f"Pause everyone ({everyone_online} online)" if everyone_online else "Everyone paused"
+    pause_bar = (
+        '<div style="display:flex;gap:10px;margin-bottom:10px">'
+        + _pause_picker(everyone_label, "/pause_all", everyone_online)
+        + f'<a href="/unpause_all" class="btn btn-secondary" style="flex:1;text-align:center;margin:0;{resume_dim}">&#x25B6; {resume_label}</a>'
+        + '</div>'
     )
+
+    # Per-group pause pickers — only for custom groups that actually have Personal
+    # members. Lets a parent pause just "Kids" without touching everyone else.
+    _devcfg = config.get("devices", {})
+    group_buttons = ""
+    for g in config.get("custom_groups", []):
+        gmembers = [d for d in pauseable if _devcfg.get(d["client_name"], {}).get("group") == g]
+        if not gmembers:
+            continue
+        g_online = sum(1 for d in gmembers if d["client_ip"] not in paused)
+        from urllib.parse import quote as _q
+        group_buttons += _pause_picker(f"Pause {g} ({g_online})", f"/group/pause?name={_q(g)}", g_online)
+    if group_buttons:
+        pause_bar += (
+            '<div style="font-size:0.72em;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;font-weight:700;margin:2px 0 6px">Or just a group</div>'
+            f'<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">{group_buttons}</div>'
+        )
+    else:
+        pause_bar += '<div style="margin-bottom:6px"></div>'
 
     stats_bar = (
         f'<div class="stats-bar">'
@@ -3645,6 +3670,18 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         sel_smart   = "selected" if cur_type == "smart_device"   else ""
         sel_work    = "selected" if cur_type == "work_device"    else ""
         mc          = "checked"  if cur_monitor                  else ""
+        # Optional custom group — only Personal devices can belong to one.
+        _custom_groups = config.get("custom_groups", [])
+        group_select   = ""
+        if _custom_groups and cur_type == "person":
+            _cg   = cfg.get("group", "")
+            _opts = '<option value="">— none —</option>' + "".join(
+                f'<option value="{g}" {"selected" if _cg == g else ""}>{g}</option>'
+                for g in _custom_groups)
+            group_select = (
+                f'<div style="flex:1;min-width:120px"><div class="form-label">Group</div>'
+                f'<select name="group_{enc}">{_opts}</select></div>'
+            )
         sub_html    = f'<div style="font-size:0.75em;color:#94a3b8">{subtitle}</div>' if subtitle else ""
         enc_ip      = quote(d["client_ip"] or "")
 
@@ -3743,6 +3780,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         <option value="smart_device" {sel_smart}>📡 Smart Device</option>
       </select>
       <div class="role-desc" style="font-size:0.72em;color:#94a3b8;margin-top:3px;line-height:1.3"></div></div>
+    {group_select}
   </div>
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;padding-top:8px;border-top:1px solid #1e293b">
     <a href="/device?name={enc}&ip={enc_ip}" style="font-size:0.75em;color:#D97706;font-weight:600">Tap to see details</a>
@@ -3801,7 +3839,16 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + f'</tbody></table></div>'
         + redetect_controls
         + sortfilter
-        + f'<form method="POST" action="/admin/devices/save">{rows_html}'
+        + f'<form method="POST" action="/admin/devices/save">'
+        + ('<div class="form-card" style="margin-bottom:12px">'
+           '<div class="form-label" style="font-weight:700;color:#1a1a1a;font-size:0.92em">&#x1F465; Custom groups (optional)</div>'
+           '<div style="color:#64748b;font-size:0.82em;margin:4px 0 10px;line-height:1.5">'
+           'Name a few groups for your <b>Personal</b> devices &mdash; like <i>Kids, Teens</i>. After you save, each Personal '
+           'device gets a <b>Group</b> menu below, and the dashboard lets you pause a whole group in one tap. '
+           'Leave blank if you don&rsquo;t need it &mdash; Admin, Smart and Infrastructure devices are never grouped or paused.</div>'
+           f'<input type="text" name="custom_groups" value="{", ".join(config.get("custom_groups", []))}" placeholder="e.g. Kids, Teens" style="width:100%">'
+           '</div>')
+        + f'{rows_html}'
         + f'<button type="submit" class="btn">Save All Devices</button></form></div>'
         + '<script>'
         + 'var LW_ROLE_DESC={'
@@ -3968,86 +4015,6 @@ def _group_pause_picker(gname):
         f'<a href="{base}&for=today">Rest of today <small>till morning</small></a>'
         f'<a href="{base}&for=off">Until I turn it back on</a>'
         '</div></details>'
-    )
-
-
-def build_groups_page(config, all_devices, saved=False):
-    """Opt-in device groups: a named bag of devices a parent can pause together
-    in one tap. Handles the shared workstation / shared tablet case without
-    inventing a 'person'. Off by default; the whole page hides behind the toggle."""
-    enabled   = config.get("groups_enabled", False)
-    groups    = config.get("groups", {}) or {}
-    saved_html = '<div class="success" style="margin:12px 16px 0">&#x2705; Saved</div>' if saved else ""
-    devs = sorted(
-        [d for d in all_devices if not is_infrastructure(d["client_name"], config)],
-        key=lambda d: label(d["client_name"], config).lower(),
-    )
-
-    toggle_card = (
-        '<div class="section">'
-        '<h2>&#x1F465; Device groups</h2>'
-        '<div style="font-size:0.86em;color:#6b6b6b;margin:6px 0 14px;line-height:1.55">'
-        'Group a few devices you name yourself &mdash; like &ldquo;Kids&rdquo; &mdash; so you can pause them '
-        'all in one tap. Handy for a shared workstation or tablet. Totally optional, and off unless you turn it on.</div>'
-        '<form method="POST" action="/groups/toggle">'
-        '<label style="display:flex;align-items:center;gap:10px;cursor:pointer">'
-        f'<input type="checkbox" name="groups_enabled" {"checked" if enabled else ""} onchange="this.form.submit()" style="width:18px;height:18px;accent-color:#e8a000">'
-        '<span style="font-weight:700;color:#1a1a1a">Enable device groups</span></label>'
-        '</form></div>'
-    )
-
-    body = toggle_card
-    if enabled:
-        for gname, members in groups.items():
-            members = members or []
-            enc_g   = quote(gname)
-            chips   = ""
-            for d in devs:
-                cn  = d["client_name"]
-                chk = "checked" if cn in members else ""
-                chips += (
-                    '<label style="display:inline-flex;align-items:center;gap:7px;border:1.5px solid #e8e6e0;'
-                    'border-radius:10px;padding:7px 11px;cursor:pointer;font-size:0.85em;font-weight:600;color:#3a3a3a">'
-                    f'<input type="checkbox" name="member" value="{cn}" {chk} style="width:15px;height:15px;accent-color:#e8a000">'
-                    f'<span>{label(cn, config)}</span></label>'
-                )
-            if not chips:
-                chips = '<span style="color:#94a3b8;font-size:0.85em">No devices seen yet.</span>'
-            count = sum(1 for d in devs if d["client_name"] in members)
-            body += (
-                '<div class="section">'
-                '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:4px">'
-                f'<h2 style="margin:0">{gname} <span style="font-size:0.6em;color:#94a3b8;font-weight:600">{count} device{"s" if count != 1 else ""}</span></h2>'
-                '<div style="display:flex;gap:8px;align-items:center">'
-                f'{_group_pause_picker(gname)}'
-                f'<a href="/group/unpause?name={enc_g}" class="btn btn-secondary" style="font-size:0.78em;padding:6px 12px">&#x25B6; Resume</a>'
-                '</div></div>'
-                '<form method="POST" action="/groups/members">'
-                f'<input type="hidden" name="name" value="{gname}">'
-                '<div style="font-size:0.7em;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;font-weight:700;margin:10px 0 8px">Devices in this group</div>'
-                f'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">{chips}</div>'
-                '<button type="submit" class="btn" style="font-size:0.85em;padding:8px 16px">Save devices</button>'
-                '</form>'
-                '<form method="POST" action="/groups/delete" style="margin-top:8px">'
-                f'<input type="hidden" name="name" value="{gname}">'
-                f'<button type="submit" class="btn btn-secondary" style="font-size:0.74em;padding:5px 11px;color:#dc2626" '
-                f'onclick="return confirm(\'Delete the group &quot;{gname}&quot;? Its devices are not affected.\')">Delete group</button>'
-                '</form></div>'
-            )
-        body += (
-            '<div class="section">'
-            '<h2 style="font-size:1.05em">Create a group</h2>'
-            '<form method="POST" action="/groups/create" style="display:flex;gap:8px;margin-top:10px">'
-            '<input type="text" name="name" placeholder="e.g. Kids" maxlength="40" required style="flex:1">'
-            '<button type="submit" class="btn">Create</button></form></div>'
-        )
-
-    return (
-        '<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg"><meta charset="UTF-8">'
-        '<meta name="viewport" content="width=device-width,initial-scale=1.0">'
-        f'<title>Device Groups - Lantern Watch</title><style>{CSS}</style></head><body>'
-        + build_header("Device groups", config=config)
-        + '<div class="page-wrap">' + saved_html + body + '</div></body></html>'
     )
 
 
