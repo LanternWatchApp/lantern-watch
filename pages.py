@@ -10,7 +10,7 @@ import urllib.request
 from datetime import datetime
 from urllib.parse import quote
 
-from config import label, is_infrastructure, is_monitored, is_pauseable, effective_type, VERSION, dashboard_url
+from config import label, is_infrastructure, is_monitored, is_pauseable, is_groupable, effective_type, VERSION, dashboard_url
 from adguard import get_adguard_stats, PLATFORM_DOMAINS, PROFILE_SAFE_SEARCH, get_ip_hostname_map, pretty_hostname
 from db import (
     get_stats, get_device_detail, get_domain_detail,
@@ -2555,21 +2555,32 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
         + '</div>'
     )
 
-    # Per-group pause pickers — only for custom groups that actually have Personal
-    # members. Lets a parent pause just "Kids" without touching everyone else.
+    # Per-group Pause + Resume rows. Members come from ALL monitored devices (not
+    # just Personal), gated by is_groupable — so a "TVs" group of Smart devices
+    # still shows a button, while the router/NAS can never appear. Each group gets
+    # a symmetric Pause picker + Resume, mirroring the "everyone" row.
     _devcfg = config.get("devices", {})
-    group_buttons = ""
+    from urllib.parse import quote as _q
+    group_rows = ""
     for g in config.get("custom_groups", []):
-        gmembers = [d for d in pauseable if _devcfg.get(d["client_name"], {}).get("group") == g]
+        gmembers = [d for d in devices
+                    if _devcfg.get(d["client_name"], {}).get("group") == g
+                    and is_groupable(d["client_name"], config)]
         if not gmembers:
             continue
         g_online = sum(1 for d in gmembers if d["client_ip"] not in paused)
-        from urllib.parse import quote as _q
-        group_buttons += _pause_picker(f"Pause {g} ({g_online})", f"/group/pause?name={_q(g)}", g_online)
-    if group_buttons:
+        g_paused = len(gmembers) - g_online
+        rdim = "" if g_paused else "opacity:0.4;pointer-events:none;"
+        group_rows += (
+            '<div style="display:flex;gap:10px;margin-bottom:8px">'
+            + _pause_picker(f"Pause {g} ({g_online})", f"/group/pause?name={_q(g)}", g_online)
+            + f'<a href="/group/unpause?name={_q(g)}" class="btn btn-secondary" style="flex:1;text-align:center;margin:0;{rdim}">&#x25B6; Resume {g}</a>'
+            + '</div>'
+        )
+    if group_rows:
         pause_bar += (
             '<div style="font-size:0.72em;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;font-weight:700;margin:2px 0 6px">Or just a group</div>'
-            f'<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">{group_buttons}</div>'
+            + group_rows + '<div style="margin-bottom:8px"></div>'
         )
     else:
         pause_bar += '<div style="margin-bottom:6px"></div>'
@@ -3888,7 +3899,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
         + f'{saved_msg}'
         + f'<div class="section"><h2>Manage Devices</h2>'
         + f'<div style="color:#64748b;font-size:0.85em;margin-bottom:12px">'
-        + f'Label devices and set their role. <b>All roles get the same AdGuard filtering</b> &mdash; the role only affects grouping, whether <b>Pause All Personal</b> applies, reporting, and a few alert behaviors. '
+        + f'Label devices and set their role. <b>All roles get the same AdGuard filtering</b> &mdash; the role only affects grouping, whether <b>Pause everyone</b> applies, reporting, and a few alert behaviors. '
         + f'<b>Every type is filtered equally</b> &mdash; no type bypasses AdGuard.</div>'
         + f'<div style="overflow-x:auto;margin-bottom:14px">'
         + f'<table style="border-collapse:collapse;width:100%;min-width:560px;font-size:0.8em">'
@@ -3900,7 +3911,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
         + f'<th style="padding:7px 10px;text-align:center;border-bottom:2px solid #e2e8f0">Filtered</th>'
         + f'<th style="padding:7px 10px;text-align:left;border-bottom:2px solid #e2e8f0">Notes</th>'
         + f'</tr></thead><tbody>'
-        + _device_type_row("👤 Personal", "Devices", True,  "yes", "Phones, tablets &amp; laptops used by family members (adults or kids) &mdash; the target of Pause All and schedules")
+        + _device_type_row("👤 Personal", "Devices", True,  "yes", "Phones, tablets &amp; laptops used by family members (adults or kids) &mdash; the target of Pause everyone &amp; schedules")
         + _device_type_row("🛡️ Admin", "Devices", False, "yes", "Same filtering as Personal, but never bulk-paused")
         + _device_type_row("💼 Work Device",     "Devices", False, "yes", "Filtered like any device; auto-exempt from the VPN &ldquo;activity drop&rdquo; alert")
         + _device_type_row("🖥️ Infrastructure",  "Infrastructure", False, "skip", "Routers, NAS, printers, servers")
@@ -3923,8 +3934,8 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
         + f'<button type="submit" class="btn">Save All Devices</button></form></div>'
         + '<script>'
         + 'var LW_ROLE_DESC={'
-        + '"person":"Phones, tablets and laptops used by family members — included in Pause All and schedules.",'
-        + '"parent":"Full protection, but never affected by Pause All Personal.",'
+        + '"person":"Phones, tablets and laptops used by family members — included in Pause everyone and schedules.",'
+        + '"parent":"Full protection, but never affected by Pause everyone.",'
         + '"work_device":"Work laptop or phone — filtered normally, but skipped by the VPN activity-drop alert.",'
         + '"infrastructure":"Routers, NAS, printers and servers — shown separately and kept out of reports.",'
         + '"smart_device":"TVs, cameras, speakers, thermostats, vehicles and other connected devices."'
