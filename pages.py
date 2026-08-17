@@ -3568,6 +3568,39 @@ _KIND_TO_GROUP = {
 }
 
 
+def _auto_group_name(name, cfg_label, ident, domains):
+    """Suggest an entertainment group for a device (or None). Tries the plain-kind
+    detector first, then falls back to the maker+OS guess — so an Android phone that
+    only resolves to 'Samsung Android device' still lands in Phones. Appliances
+    (doorbell, camera, speaker, printer, NAS, router) map to None and stay ungrouped.
+    Order matters: specific kinds (tablet/TV/console/computer) win before the general
+    phone catch-all so a Sony Android TV isn't mistaken for a phone."""
+    from classify import device_kind, identify_from_traffic
+    g = _KIND_TO_GROUP.get(device_kind(name, cfg_label, ident, domains) or "")
+    if g:
+        return g
+    try:
+        os_guess = identify_from_traffic(domains, _short_vendor(ident.get("vendor", ""))) or ""
+    except Exception:
+        os_guess = ""
+    hay = f"{name} {cfg_label} {os_guess}".lower()
+    if "ipad" in hay or "tablet" in hay:
+        return "Tablets"
+    if any(k in hay for k in ("apple tv", "appletv", "fire tv", "firetv", "firestick",
+                              "fire stick", "roku", "chromecast", "smart tv", "smarttv",
+                              "android tv", "androidtv", "google tv", "googletv", "webos", "vizio")):
+        return "TVs"
+    if any(k in hay for k in ("playstation", "xbox", "nintendo", "console")):
+        return "Games"
+    if any(k in hay for k in ("macbook", "chromebook", "laptop", "thinkpad", "imac",
+                              "mac mini", "mac-mini", "desktop", "windows", "computer")):
+        return "Computers"
+    if any(k in hay for k in ("iphone", "android device", "android phone", "galaxy",
+                              "pixel", "oneplus", "sm-g", "sm-a", "sm-n", "sm-s", "mobile")):
+        return "Phones"
+    return None
+
+
 def build_devices_page(config, saved=False, redetect=False, autoname=False, autogroup=False, sort="name", flt=""):
     # Only devices active in the last DEVICE_ACTIVE_HOURS; a stale device is hidden,
     # not deleted — it (and any saved name) returns the moment it's seen again.
@@ -3641,9 +3674,8 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
             nm = d["client_name"]
             if effective_type(nm, config) not in ("person", "smart_device", "work_device"):
                 continue
-            ki = device_kind(nm, cfg_devices.get(nm, {}).get("label", ""),
-                             device_identity(nm), top_domains_map.get(nm, []))
-            grp = _KIND_TO_GROUP.get(ki or "")
+            grp = _auto_group_name(nm, cfg_devices.get(nm, {}).get("label", ""),
+                                   device_identity(nm), top_domains_map.get(nm, []))
             if grp:
                 _autogroup_map[nm] = grp
                 _autogroup_names.add(grp)
@@ -3838,12 +3870,12 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
     else:
         redetect_controls = (
             '<div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
-            '<a href="/admin/devices?redetect=1" class="btn btn-secondary" '
-            'style="width:auto;padding:8px 16px;font-size:0.85em;margin-bottom:0">&#x1F504; Re-detect all types</a>'
-            '<a href="/admin/devices?autoname=1" class="btn btn-secondary" '
-            'style="width:auto;padding:8px 16px;font-size:0.85em;margin-bottom:0">&#x1F3F7;&#xFE0F; Auto-name devices</a>'
-            '<a href="/admin/devices?autogroup=1" class="btn btn-secondary" '
-            'style="width:auto;padding:8px 16px;font-size:0.85em;margin-bottom:0">&#x1F465; Auto-group devices</a>'
+            '<a href="/admin/devices?redetect=1" class="btn" '
+            'style="width:auto;padding:9px 16px;font-size:0.85em;margin-bottom:0">&#x1F504; Re-detect all types</a>'
+            '<a href="/admin/devices?autoname=1" class="btn" '
+            'style="width:auto;padding:9px 16px;font-size:0.85em;margin-bottom:0">&#x1F3F7;&#xFE0F; Auto-name devices</a>'
+            '<a href="/admin/devices?autogroup=1" class="btn" '
+            'style="width:auto;padding:9px 16px;font-size:0.85em;margin-bottom:0">&#x1F465; Auto-group devices</a>'
             '<span style="color:#94a3b8;font-size:0.78em">Suggest a type, a name, or entertainment groups (Phones, TVs&hellip;) for every device — you review before saving.</span>'
             '</div>'
         )
