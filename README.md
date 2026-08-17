@@ -9,12 +9,13 @@ Built on top of AdGuard Home, which handles the actual DNS blocking. Lantern Wat
 ## What you get
 
 - **Device dashboard** — see every device's query count, block rate, and time online today
-- **Pause internet** — cut off a device instantly, manually or on a schedule
+- **Pause internet** — cut off a device instantly, with a timer: **30 minutes, 1 hour, the rest of today, or until you turn it back on**. Timed pauses lift themselves automatically. **"Pause everyone"** stops all the family's devices in one tap (never the router, NAS, or printer)
+- **Device groups** — name a few groups like *Kids, TVs, Phones* on the Devices page, drop devices in, and **pause a whole group in one tap**. **Auto-group** suggests entertainment groups (Phones, Tablets, Computers, TVs, Games) from what each device is — and never proposes grouping a doorbell, camera, or appliance
 - **Hours of Peace** — bedtime cutoff that resumes automatically at wake-up time
 - **Focus Times** — block internet during homework, chores, or meals
 - **Screen time limits** — set a daily hour limit per device; get notified when it's reached
 - **Social media profiles** — Open / Moderate / Strict / Custom, applied instantly at the DNS level, plus a secure-by-default **YouTube Restricted Mode** toggle
-- **Device roles** — label devices as Personal, Admin, Work Device, Infrastructure, or Smart Device; controls dashboard grouping, whether Pause All applies, and reporting (every role stays fully filtered)
+- **Device roles** — label devices as Personal, Admin, Work Device, Infrastructure, or Smart Device; controls dashboard grouping, whether **Pause everyone** applies, and reporting (every role stays fully filtered). Only Personal, Smart, and Work devices can be grouped or paused — never your router or NAS
 - **Smart device naming** — a mystery device that hides its maker behind a randomized MAC and shows up as a cryptic code is identified from the domains it talks to. **Auto-name** suggests a name that keeps the person and adds the device — e.g. `sample-mobile-01` → **"sample-mobile-01 — Samsung Android device"** — and types it correctly: a kid's tablet becomes **Personal** (so Pause All and bedtime include it), while Wi-Fi mesh nodes become **Infrastructure** (so a schedule can't knock out the network). Every suggestion is yours to review before it saves
 - **Push notifications** — ntfy, Telegram, and Email alerts for blocked content, new devices, high block rates, possible VPN use, and screen time limits
 - **Daily and weekly summaries** — sent to your phone at a time you choose
@@ -266,17 +267,19 @@ Changes apply instantly to every device on the network. A separate **YouTube Res
 
 ## Device roles
 
-Go to **Devices** in the top nav to label every device and set its role. **All roles receive the same AdGuard filtering** — the role only affects grouping, whether **Pause All Personal** applies, reporting, and a few alert behaviors.
+Go to **Devices** in the top nav to label every device and set its role. **All roles receive the same AdGuard filtering** — the role only affects grouping, whether **Pause everyone** applies, reporting, and a few alert behaviors.
 
-| Role | Shown in | Pause All | In reports | Notes |
-|---|---|:---:|:---:|---|
-| 👤 Personal | Devices | ✅ | ✅ | Phones, tablets & laptops used by family members (adults or kids) — the target of Pause All and schedules |
-| 🛡️ Admin | Devices | — | ✅ | Same filtering as Personal, but never bulk-paused |
-| 💼 Work Device | Devices | — | ✅ | Filtered like any device; auto-exempt from the "activity drop / possible VPN" alert |
-| 🖥️ Infrastructure | Infrastructure | — | Skipped | Routers, NAS, printers, servers |
-| 📡 Smart Device | Infrastructure | — | ✅ | TVs, cameras, doorbells, thermostats, cars |
+| Role | Shown in | Pause everyone | Groupable | In reports | Notes |
+|---|---|:---:|:---:|:---:|---|
+| 👤 Personal | Devices | ✅ | ✅ | ✅ | Phones, tablets & laptops used by family members — the target of **Pause everyone** and schedules |
+| 🛡️ Admin | Devices | — | — | ✅ | Same filtering as Personal, but never bulk-paused or grouped |
+| 💼 Work Device | Devices | — | ✅ | ✅ | Filtered like any device; auto-exempt from the "activity drop / possible VPN" alert |
+| 🖥️ Infrastructure | Infrastructure | — | — | Skipped | Routers, NAS, printers, servers — never paused or grouped |
+| 📡 Smart Device | Infrastructure | — | ✅ | ✅ | TVs, cameras, doorbells, thermostats, cars |
 
-**Work Device** is for a laptop or phone that lives on a corporate VPN and does heavy video conferencing. It's filtered exactly like every other device — setting this role does **not** disable any blocking. What it does do is keep the device out of the "Pause All Personal" action and automatically exempt it from the "activity drop / possible VPN" alert (a VPN legitimately makes a device go quiet from the router's view, so that alert would otherwise fire constantly).
+**Pause everyone** only ever stops **Personal** devices, so your router, NAS, printer, and smart-home essentials stay online. **Custom groups** (Kids / TVs / Phones…) may contain Personal, Smart, and Work devices — so you *can* group and pause the TVs — but never Admin or Infrastructure. A doorbell or router can never be added to a group.
+
+**Work Device** is for a laptop or phone that lives on a corporate VPN and does heavy video conferencing. It's filtered exactly like every other device — setting this role does **not** disable any blocking. What it does do is keep the device out of the **Pause everyone** action and automatically exempt it from the "activity drop / possible VPN" alert (a VPN legitimately makes a device go quiet from the router's view, so that alert would otherwise fire constantly).
 
 ---
 
