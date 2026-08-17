@@ -494,6 +494,7 @@ def build_header(subtitle="Light for your home network", config=None):
         f'<a href="/notifications">{_ic("bell",16)}Notifications</a>'
         f'<a href="/social">{_ic("users",16)}Social</a>'
         f'<a href="/blocked-services">{_ic("shield",16)}Services</a>'
+        f'<a href="/groups">{_ic("grid",16)}Device Groups</a>'
         '</div></div>'
         '</nav>'
         '<div class="header-actions"><a class="header-link signout" href="/logout">Sign Out</a></div>'
@@ -514,6 +515,7 @@ def build_header(subtitle="Light for your home network", config=None):
         f'<a href="/notifications">{_ic("bell",16)}Notifications</a>'
         f'<a href="/social">{_ic("users",16)}Social</a>'
         f'<a href="/blocked-services">{_ic("shield",16)}Services</a>'
+        f'<a href="/groups">{_ic("grid",16)}Device Groups</a>'
         '<a href="/logout" class="signout">Sign Out</a>'
         '</nav>'
         '<script>'
@@ -3954,19 +3956,127 @@ def _build_health_card():
     )
 
 
-def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg=""):
-    saved_html = f'<div class="success" style="margin:12px 16px 0">{saved_msg}</div>' if saved_msg else ""
-    ss_badge = (
-        f'<div style="margin:0 16px 4px;padding:10px 14px;background:#e6f4f0;border-radius:8px;'
-        f'font-size:0.82em;color:#1d9e75;font-weight:600">'
-        f'&#x1F50D; Safe search is <strong>on</strong> — Google, Bing &amp; YouTube return restricted results. '
-        f'Change it on the <a href="/social" style="color:#1d9e75;text-decoration:underline">Social page</a>.</div>'
-    ) if ss_on else (
-        f'<div style="margin:0 16px 4px;padding:10px 14px;background:#f1f5f9;border-radius:8px;'
-        f'font-size:0.82em;color:#64748b">'
-        f'&#x1F50D; Safe search is <strong>off</strong>. '
-        f'Turn it on from the <a href="/social" style="color:#e8a000;font-weight:600">Social page</a>.</div>'
+def _group_pause_picker(gname):
+    """The 30/60/today/off pause menu for a whole group."""
+    from urllib.parse import quote as _q
+    base = f'/group/pause?name={_q(gname)}'
+    return (
+        '<details class="pmenu"><summary><span class="pchip">&#x23F8; Pause group</span></summary>'
+        '<div class="pmenu-pop"><div class="phdr">Pause this group for&hellip;</div>'
+        f'<a href="{base}&for=30">30 minutes</a>'
+        f'<a href="{base}&for=60">1 hour</a>'
+        f'<a href="{base}&for=today">Rest of today <small>till morning</small></a>'
+        f'<a href="{base}&for=off">Until I turn it back on</a>'
+        '</div></details>'
     )
+
+
+def build_groups_page(config, all_devices, saved=False):
+    """Opt-in device groups: a named bag of devices a parent can pause together
+    in one tap. Handles the shared workstation / shared tablet case without
+    inventing a 'person'. Off by default; the whole page hides behind the toggle."""
+    enabled   = config.get("groups_enabled", False)
+    groups    = config.get("groups", {}) or {}
+    saved_html = '<div class="success" style="margin:12px 16px 0">&#x2705; Saved</div>' if saved else ""
+    devs = sorted(
+        [d for d in all_devices if not is_infrastructure(d["client_name"], config)],
+        key=lambda d: label(d["client_name"], config).lower(),
+    )
+
+    toggle_card = (
+        '<div class="section">'
+        '<h2>&#x1F465; Device groups</h2>'
+        '<div style="font-size:0.86em;color:#6b6b6b;margin:6px 0 14px;line-height:1.55">'
+        'Group a few devices you name yourself &mdash; like &ldquo;Kids&rdquo; &mdash; so you can pause them '
+        'all in one tap. Handy for a shared workstation or tablet. Totally optional, and off unless you turn it on.</div>'
+        '<form method="POST" action="/groups/toggle">'
+        '<label style="display:flex;align-items:center;gap:10px;cursor:pointer">'
+        f'<input type="checkbox" name="groups_enabled" {"checked" if enabled else ""} onchange="this.form.submit()" style="width:18px;height:18px;accent-color:#e8a000">'
+        '<span style="font-weight:700;color:#1a1a1a">Enable device groups</span></label>'
+        '</form></div>'
+    )
+
+    body = toggle_card
+    if enabled:
+        for gname, members in groups.items():
+            members = members or []
+            enc_g   = quote(gname)
+            chips   = ""
+            for d in devs:
+                cn  = d["client_name"]
+                chk = "checked" if cn in members else ""
+                chips += (
+                    '<label style="display:inline-flex;align-items:center;gap:7px;border:1.5px solid #e8e6e0;'
+                    'border-radius:10px;padding:7px 11px;cursor:pointer;font-size:0.85em;font-weight:600;color:#3a3a3a">'
+                    f'<input type="checkbox" name="member" value="{cn}" {chk} style="width:15px;height:15px;accent-color:#e8a000">'
+                    f'<span>{label(cn, config)}</span></label>'
+                )
+            if not chips:
+                chips = '<span style="color:#94a3b8;font-size:0.85em">No devices seen yet.</span>'
+            count = sum(1 for d in devs if d["client_name"] in members)
+            body += (
+                '<div class="section">'
+                '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:4px">'
+                f'<h2 style="margin:0">{gname} <span style="font-size:0.6em;color:#94a3b8;font-weight:600">{count} device{"s" if count != 1 else ""}</span></h2>'
+                '<div style="display:flex;gap:8px;align-items:center">'
+                f'{_group_pause_picker(gname)}'
+                f'<a href="/group/unpause?name={enc_g}" class="btn btn-secondary" style="font-size:0.78em;padding:6px 12px">&#x25B6; Resume</a>'
+                '</div></div>'
+                '<form method="POST" action="/groups/members">'
+                f'<input type="hidden" name="name" value="{gname}">'
+                '<div style="font-size:0.7em;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;font-weight:700;margin:10px 0 8px">Devices in this group</div>'
+                f'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">{chips}</div>'
+                '<button type="submit" class="btn" style="font-size:0.85em;padding:8px 16px">Save devices</button>'
+                '</form>'
+                '<form method="POST" action="/groups/delete" style="margin-top:8px">'
+                f'<input type="hidden" name="name" value="{gname}">'
+                f'<button type="submit" class="btn btn-secondary" style="font-size:0.74em;padding:5px 11px;color:#dc2626" '
+                f'onclick="return confirm(\'Delete the group &quot;{gname}&quot;? Its devices are not affected.\')">Delete group</button>'
+                '</form></div>'
+            )
+        body += (
+            '<div class="section">'
+            '<h2 style="font-size:1.05em">Create a group</h2>'
+            '<form method="POST" action="/groups/create" style="display:flex;gap:8px;margin-top:10px">'
+            '<input type="text" name="name" placeholder="e.g. Kids" maxlength="40" required style="flex:1">'
+            '<button type="submit" class="btn">Create</button></form></div>'
+        )
+
+    return (
+        '<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg"><meta charset="UTF-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1.0">'
+        f'<title>Device Groups - Lantern Watch</title><style>{CSS}</style></head><body>'
+        + build_header("Device groups", config=config)
+        + '<div class="page-wrap">' + saved_html + body + '</div></body></html>'
+    )
+
+
+def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg="", yt_on=None):
+    saved_html = f'<div class="success" style="margin:12px 16px 0">{saved_msg}</div>' if saved_msg else ""
+    # Three honest states: fully on, on-for-search-but-YouTube-comments-allowed
+    # (the common Moderate default), or off. yt_on=None (unknown) falls back to
+    # the plain on/off wording.
+    if ss_on and yt_on is False:
+        ss_badge = (
+            f'<div style="margin:0 16px 4px;padding:10px 14px;background:#fffbf0;border:1px solid #f3e3b8;border-radius:8px;'
+            f'font-size:0.82em;color:#b45309;font-weight:600">'
+            f'&#x1F50D; Safe search is <strong>on</strong> for Google &amp; Bing, but <strong>off for YouTube</strong> &mdash; comments are allowed. '
+            f'Change it on the <a href="/social" style="color:#b45309;text-decoration:underline">Social page</a>.</div>'
+        )
+    elif ss_on:
+        ss_badge = (
+            f'<div style="margin:0 16px 4px;padding:10px 14px;background:#e6f4f0;border-radius:8px;'
+            f'font-size:0.82em;color:#1d9e75;font-weight:600">'
+            f'&#x1F50D; Safe search is <strong>on</strong> — Google, Bing &amp; YouTube return restricted results. '
+            f'Change it on the <a href="/social" style="color:#1d9e75;text-decoration:underline">Social page</a>.</div>'
+        )
+    else:
+        ss_badge = (
+            f'<div style="margin:0 16px 4px;padding:10px 14px;background:#f1f5f9;border-radius:8px;'
+            f'font-size:0.82em;color:#64748b">'
+            f'&#x1F50D; Safe search is <strong>off</strong>. '
+            f'Turn it on from the <a href="/social" style="color:#e8a000;font-weight:600">Social page</a>.</div>'
+        )
 
     if True:
         from adguard import (AGH_SERVICE_GROUPS, CATEGORY_PACKS,

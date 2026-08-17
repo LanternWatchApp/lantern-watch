@@ -49,6 +49,13 @@ DEFAULTS = {
     "ntfy_topic": "",
     "extra_topics": "",
     "devices": {},
+    # Optional device groups (a named bag of devices you can pause together, e.g.
+    # "Kids"). OFF by default — a business or a "just keep it safe" parent never
+    # sees it. When on, groups appear on the dashboard with a pause picker.
+    # Membership is by device client_name (stable hostname); pause itself is still
+    # MAC-based so it follows the device. { "Kids": ["Chromebook", "Workstation-1"] }
+    "groups_enabled": False,
+    "groups": {},
     "adguard": {
         "url": "http://127.0.0.1:3000",
         "username": "",

@@ -33,7 +33,7 @@ from pages import (
     build_main, build_detail, build_domain_detail, build_schedule_page,
     build_social, build_findhelp, build_blocked_page, build_portal_page,
     build_devices_page, build_admin,
-    build_notifications, build_querylog_page, build_blocked_services_page,
+    build_notifications, build_querylog_page, build_blocked_services_page, build_groups_page,
     _demo, _FAVICON_SVG,
 )
 
@@ -434,6 +434,10 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     html = build_admin(config, adguard_applied=True)
 
+            elif parsed.path == "/groups":
+                saved = "saved" in parse_qs(parsed.query)
+                html  = build_groups_page(config, get_all_known_devices(), saved)
+
             elif parsed.path == "/blocked-services":
                 # Keep the two AdGuard calls independent so a safe-search hiccup can't
                 # blank the service list, and retry once if the catalog comes back
@@ -446,11 +450,14 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:
                     all_svcs, blocked_ids = [], set()
                 try:
-                    ss_on = get_safesearch_status(config).get("enabled", False)
+                    _ss   = get_safesearch_status(config)
+                    ss_on = bool(_ss.get("enabled"))
+                    yt_on = bool(_ss.get("youtube"))
                 except Exception:
-                    ss_on = False
+                    ss_on = yt_on = False
                 saved = "saved" in parse_qs(parsed.query)
-                html = build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg="&#x2705; Saved!" if saved else "")
+                html = build_blocked_services_page(all_svcs, blocked_ids, ss_on, config,
+                                                   saved_msg="&#x2705; Saved!" if saved else "", yt_on=yt_on)
 
             elif parsed.path == "/admin/clear":
                 html = build_admin(config, confirm_clear=True)
@@ -533,6 +540,33 @@ class Handler(BaseHTTPRequestHandler):
                         None,
                     )
                     if matched is None or is_pauseable(matched, config):
+                        unpause_device(ip, config)
+                        config = load_config()
+                self._redirect("/")
+                return
+
+            elif parsed.path == "/group/pause":
+                params  = parse_qs(parsed.query)
+                gname   = unquote(params.get("name", [""])[0])
+                until   = _pause_until(params.get("for", ["off"])[0])
+                members = set(config.get("groups", {}).get(gname, []))
+                if members:
+                    name_to_ip = {d["client_name"]: d["client_ip"] for d in get_all_known_devices()}
+                    for cname in members:
+                        ip = name_to_ip.get(cname, "")
+                        if ip and ip not in config.get("paused_devices", {}):
+                            pause_device(ip, label(cname, config), config, until=until)
+                            config = load_config()
+                self._redirect("/")
+                return
+
+            elif parsed.path == "/group/unpause":
+                gname   = unquote(parse_qs(parsed.query).get("name", [""])[0])
+                members = set(config.get("groups", {}).get(gname, []))
+                name_to_ip = {d["client_name"]: d["client_ip"] for d in get_all_known_devices()}
+                member_ips = {name_to_ip.get(c, "") for c in members}
+                for ip in list(config.get("paused_devices", {}).keys()):
+                    if ip in member_ips:
                         unpause_device(ip, config)
                         config = load_config()
                 self._redirect("/")
@@ -1172,6 +1206,41 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps(resp).encode())
+                return
+
+            # ── Device groups (opt-in) ──────────────────────────────────────────
+            elif parsed.path == "/groups/toggle":
+                config["groups_enabled"] = "groups_enabled" in params
+                save_config(config)
+                self._redirect("/groups")
+                return
+
+            elif parsed.path == "/groups/create":
+                name = params.get("name", [""])[0].strip()[:40]
+                if name:
+                    groups = config.setdefault("groups", {})
+                    groups.setdefault(name, [])
+                    save_config(config)
+                self._redirect("/groups")
+                return
+
+            elif parsed.path == "/groups/delete":
+                name   = params.get("name", [""])[0]
+                groups = config.get("groups", {})
+                if name in groups:
+                    del groups[name]
+                    save_config(config)
+                self._redirect("/groups")
+                return
+
+            elif parsed.path == "/groups/members":
+                # Save a group's device list from the checkbox form.
+                name = params.get("name", [""])[0]
+                groups = config.get("groups", {})
+                if name in groups:
+                    groups[name] = params.get("member", [])
+                    save_config(config)
+                self._redirect("/groups")
                 return
 
             elif parsed.path == "/notifications/save":
