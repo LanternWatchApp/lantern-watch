@@ -645,8 +645,9 @@ class Handler(BaseHTTPRequestHandler):
             # ── Wizard step 3b — block specific apps/services ────────────────────
             elif parsed.path == "/setup/services":
                 from adguard import get_blocked_services, set_blocked_services
-                from pages import _WIZARD_SERVICE_GROUPS
-                curated = {sid for _t, ids in _WIZARD_SERVICE_GROUPS for sid in ids}
+                from pages import _WIZARD_SERVICE_GROUPS, _WIZARD_MATURE_SERVICE_GROUPS
+                curated = {sid for _t, ids in (_WIZARD_SERVICE_GROUPS + _WIZARD_MATURE_SERVICE_GROUPS)
+                           for sid in ids}
                 selected = set(params.get("svc", []))
                 try:
                     # Preserve anything blocked outside our curated shortlist (set

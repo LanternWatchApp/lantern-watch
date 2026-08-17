@@ -19,6 +19,16 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.17.3] — 2026-08-17
+
+### Changed
+- **The wizard's "Mature & adult-adjacent" block now sits at the top** of the
+  Apps & Services step, and gained two more groups: **Dating & adult** (Tinder,
+  OnlyFans, Plenty of Fish) and **Gambling** (Betano, Betfair, Betway, Blaze).
+- Renamed the lingerie/swim retailers option to **"Retailers (Lingerie & Swim)"**.
+- Reworded the step's intro to note you can change any of it per-device later
+  under Services.
+
 ## [0.17.2] — 2026-08-17
 
 ### Changed

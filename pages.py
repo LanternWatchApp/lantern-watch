@@ -1222,11 +1222,18 @@ _WIZARD_SERVICE_GROUPS = [
 # ask for. Each maps to a CATEGORY_PACKS key in adguard.py; ticking it blocks the
 # entire pack. (display label, CATEGORY_PACKS key)
 _WIZARD_PACK_GROUPS = [
-    ("Lingerie",                     "Lingerie"),
-    ("Swimwear",                     "Swimwear"),
-    ("Lingerie &amp; swim retailers", "Retailers (Lingerie & Swim)"),
-    ("Alcohol, vaping &amp; cannabis", "Alcohol, Vaping & Cannabis"),
-    ("Weapons &amp; tactical",       "Weapons & Tactical"),
+    ("Lingerie",                       "Lingerie"),
+    ("Swimwear",                       "Swimwear"),
+    ("Retailers (Lingerie &amp; Swim)", "Retailers (Lingerie & Swim)"),
+    ("Alcohol, vaping &amp; cannabis",  "Alcohol, Vaping & Cannabis"),
+    ("Weapons &amp; tactical",         "Weapons & Tactical"),
+]
+
+# AdGuard-service groups that belong with the mature section (rendered up top).
+# These use AdGuard's Blocked Services (name="svc"), like the general groups.
+_WIZARD_MATURE_SERVICE_GROUPS = [
+    ("&#x1F49E; Dating &amp; adult", ["tinder", "onlyfans", "plenty_of_fish"]),
+    ("&#x1F3B0; Gambling",           ["betano", "betfair", "betway", "blaze"]),
 ]
 
 
@@ -1242,8 +1249,8 @@ def get_services_wizard_page(config):
         all_svcs, blocked = [], set()
     names = {s["id"]: s["name"] for s in all_svcs}
 
-    groups_html = ""
-    for title, ids in _WIZARD_SERVICE_GROUPS:
+    def _svc_group(title, ids):
+        """One .grp box of AdGuard-service checkboxes (only IDs the catalog has)."""
         rows = ""
         for sid in ids:
             if sid not in names:
@@ -1253,16 +1260,12 @@ def get_services_wizard_page(config):
                 f'<label class="svc"><input type="checkbox" name="svc" value="{sid}" {chk}>'
                 f'<span>{names[sid]}</span></label>'
             )
-        if rows:
-            groups_html += f'<div class="grp"><div class="grp-h">{title}</div><div class="grp-b">{rows}</div></div>'
+        if not rows:
+            return ""
+        return f'<div class="grp"><div class="grp-h">{title}</div><div class="grp-b">{rows}</div></div>'
 
-    if not groups_html:
-        # AGH unreachable / empty catalog — don't strand the user mid-wizard.
-        groups_html = ('<div class="grp"><div class="grp-b" style="padding:14px;color:#94a3b8;'
-                       'font-size:0.85em">Couldn\'t reach the service list right now. You can set '
-                       'this up anytime from <b>Blocked Services</b> in the dashboard.</div></div>')
-
-    # Mature / adult-adjacent category packs (whole-category toggles).
+    # Mature / adult-adjacent, FIRST: curated packs (whole-category toggles) plus
+    # the dating & gambling service groups.
     try:
         from adguard import CATEGORY_PACKS, get_blocked_pack_domains
         blocked_pack = set(get_blocked_pack_domains(config))
@@ -1284,6 +1287,17 @@ def get_services_wizard_page(config):
     if pack_rows:
         packs_html = ('<div class="grp"><div class="grp-h">&#x1F459; Mature &amp; adult-adjacent</div>'
                       f'<div class="grp-b">{pack_rows}</div></div>')
+
+    mature_svc_html = "".join(_svc_group(t, ids) for t, ids in _WIZARD_MATURE_SERVICE_GROUPS)
+    general_html    = "".join(_svc_group(t, ids) for t, ids in _WIZARD_SERVICE_GROUPS)
+
+    # Mature block up top (packs, then dating, then gambling), general groups after.
+    groups_html = packs_html + mature_svc_html + general_html
+    if not groups_html:
+        # AGH unreachable / empty catalog — don't strand the user mid-wizard.
+        groups_html = ('<div class="grp"><div class="grp-b" style="padding:14px;color:#94a3b8;'
+                       'font-size:0.85em">Couldn\'t reach the service list right now. You can set '
+                       'this up anytime from <b>Blocked Services</b> in the dashboard.</div></div>')
 
     page = ("""<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -1313,17 +1327,16 @@ h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-ali
   <div class="step-badge">Apps &amp; services</div>
   <div class="icon">&#x1F6AB;</div>
   <h1>Block specific apps</h1>
-  <p class="sub">Tick anything you'd like blocked for the whole home. Leave it all unticked to allow everything &mdash; you can change this per-device later.</p>
+  <p class="sub">Tick anything you'd like blocked for the whole home. Leave it all unticked to allow everything &mdash; you can change this per-device later under Services.</p>
   <p class="note">Social media is handled by your filtering level. These are extra apps &amp; services.</p>
   <form method="POST" action="/setup/services">
     __GROUPS__
-    __PACKS__
     <button type="submit" class="btn">Continue</button>
   </form>
   <a class="skip" href="/setup/services?skip=1">Skip &mdash; allow everything</a>
 </div>
 </body></html>""")
-    return page.replace("__GROUPS__", groups_html).replace("__PACKS__", packs_html)
+    return page.replace("__GROUPS__", groups_html)
 
 
 _LOGO_B64 = (
