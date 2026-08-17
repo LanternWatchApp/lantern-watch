@@ -237,6 +237,14 @@ def is_pauseable(name, config):
     return effective_type(name, config) == "person"
 
 
+def is_groupable(name, config):
+    """Return True if a device may belong to a custom group (and be paused via one).
+    Everything EXCEPT Admin devices and Infrastructure (routers/NAS/printers), so a
+    parent can group TVs/phones/laptops but can never knock out the network's spine.
+    'Pause everyone' still only ever hits Personal (is_pauseable) — the safe default."""
+    return effective_type(name, config) in ("person", "smart_device", "work_device")
+
+
 def is_monitored(name, config):
     """Return True if the device should appear in the dashboard."""
     devices = config.get("devices", {})

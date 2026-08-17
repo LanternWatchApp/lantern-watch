@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote, unquote
 
-from config import load_config, save_config, label, is_first_run, is_pauseable, VERSION, UPDATE_CHECK_URL, UPDATE_RELEASES_URL, is_newer_version, router_lan_ip, dashboard_url
+from config import load_config, save_config, label, is_first_run, is_pauseable, is_groupable, VERSION, UPDATE_CHECK_URL, UPDATE_RELEASES_URL, is_newer_version, router_lan_ip, dashboard_url
 import recovery
 from adguard import (apply_social_profile, clear_social_blocking, get_adguard_stats,
                      apply_adguard_setup, get_adguard_setup_status, RECOMMENDED_LISTS,
@@ -380,6 +380,7 @@ class Handler(BaseHTTPRequestHandler):
                 html = build_devices_page(config,
                                           redetect=_q.get("redetect", ["0"])[0] == "1",
                                           autoname=_q.get("autoname", ["0"])[0] == "1",
+                                          autogroup=_q.get("autogroup", ["0"])[0] == "1",
                                           sort=_q.get("sort", ["name"])[0],
                                           flt=_q.get("flt", [""])[0])
 
@@ -545,10 +546,10 @@ class Handler(BaseHTTPRequestHandler):
                 params  = parse_qs(parsed.query)
                 gname   = unquote(params.get("name", [""])[0])
                 until   = _pause_until(params.get("for", ["off"])[0])
-                # Members = Personal devices tagged into this group. is_pauseable
-                # guarantees only person-type devices — never Admin/Smart/Infra.
+                # Members = devices tagged into this group. is_groupable allows
+                # Personal/Smart/Work but never Admin or Infrastructure (router/NAS).
                 members = [n for n, d in config.get("devices", {}).items()
-                           if d.get("group") == gname and is_pauseable(n, config)]
+                           if d.get("group") == gname and is_groupable(n, config)]
                 if members:
                     name_to_ip = {d["client_name"]: d["client_ip"] for d in get_all_known_devices()}
                     for cname in members:
@@ -1039,7 +1040,7 @@ class Handler(BaseHTTPRequestHandler):
                         # Group tag — only meaningful for Personal devices; dropped
                         # otherwise so a smart device / router can never be grouped.
                         grp = params.get(f"group_{enc_name}", [""])[0].strip()
-                        if grp and grp in valid_groups and devices[name]["type"] == "person":
+                        if grp and grp in valid_groups and devices[name]["type"] in ("person", "smart_device", "work_device"):
                             devices[name]["group"] = grp
                         else:
                             devices[name].pop("group", None)

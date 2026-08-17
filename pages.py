@@ -3553,7 +3553,22 @@ def _short_vendor(v):
     return v
 
 
-def build_devices_page(config, saved=False, redetect=False, autoname=False, sort="name", flt=""):
+# Auto-group maps a detected device KIND to a suggested entertainment group. Only
+# screen/entertainment devices are ever suggested — appliances (doorbell, camera,
+# speaker, printer, NAS, router, thermostat, garage opener) map to nothing and are
+# never auto-grouped, so the essentials stay untouchable.
+_KIND_TO_GROUP = {
+    "phone":             "Phones",
+    "tablet":            "Tablets",
+    "laptop":            "Computers",
+    "computer":          "Computers",
+    "game console":      "Games",
+    "smart TV":          "TVs",
+    "streaming device":  "TVs",
+}
+
+
+def build_devices_page(config, saved=False, redetect=False, autoname=False, autogroup=False, sort="name", flt=""):
     # Only devices active in the last DEVICE_ACTIVE_HOURS; a stale device is hidden,
     # not deleted — it (and any saved name) returns the moment it's seen again.
     all_devices  = get_all_known_devices(active_hours=DEVICE_ACTIVE_HOURS, include_idle=False)
@@ -3617,6 +3632,22 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + '</div>'
     )
 
+    # Auto-group pre-pass: suggest an entertainment group for each groupable device
+    # from its kind. Nothing is saved — the suggestions just prefill the form for
+    # the parent to review, exactly like Auto-name.
+    _autogroup_map, _autogroup_names = {}, set()
+    if autogroup:
+        for d in all_devices:
+            nm = d["client_name"]
+            if effective_type(nm, config) not in ("person", "smart_device", "work_device"):
+                continue
+            ki = device_kind(nm, cfg_devices.get(nm, {}).get("label", ""),
+                             device_identity(nm), top_domains_map.get(nm, []))
+            grp = _KIND_TO_GROUP.get(ki or "")
+            if grp:
+                _autogroup_map[nm] = grp
+                _autogroup_names.add(grp)
+
     for d in all_devices:
         name        = d["client_name"]
         cfg         = cfg_devices.get(name, {})
@@ -3670,11 +3701,13 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         sel_smart   = "selected" if cur_type == "smart_device"   else ""
         sel_work    = "selected" if cur_type == "work_device"    else ""
         mc          = "checked"  if cur_monitor                  else ""
-        # Optional custom group — only Personal devices can belong to one.
-        _custom_groups = config.get("custom_groups", [])
+        # Optional custom group — Personal, Smart and Work devices can belong to one
+        # (never Admin or Infrastructure, so the router/NAS can't be grouped/paused).
+        # In auto-group review mode, the suggested groups + assignment prefill here.
+        _custom_groups = sorted(_autogroup_names) if autogroup else config.get("custom_groups", [])
+        _cg            = _autogroup_map.get(name, "") if autogroup else cfg.get("group", "")
         group_select   = ""
-        if _custom_groups and cur_type == "person":
-            _cg   = cfg.get("group", "")
+        if _custom_groups and cur_type in ("person", "smart_device", "work_device"):
             _opts = '<option value="">— none —</option>' + "".join(
                 f'<option value="{g}" {"selected" if _cg == g else ""}>{g}</option>'
                 for g in _custom_groups)
@@ -3791,12 +3824,14 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
   </div></div>"""
 
     saved_msg = '<div class="success">Saved!</div>' if saved else ""
-    if redetect or autoname:
-        _what = "types" if redetect else "names"
+    if redetect or autoname or autogroup:
+        _what = "types" if redetect else ("names" if autoname else "groups")
+        _extra = (' We only ever suggest groups for phones, tablets, computers, TVs and consoles — '
+                  'never a doorbell, camera or appliance.') if autogroup else ''
         redetect_controls = (
             '<div style="margin-bottom:14px;padding:12px 14px;background:#fffbf0;border:1px solid #f3e3b8;'
             'border-radius:10px;color:#8a6d00;font-size:0.85em">'
-            f'&#x1F504; <b>Suggested {_what} are shown below — nothing is saved yet.</b> '
+            f'&#x1F504; <b>Suggested {_what} are shown below — nothing is saved yet.</b>{_extra} '
             'Review them, then tap <b>Save All Devices</b> to apply, or '
             '<a href="/admin/devices" style="color:#e8a000;font-weight:700">cancel</a>.</div>'
         )
@@ -3807,7 +3842,9 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
             'style="width:auto;padding:8px 16px;font-size:0.85em;margin-bottom:0">&#x1F504; Re-detect all types</a>'
             '<a href="/admin/devices?autoname=1" class="btn btn-secondary" '
             'style="width:auto;padding:8px 16px;font-size:0.85em;margin-bottom:0">&#x1F3F7;&#xFE0F; Auto-name devices</a>'
-            '<span style="color:#94a3b8;font-size:0.78em">Suggest a type or a name for every device from its hostname &amp; maker — you review before saving.</span>'
+            '<a href="/admin/devices?autogroup=1" class="btn btn-secondary" '
+            'style="width:auto;padding:8px 16px;font-size:0.85em;margin-bottom:0">&#x1F465; Auto-group devices</a>'
+            '<span style="color:#94a3b8;font-size:0.78em">Suggest a type, a name, or entertainment groups (Phones, TVs&hellip;) for every device — you review before saving.</span>'
             '</div>'
         )
     return (
@@ -3843,11 +3880,13 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + ('<div class="form-card" style="margin-bottom:12px">'
            '<div class="form-label" style="font-weight:700;color:#1a1a1a;font-size:0.92em">&#x1F465; Custom groups (optional)</div>'
            '<div style="color:#64748b;font-size:0.82em;margin:4px 0 10px;line-height:1.5">'
-           'Name a few groups for your <b>Personal</b> devices &mdash; like <i>Kids, Teens</i>. After you save, each Personal '
-           'device gets a <b>Group</b> menu below, and the dashboard lets you pause a whole group in one tap. '
-           'Leave blank if you don&rsquo;t need it &mdash; Admin, Smart and Infrastructure devices are never grouped or paused.</div>'
-           f'<input type="text" name="custom_groups" value="{", ".join(config.get("custom_groups", []))}" placeholder="e.g. Kids, Teens" style="width:100%">'
-           '</div>')
+           'Name a few groups &mdash; like <i>Kids, TVs, Phones</i> &mdash; then tap <b>Save groups</b>. Each groupable device then gets '
+           'a <b>Group</b> menu below, and the dashboard lets you pause a whole group in one tap. To remove a group, delete its '
+           'name here and save; to take a device out of a group, set its menu back to <i>&mdash; none &mdash;</i>.</div>'
+           '<div style="display:flex;gap:10px;align-items:stretch">'
+           f'<input type="text" name="custom_groups" value="{", ".join(sorted(_autogroup_names) if autogroup else config.get("custom_groups", []))}" placeholder="e.g. Kids, TVs, Phones" style="flex:1;min-width:0">'
+           '<button type="submit" class="btn" style="width:auto;flex:none;margin:0;padding:12px 22px">Save groups</button>'
+           '</div></div>')
         + f'{rows_html}'
         + f'<button type="submit" class="btn">Save All Devices</button></form></div>'
         + '<script>'
