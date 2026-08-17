@@ -49,6 +49,12 @@ DEFAULTS = {
     "ntfy_topic": "",
     "extra_topics": "",
     "devices": {},
+    # Optional custom groups — sub-categories of Personal devices a parent can
+    # name on the Devices page (e.g. "Kids", "Teens") to pause a subset together.
+    # This is just a list of names; each device's membership is a tag on the device
+    # itself (devices[name]["group"]). Empty by default, so it's invisible until a
+    # parent adds one. Only Personal devices are ever groupable/pauseable.
+    "custom_groups": [],
     "adguard": {
         "url": "http://127.0.0.1:3000",
         "username": "",
@@ -229,6 +235,14 @@ def is_infrastructure(name, config):
 def is_pauseable(name, config):
     """Return True if the device should be included in Pause All Personal."""
     return effective_type(name, config) == "person"
+
+
+def is_groupable(name, config):
+    """Return True if a device may belong to a custom group (and be paused via one).
+    Everything EXCEPT Admin devices and Infrastructure (routers/NAS/printers), so a
+    parent can group TVs/phones/laptops but can never knock out the network's spine.
+    'Pause everyone' still only ever hits Personal (is_pauseable) — the safe default."""
+    return effective_type(name, config) in ("person", "smart_device", "work_device")
 
 
 def is_monitored(name, config):

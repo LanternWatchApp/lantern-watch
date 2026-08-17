@@ -10,7 +10,7 @@ import urllib.request
 from datetime import datetime
 from urllib.parse import quote
 
-from config import label, is_infrastructure, is_monitored, is_pauseable, effective_type, VERSION, dashboard_url
+from config import label, is_infrastructure, is_monitored, is_pauseable, is_groupable, effective_type, VERSION, dashboard_url
 from adguard import get_adguard_stats, PLATFORM_DOMAINS, PROFILE_SAFE_SEARCH, get_ip_hostname_map, pretty_hostname
 from db import (
     get_stats, get_device_detail, get_domain_detail,
@@ -173,6 +173,18 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;accent-color:var(-
 .btn-secondary:hover{background:var(--amber-soft);border-color:var(--orange)}
 .btn-danger{background:var(--bg-card);border:1px solid #f0bcbc;color:var(--danger);box-shadow:none}
 .btn-danger:hover{background:#fdeaea}
+/* Pause duration picker (a no-JS <details> popover) */
+.pmenu{position:relative;display:inline-block}
+.pmenu>summary{list-style:none;cursor:pointer;display:inline-flex}
+.pmenu>summary::-webkit-details-marker{display:none}
+.pchip{background:#FEE2E2;color:#DC6B5F;padding:3px 10px;border-radius:99px;font-size:0.75em;font-weight:700;border:1px solid #FCA5A5;white-space:nowrap}
+.pmenu[open]>summary .pchip{background:#DC6B5F;color:#fff;border-color:#DC6B5F}
+.pmenu-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:60;background:var(--bg-card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(26,26,26,.15);padding:6px;min-width:196px;display:flex;flex-direction:column;gap:1px;text-align:left}
+.pmenu-pop .phdr{font-size:0.66em;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:6px 12px 5px;font-weight:700}
+.pmenu-pop a{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 12px;border-radius:8px;font-size:0.84em;font-weight:600;color:var(--ink);text-decoration:none}
+.pmenu-pop a small{color:var(--muted);font-weight:500;font-size:0.82em}
+.pmenu-pop a:hover{background:#FEE2E2;color:var(--danger)}
+.pmenu-pop a:hover small{color:var(--danger)}
 .success{margin:0 0 12px;padding:14px;background:#eaf7ef;border:1px solid #b5e2c5;border-radius:12px;color:var(--ok);text-align:center;font-weight:700}
 .tag{display:inline-block;padding:2px 10px;border-radius:99px;font-size:0.8em;font-weight:600;margin-right:4px}
 .tag-gold{background:var(--amber-soft);color:var(--orange-dark)}
@@ -2273,18 +2285,36 @@ def make_card(d, screen_times, max_queries, config, ip_hostnames=None):
     else:
         schedule_info = ""
 
-    # Pause button
+    # Pause button — a duration picker when running, a clear "paused until…"
+    # state when paused. Timed pauses auto-resume; open-ended ones wait for a tap.
     if is_paused:
+        pinfo     = paused.get(client_ip, {}) or {}
+        until_txt = ""
+        if pinfo.get("until") and not pinfo.get("scheduled"):
+            try:
+                _u = datetime.fromisoformat(pinfo["until"])
+                _h = _u.hour % 12 or 12
+                until_txt = f" until {_h}:{_u.minute:02d} {'AM' if _u.hour < 12 else 'PM'}"
+            except Exception:
+                until_txt = ""
         pause_btn  = (f'<a href="/device/unpause?ip={quote(client_ip)}&name={enc}">'
                       f'<span style="background:#FEF3C7;color:#D97706;padding:3px 10px;border-radius:99px;'
                       f'font-size:0.75em;font-weight:700;border:1px solid #F4B942">'
-                      f'&#x23F5; Paused - Tap to Resume</span></a>')
+                      f'&#x23F5; Paused{until_txt} &middot; Resume</span></a>')
         card_style = "background:#FFFBF0;border-color:#F4B942"
     else:
-        pause_btn  = (f'<a href="/device/pause?ip={quote(client_ip)}&name={enc}">'
-                      f'<span style="background:#FEE2E2;color:#DC6B5F;padding:3px 10px;border-radius:99px;'
-                      f'font-size:0.75em;font-weight:700;border:1px solid #FCA5A5">'
-                      f'&#x23F8; Pause</span></a>')
+        _pbase    = f'/device/pause?ip={quote(client_ip)}&name={enc}'
+        pause_btn = (
+            '<details class="pmenu">'
+            '<summary><span class="pchip">&#x23F8; Pause</span></summary>'
+            '<div class="pmenu-pop">'
+            '<div class="phdr">Pause this device for&hellip;</div>'
+            f'<a href="{_pbase}&for=30">30 minutes</a>'
+            f'<a href="{_pbase}&for=60">1 hour</a>'
+            f'<a href="{_pbase}&for=today">Rest of today <small>till morning</small></a>'
+            f'<a href="{_pbase}&for=off">Until I turn it back on</a>'
+            '</div></details>'
+        )
         card_style = ""
 
     return (
@@ -2493,16 +2523,67 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
     pauseable    = [d for d in people if is_pauseable(d["client_name"], config)]
     kids_paused  = sum(1 for d in pauseable if d["client_ip"] in paused)
     kids_total   = len(pauseable)
-    pause_label  = f"Pause All Personal ({kids_total - kids_paused} online)" if kids_total - kids_paused else "Pause All Personal"
-    resume_label = f"Resume All Personal ({kids_paused} paused)" if kids_paused else "Resume All Personal"
-    pause_dim    = "" if kids_total - kids_paused else "opacity:0.4;pointer-events:none;"
-    resume_dim   = "" if kids_paused             else "opacity:0.4;pointer-events:none;"
-    pause_bar    = (
-        f'<div style="display:flex;gap:10px;margin-bottom:16px">'
-        f'<a href="/pause_all" class="btn btn-danger" style="flex:1;text-align:center;{pause_dim}">&#x1F507; {pause_label}</a>'
-        f'<a href="/unpause_all" class="btn btn-secondary" style="flex:1;text-align:center;{resume_dim}">&#x25B6; {resume_label}</a>'
-        f'</div>'
+    resume_label = f"Resume everyone ({kids_paused} paused)" if kids_paused else "Resume everyone"
+    resume_dim   = "" if kids_paused else "opacity:0.4;pointer-events:none;"
+
+    def _pause_picker(label_txt, base, online):
+        """A red pause button that opens the 30/60/today/off duration menu, or a
+        dimmed button when there's nobody online to pause. `base` is the pause URL
+        (everyone = /pause_all, a group = /group/pause?name=…)."""
+        if not online:
+            return (f'<span class="btn btn-danger" style="flex:1;text-align:center;'
+                    f'opacity:0.4;pointer-events:none;margin:0">&#x1F507; {label_txt}</span>')
+        sep = "&" if "?" in base else "?"
+        return (
+            '<details class="pmenu" style="flex:1">'
+            f'<summary style="display:block"><span class="btn btn-danger" style="width:100%;display:block;text-align:center;margin:0">&#x1F507; {label_txt}</span></summary>'
+            '<div class="pmenu-pop" style="left:0;right:auto;min-width:200px">'
+            '<div class="phdr">Pause for&hellip;</div>'
+            f'<a href="{base}{sep}for=30">30 minutes</a>'
+            f'<a href="{base}{sep}for=60">1 hour</a>'
+            f'<a href="{base}{sep}for=today">Rest of today <small>till morning</small></a>'
+            f'<a href="{base}{sep}for=off">Until I turn it back on</a>'
+            '</div></details>'
+        )
+
+    everyone_online = kids_total - kids_paused
+    everyone_label  = f"Pause everyone ({everyone_online} online)" if everyone_online else "Everyone paused"
+    pause_bar = (
+        '<div style="display:flex;gap:10px;margin-bottom:10px">'
+        + _pause_picker(everyone_label, "/pause_all", everyone_online)
+        + f'<a href="/unpause_all" class="btn btn-secondary" style="flex:1;text-align:center;margin:0;{resume_dim}">&#x25B6; {resume_label}</a>'
+        + '</div>'
     )
+
+    # Per-group Pause + Resume rows. Members come from ALL monitored devices (not
+    # just Personal), gated by is_groupable — so a "TVs" group of Smart devices
+    # still shows a button, while the router/NAS can never appear. Each group gets
+    # a symmetric Pause picker + Resume, mirroring the "everyone" row.
+    _devcfg = config.get("devices", {})
+    from urllib.parse import quote as _q
+    group_rows = ""
+    for g in config.get("custom_groups", []):
+        gmembers = [d for d in devices
+                    if _devcfg.get(d["client_name"], {}).get("group") == g
+                    and is_groupable(d["client_name"], config)]
+        if not gmembers:
+            continue
+        g_online = sum(1 for d in gmembers if d["client_ip"] not in paused)
+        g_paused = len(gmembers) - g_online
+        rdim = "" if g_paused else "opacity:0.4;pointer-events:none;"
+        group_rows += (
+            '<div style="display:flex;gap:10px;margin-bottom:8px">'
+            + _pause_picker(f"Pause {g} ({g_online})", f"/group/pause?name={_q(g)}", g_online)
+            + f'<a href="/group/unpause?name={_q(g)}" class="btn btn-secondary" style="flex:1;text-align:center;margin:0;{rdim}">&#x25B6; Resume {g}</a>'
+            + '</div>'
+        )
+    if group_rows:
+        pause_bar += (
+            '<div style="font-size:0.72em;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;font-weight:700;margin:2px 0 6px">Or just a group</div>'
+            + group_rows + '<div style="margin-bottom:8px"></div>'
+        )
+    else:
+        pause_bar += '<div style="margin-bottom:6px"></div>'
 
     stats_bar = (
         f'<div class="stats-bar">'
@@ -2629,15 +2710,34 @@ def build_detail(client_name, config, client_ip_param=""):
     pause_key   = (client_ip_param or eff_ip) if (client_ip_param or eff_ip) in paused_devs else \
                   next((k for k, v in paused_devs.items() if v.get("name", "") == friendly), client_ip_param or eff_ip)
 
-    pause_btn = (
-        f'<a href="/device/unpause?ip={quote(pause_key)}&name={quote(hostname)}&ref=device">'
-        f'<span style="background:#FEF3C7;color:#D97706;padding:6px 14px;border-radius:99px;font-size:0.82em;font-weight:700;border:1px solid #F4B942">'
-        f'&#x23F5; Paused - Tap to Resume</span></a>'
-        if is_paused else
-        f'<a href="/device/pause?ip={quote(pause_key)}&name={quote(hostname)}&ref=device">'
-        f'<span style="background:#FEE2E2;color:#DC6B5F;padding:6px 14px;border-radius:99px;font-size:0.82em;font-weight:700;border:1px solid #FCA5A5">'
-        f'&#x23F8; Pause</span></a>'
-    )
+    if is_paused:
+        _pinfo    = paused_devs.get(pause_key, {}) or {}
+        _until_tx = ""
+        if _pinfo.get("until") and not _pinfo.get("scheduled"):
+            try:
+                _u = datetime.fromisoformat(_pinfo["until"])
+                _h = _u.hour % 12 or 12
+                _until_tx = f" until {_h}:{_u.minute:02d} {'AM' if _u.hour < 12 else 'PM'}"
+            except Exception:
+                _until_tx = ""
+        pause_btn = (
+            f'<a href="/device/unpause?ip={quote(pause_key)}&name={quote(hostname)}&ref=device">'
+            f'<span style="background:#FEF3C7;color:#D97706;padding:6px 14px;border-radius:99px;font-size:0.82em;font-weight:700;border:1px solid #F4B942">'
+            f'&#x23F5; Paused{_until_tx} &middot; Resume</span></a>'
+        )
+    else:
+        _dbase    = f'/device/pause?ip={quote(pause_key)}&name={quote(hostname)}&ref=device'
+        pause_btn = (
+            '<details class="pmenu">'
+            '<summary><span class="pchip" style="padding:6px 14px;font-size:0.82em">&#x23F8; Pause</span></summary>'
+            '<div class="pmenu-pop">'
+            '<div class="phdr">Pause this device for&hellip;</div>'
+            f'<a href="{_dbase}&for=30">30 minutes</a>'
+            f'<a href="{_dbase}&for=60">1 hour</a>'
+            f'<a href="{_dbase}&for=today">Rest of today <small>till morning</small></a>'
+            f'<a href="{_dbase}&for=off">Until I turn it back on</a>'
+            '</div></details>'
+        )
 
     return (
         f'<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg"><meta charset="UTF-8">'
@@ -3464,7 +3564,55 @@ def _short_vendor(v):
     return v
 
 
-def build_devices_page(config, saved=False, redetect=False, autoname=False, sort="name", flt=""):
+# Auto-group maps a detected device KIND to a suggested entertainment group. Only
+# screen/entertainment devices are ever suggested — appliances (doorbell, camera,
+# speaker, printer, NAS, router, thermostat, garage opener) map to nothing and are
+# never auto-grouped, so the essentials stay untouchable.
+_KIND_TO_GROUP = {
+    "phone":             "Phones",
+    "tablet":            "Tablets",
+    "laptop":            "Computers",
+    "computer":          "Computers",
+    "game console":      "Games",
+    "smart TV":          "TVs",
+    "streaming device":  "TVs",
+}
+
+
+def _auto_group_name(name, cfg_label, ident, domains):
+    """Suggest an entertainment group for a device (or None). Tries the plain-kind
+    detector first, then falls back to the maker+OS guess — so an Android phone that
+    only resolves to 'Samsung Android device' still lands in Phones. Appliances
+    (doorbell, camera, speaker, printer, NAS, router) map to None and stay ungrouped.
+    Order matters: specific kinds (tablet/TV/console/computer) win before the general
+    phone catch-all so a Sony Android TV isn't mistaken for a phone."""
+    from classify import device_kind, identify_from_traffic
+    g = _KIND_TO_GROUP.get(device_kind(name, cfg_label, ident, domains) or "")
+    if g:
+        return g
+    try:
+        os_guess = identify_from_traffic(domains, _short_vendor(ident.get("vendor", ""))) or ""
+    except Exception:
+        os_guess = ""
+    hay = f"{name} {cfg_label} {os_guess}".lower()
+    if "ipad" in hay or "tablet" in hay:
+        return "Tablets"
+    if any(k in hay for k in ("apple tv", "appletv", "fire tv", "firetv", "firestick",
+                              "fire stick", "roku", "chromecast", "smart tv", "smarttv",
+                              "android tv", "androidtv", "google tv", "googletv", "webos", "vizio")):
+        return "TVs"
+    if any(k in hay for k in ("playstation", "xbox", "nintendo", "console")):
+        return "Games"
+    if any(k in hay for k in ("macbook", "chromebook", "laptop", "thinkpad", "imac",
+                              "mac mini", "mac-mini", "desktop", "windows", "computer")):
+        return "Computers"
+    if any(k in hay for k in ("iphone", "android device", "android phone", "galaxy",
+                              "pixel", "oneplus", "sm-g", "sm-a", "sm-n", "sm-s", "mobile")):
+        return "Phones"
+    return None
+
+
+def build_devices_page(config, saved=False, redetect=False, autoname=False, autogroup=False, sort="name", flt=""):
     # Only devices active in the last DEVICE_ACTIVE_HOURS; a stale device is hidden,
     # not deleted — it (and any saved name) returns the moment it's seen again.
     all_devices  = get_all_known_devices(active_hours=DEVICE_ACTIVE_HOURS, include_idle=False)
@@ -3528,6 +3676,21 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + '</div>'
     )
 
+    # Auto-group pre-pass: suggest an entertainment group for each groupable device
+    # from its kind. Nothing is saved — the suggestions just prefill the form for
+    # the parent to review, exactly like Auto-name.
+    _autogroup_map, _autogroup_names = {}, set()
+    if autogroup:
+        for d in all_devices:
+            nm = d["client_name"]
+            if effective_type(nm, config) not in ("person", "smart_device", "work_device"):
+                continue
+            grp = _auto_group_name(nm, cfg_devices.get(nm, {}).get("label", ""),
+                                   device_identity(nm), top_domains_map.get(nm, []))
+            if grp:
+                _autogroup_map[nm] = grp
+                _autogroup_names.add(grp)
+
     for d in all_devices:
         name        = d["client_name"]
         cfg         = cfg_devices.get(name, {})
@@ -3581,6 +3744,20 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         sel_smart   = "selected" if cur_type == "smart_device"   else ""
         sel_work    = "selected" if cur_type == "work_device"    else ""
         mc          = "checked"  if cur_monitor                  else ""
+        # Optional custom group — Personal, Smart and Work devices can belong to one
+        # (never Admin or Infrastructure, so the router/NAS can't be grouped/paused).
+        # In auto-group review mode, the suggested groups + assignment prefill here.
+        _custom_groups = sorted(_autogroup_names) if autogroup else config.get("custom_groups", [])
+        _cg            = _autogroup_map.get(name, "") if autogroup else cfg.get("group", "")
+        group_select   = ""
+        if _custom_groups and cur_type in ("person", "smart_device", "work_device"):
+            _opts = '<option value="">— none —</option>' + "".join(
+                f'<option value="{g}" {"selected" if _cg == g else ""}>{g}</option>'
+                for g in _custom_groups)
+            group_select = (
+                f'<div class="grp-field" style="flex:1;min-width:120px"><div class="form-label">Group</div>'
+                f'<select name="group_{enc}">{_opts}</select></div>'
+            )
         sub_html    = f'<div style="font-size:0.75em;color:#94a3b8">{subtitle}</div>' if subtitle else ""
         enc_ip      = quote(d["client_ip"] or "")
 
@@ -3679,6 +3856,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         <option value="smart_device" {sel_smart}>📡 Smart Device</option>
       </select>
       <div class="role-desc" style="font-size:0.72em;color:#94a3b8;margin-top:3px;line-height:1.3"></div></div>
+    {group_select}
   </div>
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;padding-top:8px;border-top:1px solid #1e293b">
     <a href="/device?name={enc}&ip={enc_ip}" style="font-size:0.75em;color:#D97706;font-weight:600">Tap to see details</a>
@@ -3689,23 +3867,27 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
   </div></div>"""
 
     saved_msg = '<div class="success">Saved!</div>' if saved else ""
-    if redetect or autoname:
-        _what = "types" if redetect else "names"
+    if redetect or autoname or autogroup:
+        _what = "types" if redetect else ("names" if autoname else "groups")
+        _extra = (' We only ever suggest groups for phones, tablets, computers, TVs and consoles — '
+                  'never a doorbell, camera or appliance.') if autogroup else ''
         redetect_controls = (
             '<div style="margin-bottom:14px;padding:12px 14px;background:#fffbf0;border:1px solid #f3e3b8;'
             'border-radius:10px;color:#8a6d00;font-size:0.85em">'
-            f'&#x1F504; <b>Suggested {_what} are shown below — nothing is saved yet.</b> '
+            f'&#x1F504; <b>Suggested {_what} are shown below — nothing is saved yet.</b>{_extra} '
             'Review them, then tap <b>Save All Devices</b> to apply, or '
             '<a href="/admin/devices" style="color:#e8a000;font-weight:700">cancel</a>.</div>'
         )
     else:
         redetect_controls = (
-            '<div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
-            '<a href="/admin/devices?redetect=1" class="btn btn-secondary" '
-            'style="width:auto;padding:8px 16px;font-size:0.85em;margin-bottom:0">&#x1F504; Re-detect all types</a>'
-            '<a href="/admin/devices?autoname=1" class="btn btn-secondary" '
-            'style="width:auto;padding:8px 16px;font-size:0.85em;margin-bottom:0">&#x1F3F7;&#xFE0F; Auto-name devices</a>'
-            '<span style="color:#94a3b8;font-size:0.78em">Suggest a type or a name for every device from its hostname &amp; maker — you review before saving.</span>'
+            '<div style="margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">'
+            '<a href="/admin/devices?redetect=1" class="btn" '
+            'style="width:auto;padding:9px 16px;font-size:0.85em;margin-bottom:0">&#x1F504; Re-detect all types</a>'
+            '<a href="/admin/devices?autoname=1" class="btn" '
+            'style="width:auto;padding:9px 16px;font-size:0.85em;margin-bottom:0">&#x1F3F7;&#xFE0F; Auto-name devices</a>'
+            '<a href="/admin/devices?autogroup=1" class="btn" '
+            'style="width:auto;padding:9px 16px;font-size:0.85em;margin-bottom:0">&#x1F465; Auto-group devices</a>'
+            '<span style="color:#94a3b8;font-size:0.78em">Suggest a type, a name, or entertainment groups (Phones, TVs&hellip;) for every device — you review before saving.</span>'
             '</div>'
         )
     return (
@@ -3717,7 +3899,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + f'{saved_msg}'
         + f'<div class="section"><h2>Manage Devices</h2>'
         + f'<div style="color:#64748b;font-size:0.85em;margin-bottom:12px">'
-        + f'Label devices and set their role. <b>All roles get the same AdGuard filtering</b> &mdash; the role only affects grouping, whether <b>Pause All Personal</b> applies, reporting, and a few alert behaviors. '
+        + f'Label devices and set their role. <b>All roles get the same AdGuard filtering</b> &mdash; the role only affects grouping, whether <b>Pause everyone</b> applies, reporting, and a few alert behaviors. '
         + f'<b>Every type is filtered equally</b> &mdash; no type bypasses AdGuard.</div>'
         + f'<div style="overflow-x:auto;margin-bottom:14px">'
         + f'<table style="border-collapse:collapse;width:100%;min-width:560px;font-size:0.8em">'
@@ -3729,7 +3911,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + f'<th style="padding:7px 10px;text-align:center;border-bottom:2px solid #e2e8f0">Filtered</th>'
         + f'<th style="padding:7px 10px;text-align:left;border-bottom:2px solid #e2e8f0">Notes</th>'
         + f'</tr></thead><tbody>'
-        + _device_type_row("👤 Personal", "Devices", True,  "yes", "Phones, tablets &amp; laptops used by family members (adults or kids) &mdash; the target of Pause All and schedules")
+        + _device_type_row("👤 Personal", "Devices", True,  "yes", "Phones, tablets &amp; laptops used by family members (adults or kids) &mdash; the target of Pause everyone &amp; schedules")
         + _device_type_row("🛡️ Admin", "Devices", False, "yes", "Same filtering as Personal, but never bulk-paused")
         + _device_type_row("💼 Work Device",     "Devices", False, "yes", "Filtered like any device; auto-exempt from the VPN &ldquo;activity drop&rdquo; alert")
         + _device_type_row("🖥️ Infrastructure",  "Infrastructure", False, "skip", "Routers, NAS, printers, servers")
@@ -3737,17 +3919,31 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, sort
         + f'</tbody></table></div>'
         + redetect_controls
         + sortfilter
-        + f'<form method="POST" action="/admin/devices/save">{rows_html}'
+        + f'<form method="POST" action="/admin/devices/save">'
+        + ('<div class="form-card" style="margin-bottom:12px">'
+           '<div class="form-label" style="font-weight:700;color:#1a1a1a;font-size:0.92em">&#x1F465; Custom groups (optional)</div>'
+           '<div style="color:#64748b;font-size:0.82em;margin:4px 0 10px;line-height:1.5">'
+           'Name a few groups &mdash; like <i>Kids, TVs, Phones</i> &mdash; then tap <b>Save groups</b>. Each groupable device then gets '
+           'a <b>Group</b> menu below, and the dashboard lets you pause a whole group in one tap. To remove a group, delete its '
+           'name here and save; to take a device out of a group, set its menu back to <i>&mdash; none &mdash;</i>.</div>'
+           '<div style="display:flex;gap:10px;align-items:stretch">'
+           f'<input type="text" name="custom_groups" value="{", ".join(sorted(_autogroup_names) if autogroup else config.get("custom_groups", []))}" placeholder="e.g. Kids, TVs, Phones" style="flex:1;min-width:0">'
+           '<button type="submit" class="btn" style="width:auto;flex:none;margin:0;padding:12px 22px">Save groups</button>'
+           '</div></div>')
+        + f'{rows_html}'
         + f'<button type="submit" class="btn">Save All Devices</button></form></div>'
         + '<script>'
         + 'var LW_ROLE_DESC={'
-        + '"person":"Phones, tablets and laptops used by family members — included in Pause All and schedules.",'
-        + '"parent":"Full protection, but never affected by Pause All Personal.",'
+        + '"person":"Phones, tablets and laptops used by family members — included in Pause everyone and schedules.",'
+        + '"parent":"Full protection, but never affected by Pause everyone.",'
         + '"work_device":"Work laptop or phone — filtered normally, but skipped by the VPN activity-drop alert.",'
         + '"infrastructure":"Routers, NAS, printers and servers — shown separately and kept out of reports.",'
         + '"smart_device":"TVs, cameras, speakers, thermostats, vehicles and other connected devices."'
         + '};'
-        + 'function lwRoleDesc(s){var d=s.nextElementSibling;if(d&&d.className=="role-desc")d.textContent=LW_ROLE_DESC[s.value]||"";}'
+        + 'function lwRoleDesc(s){var d=s.nextElementSibling;if(d&&d.className=="role-desc")d.textContent=LW_ROLE_DESC[s.value]||"";'
+        + 'var card=s.closest(".form-card");if(card){var gf=card.querySelector(".grp-field");'
+        + 'if(gf){var ok=(s.value=="person"||s.value=="smart_device"||s.value=="work_device");gf.style.display=ok?"":"none";'
+        + 'if(!ok){var sel=gf.querySelector("select");if(sel)sel.value="";}}}}'
         + 'document.querySelectorAll(\'select[name^="type_"]\').forEach(lwRoleDesc);'
         + '</script>'
         + '</div></body></html>'
@@ -3892,19 +4088,47 @@ def _build_health_card():
     )
 
 
-def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg=""):
-    saved_html = f'<div class="success" style="margin:12px 16px 0">{saved_msg}</div>' if saved_msg else ""
-    ss_badge = (
-        f'<div style="margin:0 16px 4px;padding:10px 14px;background:#e6f4f0;border-radius:8px;'
-        f'font-size:0.82em;color:#1d9e75;font-weight:600">'
-        f'&#x1F50D; Safe search is <strong>on</strong> — Google, Bing &amp; YouTube return restricted results. '
-        f'Change it on the <a href="/social" style="color:#1d9e75;text-decoration:underline">Social page</a>.</div>'
-    ) if ss_on else (
-        f'<div style="margin:0 16px 4px;padding:10px 14px;background:#f1f5f9;border-radius:8px;'
-        f'font-size:0.82em;color:#64748b">'
-        f'&#x1F50D; Safe search is <strong>off</strong>. '
-        f'Turn it on from the <a href="/social" style="color:#e8a000;font-weight:600">Social page</a>.</div>'
+def _group_pause_picker(gname):
+    """The 30/60/today/off pause menu for a whole group."""
+    from urllib.parse import quote as _q
+    base = f'/group/pause?name={_q(gname)}'
+    return (
+        '<details class="pmenu"><summary><span class="pchip">&#x23F8; Pause group</span></summary>'
+        '<div class="pmenu-pop"><div class="phdr">Pause this group for&hellip;</div>'
+        f'<a href="{base}&for=30">30 minutes</a>'
+        f'<a href="{base}&for=60">1 hour</a>'
+        f'<a href="{base}&for=today">Rest of today <small>till morning</small></a>'
+        f'<a href="{base}&for=off">Until I turn it back on</a>'
+        '</div></details>'
     )
+
+
+def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg="", yt_on=None):
+    saved_html = f'<div class="success" style="margin:12px 16px 0">{saved_msg}</div>' if saved_msg else ""
+    # Three honest states: fully on, on-for-search-but-YouTube-comments-allowed
+    # (the common Moderate default), or off. yt_on=None (unknown) falls back to
+    # the plain on/off wording.
+    if ss_on and yt_on is False:
+        ss_badge = (
+            f'<div style="margin:0 16px 4px;padding:10px 14px;background:#fffbf0;border:1px solid #f3e3b8;border-radius:8px;'
+            f'font-size:0.82em;color:#b45309;font-weight:600">'
+            f'&#x1F50D; Safe search is <strong>on</strong> for Google &amp; Bing, but <strong>off for YouTube</strong> &mdash; comments are allowed. '
+            f'Change it on the <a href="/social" style="color:#b45309;text-decoration:underline">Social page</a>.</div>'
+        )
+    elif ss_on:
+        ss_badge = (
+            f'<div style="margin:0 16px 4px;padding:10px 14px;background:#e6f4f0;border-radius:8px;'
+            f'font-size:0.82em;color:#1d9e75;font-weight:600">'
+            f'&#x1F50D; Safe search is <strong>on</strong> — Google, Bing &amp; YouTube return restricted results. '
+            f'Change it on the <a href="/social" style="color:#1d9e75;text-decoration:underline">Social page</a>.</div>'
+        )
+    else:
+        ss_badge = (
+            f'<div style="margin:0 16px 4px;padding:10px 14px;background:#f1f5f9;border-radius:8px;'
+            f'font-size:0.82em;color:#64748b">'
+            f'&#x1F50D; Safe search is <strong>off</strong>. '
+            f'Turn it on from the <a href="/social" style="color:#e8a000;font-weight:600">Social page</a>.</div>'
+        )
 
     if True:
         from adguard import (AGH_SERVICE_GROUPS, CATEGORY_PACKS,

@@ -151,9 +151,13 @@ def _add_pause_rules(ip, mac):
         subprocess.run([cmd, "-I", "FORWARD"] + match + ["-j", "DROP"], capture_output=True)
 
 
-def pause_device(ip, friendly_name, config, scheduled=False):
+def pause_device(ip, friendly_name, config, scheduled=False, until=None):
     """Block internet for a device: IPv4 by source IP + (when resolvable) by MAC on
-    both IPv4 and IPv6, so the device can't bypass the pause over IPv6 or a new lease."""
+    both IPv4 and IPv6, so the device can't bypass the pause over IPv6 or a new lease.
+
+    `until` is an optional ISO timestamp for a TIMED pause (30 min, an hour, rest of
+    the day). The background scheduler auto-resumes the device once it passes. None
+    means an open-ended pause that stays until a parent turns it back on."""
     try:
         mac = _mac_for_ip(ip)
         _add_pause_rules(ip, mac)
@@ -163,6 +167,7 @@ def pause_device(ip, friendly_name, config, scheduled=False):
             "paused_at": datetime.now().isoformat(),
             "scheduled": scheduled,
             "mac":       mac,
+            "until":     until,
         }
         config["paused_devices"] = paused
         save_config(config)
@@ -321,6 +326,27 @@ def check_schedules():
 
         except Exception as e:
             print(f"Scheduler error: {e}")
+
+        # Auto-resume manual timed pauses (30 min / 1 hour / rest of today) once
+        # their timer elapses. Scheduled pauses (bedtime/focus) are handled above,
+        # so only clear non-scheduled ones with an `until` in the past.
+        try:
+            cfg = load_config()
+            now = datetime.now()
+            for pip, info in list(cfg.get("paused_devices", {}).items()):
+                info = info or {}
+                until = info.get("until")
+                if until and not info.get("scheduled"):
+                    try:
+                        elapsed = datetime.fromisoformat(until) <= now
+                    except Exception:
+                        elapsed = False
+                    if elapsed:
+                        unpause_device(pip, cfg)
+                        cfg = load_config()
+                        print(f"[Pause] Auto-resumed {info.get('name', pip)} — timer elapsed")
+        except Exception as e:
+            print(f"[Pause] auto-resume error: {e}")
 
         # Auto-reblock any "preview pass" temporary allows that have expired.
         try:

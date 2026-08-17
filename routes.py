@@ -11,11 +11,11 @@ import socket
 import struct
 import sqlite3
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote, unquote
 
-from config import load_config, save_config, label, is_first_run, is_pauseable, VERSION, UPDATE_CHECK_URL, UPDATE_RELEASES_URL, is_newer_version, router_lan_ip, dashboard_url
+from config import load_config, save_config, label, is_first_run, is_pauseable, is_groupable, VERSION, UPDATE_CHECK_URL, UPDATE_RELEASES_URL, is_newer_version, router_lan_ip, dashboard_url
 import recovery
 from adguard import (apply_social_profile, clear_social_blocking, get_adguard_stats,
                      apply_adguard_setup, get_adguard_setup_status, RECOMMENDED_LISTS,
@@ -39,6 +39,20 @@ from pages import (
 
 # ── Session store (in-memory; resets on restart) ──────────────────────────────
 SESSIONS: set = set()
+
+
+def _pause_until(spec):
+    """Turn a pause-duration choice from the UI into an ISO timestamp for auto-resume
+    (or None for an open-ended pause). 'today' means the rest of the day — it lifts
+    at 6 AM tomorrow, before the school day."""
+    now = datetime.now()
+    if spec == "30":
+        return (now + timedelta(minutes=30)).isoformat()
+    if spec == "60":
+        return (now + timedelta(hours=1)).isoformat()
+    if spec == "today":
+        return (now + timedelta(days=1)).replace(hour=6, minute=0, second=0, microsecond=0).isoformat()
+    return None  # 'off' / open-ended — stays until a parent turns it back on
 
 
 def make_session_token() -> str:
@@ -244,8 +258,9 @@ class Handler(BaseHTTPRequestHandler):
                 ip            = params.get("ip",   [""])[0]
                 name          = params.get("name", [""])[0]
                 friendly_name = label(unquote(name), config)
+                until         = _pause_until(params.get("for", ["off"])[0])
                 if ip:
-                    pause_device(ip, friendly_name, config)
+                    pause_device(ip, friendly_name, config, until=until)
                 dest = (f"/device?name={quote(unquote(name))}&ip={quote(ip)}"
                         if params.get("ref", [""])[0] == "device" else "/")
                 self._redirect(dest)
@@ -365,6 +380,7 @@ class Handler(BaseHTTPRequestHandler):
                 html = build_devices_page(config,
                                           redetect=_q.get("redetect", ["0"])[0] == "1",
                                           autoname=_q.get("autoname", ["0"])[0] == "1",
+                                          autogroup=_q.get("autogroup", ["0"])[0] == "1",
                                           sort=_q.get("sort", ["name"])[0],
                                           flt=_q.get("flt", [""])[0])
 
@@ -431,11 +447,14 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:
                     all_svcs, blocked_ids = [], set()
                 try:
-                    ss_on = get_safesearch_status(config).get("enabled", False)
+                    _ss   = get_safesearch_status(config)
+                    ss_on = bool(_ss.get("enabled"))
+                    yt_on = bool(_ss.get("youtube"))
                 except Exception:
-                    ss_on = False
+                    ss_on = yt_on = False
                 saved = "saved" in parse_qs(parsed.query)
-                html = build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg="&#x2705; Saved!" if saved else "")
+                html = build_blocked_services_page(all_svcs, blocked_ids, ss_on, config,
+                                                   saved_msg="&#x2705; Saved!" if saved else "", yt_on=yt_on)
 
             elif parsed.path == "/admin/clear":
                 html = build_admin(config, confirm_clear=True)
@@ -497,12 +516,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             elif parsed.path == "/pause_all":
+                until = _pause_until(parse_qs(parsed.query).get("for", ["off"])[0])
                 for dev in get_all_known_devices():
                     name = dev["client_name"]
                     ip   = dev["client_ip"]
                     if ip and is_pauseable(name, config):
                         if ip not in config.get("paused_devices", {}):
-                            pause_device(ip, label(name, config), config)
+                            pause_device(ip, label(name, config), config, until=until)
                             config = load_config()
                 self._redirect("/")
                 return
@@ -517,6 +537,36 @@ class Handler(BaseHTTPRequestHandler):
                         None,
                     )
                     if matched is None or is_pauseable(matched, config):
+                        unpause_device(ip, config)
+                        config = load_config()
+                self._redirect("/")
+                return
+
+            elif parsed.path == "/group/pause":
+                params  = parse_qs(parsed.query)
+                gname   = unquote(params.get("name", [""])[0])
+                until   = _pause_until(params.get("for", ["off"])[0])
+                # Members = devices tagged into this group. is_groupable allows
+                # Personal/Smart/Work but never Admin or Infrastructure (router/NAS).
+                members = [n for n, d in config.get("devices", {}).items()
+                           if d.get("group") == gname and is_groupable(n, config)]
+                if members:
+                    name_to_ip = {d["client_name"]: d["client_ip"] for d in get_all_known_devices()}
+                    for cname in members:
+                        ip = name_to_ip.get(cname, "")
+                        if ip and ip not in config.get("paused_devices", {}):
+                            pause_device(ip, label(cname, config), config, until=until)
+                            config = load_config()
+                self._redirect("/")
+                return
+
+            elif parsed.path == "/group/unpause":
+                gname   = unquote(parse_qs(parsed.query).get("name", [""])[0])
+                members = {n for n, d in config.get("devices", {}).items() if d.get("group") == gname}
+                name_to_ip = {d["client_name"]: d["client_ip"] for d in get_all_known_devices()}
+                member_ips = {name_to_ip.get(c, "") for c in members}
+                for ip in list(config.get("paused_devices", {}).keys()):
+                    if ip in member_ips:
                         unpause_device(ip, config)
                         config = load_config()
                 self._redirect("/")
@@ -970,6 +1020,11 @@ class Handler(BaseHTTPRequestHandler):
 
             elif parsed.path == "/admin/devices/save":
                 devices = config.get("devices", {})
+                # Custom groups: a comma-separated list of names (sub-categories of
+                # Personal devices) the parent manages right here on the Devices page.
+                raw_groups = params.get("custom_groups", [""])[0]
+                config["custom_groups"] = [g.strip() for g in raw_groups.split(",") if g.strip()][:20]
+                valid_groups = set(config["custom_groups"])
                 for key in params:
                     if key.startswith("label_"):
                         enc_name = key[6:]
@@ -982,6 +1037,13 @@ class Handler(BaseHTTPRequestHandler):
                             devices[name]["label"] = params[key][0]
                         devices[name]["type"]    = params.get(f"type_{enc_name}", ["person"])[0]
                         devices[name]["monitor"] = f"monitor_{enc_name}" in params
+                        # Group tag — only meaningful for Personal devices; dropped
+                        # otherwise so a smart device / router can never be grouped.
+                        grp = params.get(f"group_{enc_name}", [""])[0].strip()
+                        if grp and grp in valid_groups and devices[name]["type"] in ("person", "smart_device", "work_device"):
+                            devices[name]["group"] = grp
+                        else:
+                            devices[name].pop("group", None)
                 config["devices"] = devices
                 save_config(config)
                 # No device type is exempt from filtering. A work laptop's real
