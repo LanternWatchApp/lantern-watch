@@ -370,12 +370,25 @@ else:
     print("WARNING: could not locate a users: section in AdGuard config — check format", file=sys.stderr)
     sys.exit(1)
 
+# Bind AdGuard's admin API to loopback (defense-in-depth). It's reached only via
+# the nginx proxy (GL.iNet's own AdGuard screen) and the LW collector, both over
+# 127.0.0.1 — so LAN devices (a kid's laptop, a guest phone) shouldn't have, and
+# don't need, direct access to the AdGuard admin login on 0.0.0.0:3000.
+# Idempotent: no-op if already loopback. DNS is unaffected (separate bind_hosts).
+bind_changed = re.search(r'^\s*address:\s*0\.0\.0\.0:3000\s*$', new_conf, re.MULTILINE) is not None
+if bind_changed:
+    new_conf = re.sub(r'^(\s*address:\s*)0\.0\.0\.0:3000\s*$',
+                      lambda m: m.group(1) + "127.0.0.1:3000",
+                      new_conf, count=1, flags=re.MULTILINE)
+
 if new_conf == conf:
     print("WARNING: AdGuard user block unchanged — check config format", file=sys.stderr)
     sys.exit(1)
 with open(conf_path, "w") as f:
     f.write(new_conf)
 print("  AdGuard: " + action)
+if bind_changed:
+    print("  AdGuard: bound admin API to loopback (127.0.0.1:3000) — off the LAN")
 PYEOF
 log "  AdGuard: restarting to apply user credentials..."
 /etc/init.d/adguardhome restart >> "$LOGFILE" 2>&1

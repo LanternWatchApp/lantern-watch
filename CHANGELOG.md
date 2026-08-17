@@ -19,6 +19,16 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.17.5] — 2026-08-17
+
+### Security
+- **AdGuard's admin panel is now off-limits to the rest of your network.** It used
+  to listen on every network interface, meaning any device on your Wi-Fi (a child's
+  laptop, a guest's phone) could reach the AdGuard admin login directly. It's now
+  bound to the router itself (loopback only). Lantern Watch and GL.iNet's own
+  AdGuard screen keep working exactly as before (both reach it internally), and
+  DNS filtering is completely unaffected. Applied automatically on update.
+
 ## [0.17.4] — 2026-08-17
 
 ### Changed
