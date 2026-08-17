@@ -656,6 +656,24 @@ class Handler(BaseHTTPRequestHandler):
                     set_blocked_services(config, keep)
                 except Exception as e:
                     print(f"[Wizard] blocked-services apply failed: {e}")
+                # Curated category packs (Lingerie/Swimwear/etc): block whole packs
+                # that were ticked, preserving any pack domains blocked elsewhere.
+                try:
+                    from adguard import (CATEGORY_PACKS, get_blocked_pack_domains,
+                                         set_blocked_pack_domains)
+                    from pages import _WIZARD_PACK_GROUPS
+                    offered_keys   = {key for _lbl, key in _WIZARD_PACK_GROUPS}
+                    chosen_keys    = set(params.get("pack", []))
+                    offered_domains = {d for key in offered_keys
+                                       for _l, doms in CATEGORY_PACKS.get(key, {}).get("sites", [])
+                                       for d in doms}
+                    chosen_domains  = {d for key in (chosen_keys & offered_keys)
+                                       for _l, doms in CATEGORY_PACKS.get(key, {}).get("sites", [])
+                                       for d in doms}
+                    existing = set(get_blocked_pack_domains(config))
+                    set_blocked_pack_domains(config, list((existing - offered_domains) | chosen_domains))
+                except Exception as e:
+                    print(f"[Wizard] category-pack apply failed: {e}")
                 self._redirect("/setup/network")
                 return
 
@@ -690,9 +708,8 @@ class Handler(BaseHTTPRequestHandler):
                 config["alerts"]["new_device"]       = "alert_newdevice" in params
                 config["alerts"]["high_block_rate"]  = "alert_highblock" in params
                 config["alerts"]["update_available"] = "alert_update"    in params
-                cadence = params.get("cadence", ["never"])[0]
-                config["summary"]["daily"]  = (cadence == "daily")
-                config["summary"]["weekly"] = (cadence == "weekly")
+                config["summary"]["daily"]  = "daily_summary"  in params
+                config["summary"]["weekly"] = "weekly_summary" in params
                 try:
                     config["summary"]["daily_hour"]  = int(params.get("daily_hour",  [20])[0])
                     config["summary"]["weekly_day"]  = int(params.get("weekly_day",  [6])[0])

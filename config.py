@@ -11,7 +11,7 @@ import re as _re
 # pre-1.0 the leading 0. signals it's still maturing: PATCH = fixes, MINOR = new
 # features. A pre-release tag (beta/rc) sorts BELOW the same numbered release.
 # See is_newer_version().
-VERSION          = "0.17.1"
+VERSION          = "0.17.2"
 # Update check reads the public GitHub repo directly — the newest git tag is the
 # single source of truth. No telemetry is sent; the router just asks GitHub for
 # the tag list, anonymously, like any visitor.
@@ -62,12 +62,14 @@ DEFAULTS = {
     # pointing at the router, so users can type http://<name>:8081 in a browser.
     # The LAN IP and localhost are always recognized.
     "local_hostnames": ["lanternwatch", "lanternwatch.lan"],
-    # Notifications start OFF on a fresh install — nothing is "set up" until the
-    # user configures a channel in the notification wizard (which then turns on
-    # these sensible defaults). Skipping the wizard leaves everything off.
+    # Sensible alert defaults are ON, but nothing actually sends until the family
+    # configures a channel (ntfy/Telegram/email) — the send helpers no-op without
+    # one — so a fresh install stays quiet until the wizard/Settings turns a
+    # channel on. The two most-wanted alerts (adult content, new device) are
+    # pre-selected so the recommended setup is one tap.
     "alerts": {
-        "adult_content": False,
-        "new_device": False,
+        "adult_content": True,
+        "new_device": True,
         "high_block_rate": False,
         "high_block_threshold": 50,
         "vpn_detection": False,
@@ -77,10 +79,12 @@ DEFAULTS = {
         # opt-in. Deduped per version so it notifies once, not nightly.
         "update_available": True,
     },
+    # Both recaps default ON (daily at 8 PM, weekly on Sunday at 8 PM). Like the
+    # alerts above, they only actually send once a channel is configured.
     "summary": {
-        "daily": False,
+        "daily": True,
         "daily_hour": 20,
-        "weekly": False,
+        "weekly": True,
         "weekly_day": 6,
         "weekly_hour": 20,
     },

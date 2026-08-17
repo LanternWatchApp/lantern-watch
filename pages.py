@@ -1001,22 +1001,24 @@ def get_alerts_wizard_page(config):
     def ck(key, default):
         return "checked" if a.get(key, default) else ""
 
-    # Summary cadence radios: default "never" (neither daily nor weekly on).
-    if s.get("weekly"):
-        cadence = "weekly"
-    elif s.get("daily"):
-        cadence = "daily"
-    else:
-        cadence = "never"
+    # Two independent recap toggles (Daily + Weekly), both defaulting on so the
+    # recommended setup matches the parent's ask; times use a 12-hour clock.
+    daily_on  = "checked" if s.get("daily", True)  else ""
+    weekly_on = "checked" if s.get("weekly", True) else ""
     d_hour = int(s.get("daily_hour", 20))
     w_day  = int(s.get("weekly_day", 6))
     w_hour = int(s.get("weekly_hour", 20))
 
+    def _h12(h):
+        ap = "AM" if h < 12 else "PM"
+        hr = h % 12 or 12
+        return f"{hr}:00 {ap}"
+
     hour_opts = "".join(
-        f'<option value="{h}"{" selected" if h == d_hour else ""}>{h:02d}:00</option>'
+        f'<option value="{h}"{" selected" if h == d_hour else ""}>{_h12(h)}</option>'
         for h in range(24))
     whour_opts = "".join(
-        f'<option value="{h}"{" selected" if h == w_hour else ""}>{h:02d}:00</option>'
+        f'<option value="{h}"{" selected" if h == w_hour else ""}>{_h12(h)}</option>'
         for h in range(24))
     days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     day_opts = "".join(
@@ -1094,16 +1096,14 @@ input[type=text]:focus,select:focus{outline:none;border-color:#e8a000;box-shadow
     </div>
     <div class="card">
       <div class="card-h">Recap summary</div>
-      <div class="card-s">An optional digest of the day or week.</div>
-      <label class="fl">How often</label>
-      <select name="cadence" id="cad" onchange="lwCad()">
-        <option value="never" __NEVER__>Never</option>
-        <option value="daily" __DAILY__>Daily</option>
-        <option value="weekly" __WEEKLY__>Weekly</option>
-      </select>
-      <div id="dailyrow" class="hide"><label class="fl">Time</label>
+      <div class="card-s">A friendly digest of what happened &mdash; both are on by default.</div>
+      <label class="tog" style="margin-top:4px"><input type="checkbox" name="daily_summary" id="dtog" __DAILY_ON__ onchange="lwCad()">
+        <span>&#x1F4C5; Daily recap</span></label>
+      <div id="dailyrow"><label class="fl">Time</label>
         <select name="daily_hour">__HOUR_OPTS__</select></div>
-      <div id="weeklyrow" class="hide"><div class="row">
+      <label class="tog" style="margin-top:14px"><input type="checkbox" name="weekly_summary" id="wtog" __WEEKLY_ON__ onchange="lwCad()">
+        <span>&#x1F4C6; Weekly recap</span></label>
+      <div id="weeklyrow"><div class="row">
         <div><label class="fl">Day</label><select name="weekly_day">__DAY_OPTS__</select></div>
         <div><label class="fl">Time</label><select name="weekly_hour">__WHOUR_OPTS__</select></div>
       </div></div>
@@ -1115,9 +1115,8 @@ input[type=text]:focus,select:focus{outline:none;border-color:#e8a000;box-shadow
 <script>
 function lwNtfy(){document.getElementById('ntfybody').style.display=document.getElementById('ntfytog').checked?'block':'none';}
 function lwCad(){
-  var v=document.getElementById('cad').value;
-  document.getElementById('dailyrow').classList.toggle('hide', v!=='daily');
-  document.getElementById('weeklyrow').classList.toggle('hide', v!=='weekly');
+  document.getElementById('dailyrow').style.display=document.getElementById('dtog').checked?'block':'none';
+  document.getElementById('weeklyrow').style.display=document.getElementById('wtog').checked?'block':'none';
 }
 lwNtfy();lwCad();
 </script>
@@ -1126,9 +1125,8 @@ lwNtfy();lwCad();
             .replace("__NTFY_ON__", ntfy_on)
             .replace("__TOPIC__", topic)
             .replace("__ALERT_ROWS__", alert_rows)
-            .replace("__NEVER__",  "selected" if cadence == "never"  else "")
-            .replace("__DAILY__",  "selected" if cadence == "daily"  else "")
-            .replace("__WEEKLY__", "selected" if cadence == "weekly" else "")
+            .replace("__DAILY_ON__",  daily_on)
+            .replace("__WEEKLY_ON__", weekly_on)
             .replace("__HOUR_OPTS__", hour_opts)
             .replace("__DAY_OPTS__", day_opts)
             .replace("__WHOUR_OPTS__", whour_opts))
@@ -1219,6 +1217,18 @@ _WIZARD_SERVICE_GROUPS = [
     ("&#x1F916; AI chatbots",           ["chatgpt", "claude"]),
 ]
 
+# Curated category packs offered in the wizard as whole-category toggles — the
+# mature / adult-adjacent groups parents (esp. homeschool families) most often
+# ask for. Each maps to a CATEGORY_PACKS key in adguard.py; ticking it blocks the
+# entire pack. (display label, CATEGORY_PACKS key)
+_WIZARD_PACK_GROUPS = [
+    ("Lingerie",                     "Lingerie"),
+    ("Swimwear",                     "Swimwear"),
+    ("Lingerie &amp; swim retailers", "Retailers (Lingerie & Swim)"),
+    ("Alcohol, vaping &amp; cannabis", "Alcohol, Vaping & Cannabis"),
+    ("Weapons &amp; tactical",       "Weapons & Tactical"),
+]
+
 
 def get_services_wizard_page(config):
     """First-run step: block specific apps/services for the whole home. Driven by
@@ -1252,6 +1262,29 @@ def get_services_wizard_page(config):
                        'font-size:0.85em">Couldn\'t reach the service list right now. You can set '
                        'this up anytime from <b>Blocked Services</b> in the dashboard.</div></div>')
 
+    # Mature / adult-adjacent category packs (whole-category toggles).
+    try:
+        from adguard import CATEGORY_PACKS, get_blocked_pack_domains
+        blocked_pack = set(get_blocked_pack_domains(config))
+    except Exception:
+        CATEGORY_PACKS, blocked_pack = {}, set()
+    pack_rows = ""
+    for label, key in _WIZARD_PACK_GROUPS:
+        meta = CATEGORY_PACKS.get(key)
+        if not meta:
+            continue
+        pack_domains = [d for _lbl, doms in meta["sites"] for d in doms]
+        chk = "checked" if pack_domains and all(d in blocked_pack for d in pack_domains) else ""
+        val = key.replace("&", "&amp;").replace('"', "&quot;")
+        pack_rows += (
+            f'<label class="svc"><input type="checkbox" name="pack" value="{val}" {chk}>'
+            f'<span>{label}</span></label>'
+        )
+    packs_html = ""
+    if pack_rows:
+        packs_html = ('<div class="grp"><div class="grp-h">&#x1F459; Mature &amp; adult-adjacent</div>'
+                      f'<div class="grp-b">{pack_rows}</div></div>')
+
     page = ("""<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Block Apps &amp; Services — Lantern Watch</title>
@@ -1284,12 +1317,13 @@ h1{font-size:1.4em;color:#1a1a1a;font-weight:800;letter-spacing:-0.02em;text-ali
   <p class="note">Social media is handled by your filtering level. These are extra apps &amp; services.</p>
   <form method="POST" action="/setup/services">
     __GROUPS__
+    __PACKS__
     <button type="submit" class="btn">Continue</button>
   </form>
   <a class="skip" href="/setup/services?skip=1">Skip &mdash; allow everything</a>
 </div>
 </body></html>""")
-    return page.replace("__GROUPS__", groups_html)
+    return page.replace("__GROUPS__", groups_html).replace("__PACKS__", packs_html)
 
 
 _LOGO_B64 = (

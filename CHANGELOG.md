@@ -19,6 +19,24 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.17.2] — 2026-08-17
+
+### Changed
+- **Better defaults in the setup wizard.** The two most-wanted alerts —
+  **adult content blocked** and **a new device joins** — are now ticked by
+  default, and the **daily (8 PM) and weekly (Sunday) recaps** default on too.
+  (Nothing actually sends until you turn on a notification channel.)
+- **12-hour clock** in the wizard's time pickers (e.g. "8:00 PM" instead of
+  "20:00").
+- **Recap summary is now two independent switches** (Daily and Weekly) in the
+  wizard instead of a single choice, so you can have both.
+
+### Added
+- **More to block in the wizard's Apps & Services step** — a new *Mature &
+  adult-adjacent* section with one-tap category blocks for **Lingerie**,
+  **Swimwear**, **Lingerie & swim retailers**, **Alcohol, vaping & cannabis**,
+  and **Weapons & tactical**.
+
 ## [0.17.1] — 2026-08-17
 
 ### Fixed
