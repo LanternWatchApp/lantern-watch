@@ -19,6 +19,31 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.18.0] — 2026-08-17
+
+### Added
+- **Pause with a timer.** Pausing a device — or everyone — now asks *how long*:
+  **30 minutes, 1 hour, the rest of today, or until you turn it back on.** Timed
+  pauses lift themselves automatically, so you never have to remember to switch
+  them back. Paused devices show exactly when they'll come back ("Paused until
+  4:30 PM").
+- **Device groups.** On the **Devices** page you can name a few groups — like
+  *Kids, TVs, Phones* — and drop devices into them, then **pause a whole group in
+  one tap** from the dashboard. Only your family's devices (Personal, Smart and
+  Work) can be grouped; your router, NAS and printer never can. And **"Pause
+  everyone" only ever touches Personal devices**, so the essentials stay online.
+- **Auto-group devices.** One tap suggests entertainment groups (Phones, Tablets,
+  Computers, TVs, Games) from what each device actually is — you review before
+  saving, and it will **never** propose grouping a doorbell, camera or appliance.
+
+### Changed
+- The dashboard's "Pause All Personal" button is now the plainer **"Pause everyone"**.
+
+### Fixed
+- The **Blocked Services** page now describes Safe Search honestly in three states
+  — fully on; on for search but with YouTube comments allowed (the Moderate
+  default); or off — instead of a misleading on/off.
+
 ## [0.17.6] — 2026-08-17
 
 ### Fixed
