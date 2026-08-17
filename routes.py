@@ -648,7 +648,11 @@ class Handler(BaseHTTPRequestHandler):
                 from pages import _WIZARD_SERVICE_GROUPS, _WIZARD_MATURE_SERVICE_GROUPS
                 curated = {sid for _t, ids in (_WIZARD_SERVICE_GROUPS + _WIZARD_MATURE_SERVICE_GROUPS)
                            for sid in ids}
+                # Individual service ticks plus the whole-group toggles (Dating,
+                # Gambling), whose value is the comma-joined service IDs.
                 selected = set(params.get("svc", []))
+                for grp in params.get("svcgroup", []):
+                    selected.update(i for i in grp.split(",") if i)
                 try:
                     # Preserve anything blocked outside our curated shortlist (set
                     # elsewhere), and replace only the curated ones with the ticks.

@@ -19,6 +19,13 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.17.4] — 2026-08-17
+
+### Changed
+- **Dating & adult and Gambling are now single one-tick toggles** in the wizard's
+  Mature & adult-adjacent section (blocking the whole group at once), matching the
+  category packs — keeping that step simple.
+
 ## [0.17.3] — 2026-08-17
 
 ### Changed

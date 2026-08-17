@@ -1229,11 +1229,11 @@ _WIZARD_PACK_GROUPS = [
     ("Weapons &amp; tactical",         "Weapons & Tactical"),
 ]
 
-# AdGuard-service groups that belong with the mature section (rendered up top).
-# These use AdGuard's Blocked Services (name="svc"), like the general groups.
+# AdGuard-service groups shown in the mature section as single whole-group
+# toggles (one tick blocks every service in the group). (label, [service ids])
 _WIZARD_MATURE_SERVICE_GROUPS = [
-    ("&#x1F49E; Dating &amp; adult", ["tinder", "onlyfans", "plenty_of_fish"]),
-    ("&#x1F3B0; Gambling",           ["betano", "betfair", "betway", "blaze"]),
+    ("Dating &amp; adult", ["tinder", "onlyfans", "plenty_of_fish"]),
+    ("Gambling",           ["betano", "betfair", "betway", "blaze"]),
 ]
 
 
@@ -1283,16 +1283,31 @@ def get_services_wizard_page(config):
             f'<label class="svc"><input type="checkbox" name="pack" value="{val}" {chk}>'
             f'<span>{label}</span></label>'
         )
-    packs_html = ""
-    if pack_rows:
-        packs_html = ('<div class="grp"><div class="grp-h">&#x1F459; Mature &amp; adult-adjacent</div>'
-                      f'<div class="grp-b">{pack_rows}</div></div>')
+    # Dating & Gambling as single whole-group toggles (one tick = the whole list).
+    # Ticked when every present service in the group is already blocked; the value
+    # carries the comma-joined service IDs so the POST can expand it.
+    group_rows = ""
+    for label, ids in _WIZARD_MATURE_SERVICE_GROUPS:
+        present = [i for i in ids if i in names]
+        if not present:
+            continue
+        chk = "checked" if all(i in blocked for i in present) else ""
+        group_rows += (
+            f'<label class="svc"><input type="checkbox" name="svcgroup" value="{",".join(present)}" {chk}>'
+            f'<span>{label}</span></label>'
+        )
 
-    mature_svc_html = "".join(_svc_group(t, ids) for t, ids in _WIZARD_MATURE_SERVICE_GROUPS)
-    general_html    = "".join(_svc_group(t, ids) for t, ids in _WIZARD_SERVICE_GROUPS)
+    # One "Mature & adult-adjacent" box: category packs + the group toggles.
+    mature_rows = pack_rows + group_rows
+    mature_html = ""
+    if mature_rows:
+        mature_html = ('<div class="grp"><div class="grp-h">&#x1F459; Mature &amp; adult-adjacent</div>'
+                       f'<div class="grp-b">{mature_rows}</div></div>')
 
-    # Mature block up top (packs, then dating, then gambling), general groups after.
-    groups_html = packs_html + mature_svc_html + general_html
+    general_html = "".join(_svc_group(t, ids) for t, ids in _WIZARD_SERVICE_GROUPS)
+
+    # Mature block up top, general groups after.
+    groups_html = mature_html + general_html
     if not groups_html:
         # AGH unreachable / empty catalog — don't strand the user mid-wizard.
         groups_html = ('<div class="grp"><div class="grp-b" style="padding:14px;color:#94a3b8;'
