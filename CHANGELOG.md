@@ -19,6 +19,14 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.18.2] — 2026-08-17
+
+### Fixed
+- **Devices no longer show up twice.** AdGuard sometimes logs the same device under
+  both its name and its bare IP address, which made it appear as two identical cards
+  on the dashboard and Devices page. Those are now merged into a single device, with
+  their query counts combined.
+
 ## [0.18.1] — 2026-08-17
 
 ### Security

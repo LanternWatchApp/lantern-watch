@@ -4,8 +4,36 @@ Lantern Watch — db.py
 SQLite query helpers and data-access functions.
 """
 
+import re
 import sqlite3
 from datetime import datetime
+
+_BARE_IP = re.compile(r'^\d{1,3}(\.\d{1,3}){3}$')
+
+
+def _collapse_ip_duplicates(rows):
+    """AdGuard sometimes logs one device under BOTH its hostname and its bare IP,
+    which then shows up as two identical device cards. Fold the bare-IP row into the
+    named row for the same IP (summing counts) so each device appears exactly once.
+    `rows` are dicts with client_name / client_ip / total (and optionally blocked)."""
+    named_ips = {r.get("client_ip") for r in rows
+                 if r.get("client_ip") and not _BARE_IP.match(str(r.get("client_name") or ""))}
+    kept, folded = [], {}
+    for r in rows:
+        cn, ip = str(r.get("client_name") or ""), r.get("client_ip")
+        if ip and _BARE_IP.match(cn) and ip in named_ips:
+            agg = folded.setdefault(ip, {"total": 0, "blocked": 0})
+            agg["total"]   += r.get("total") or 0
+            agg["blocked"] += r.get("blocked") or 0
+            continue
+        kept.append(r)
+    for r in kept:
+        agg = folded.get(r.get("client_ip"))
+        if agg:
+            r["total"] = (r.get("total") or 0) + agg["total"]
+            if r.get("blocked") is not None:
+                r["blocked"] = (r.get("blocked") or 0) + agg["blocked"]
+    return kept
 
 DB_PATH     = "/root/lantern-watch/lanternwatch.db"
 SESSION_GAP = 300  # seconds of silence before a new "session" starts
@@ -206,6 +234,8 @@ def get_stats(config):
         FROM querylog WHERE ts > ?
         GROUP BY client_name ORDER BY total DESC
     """, (since,)).fetchall()
+    # Merge devices AdGuard logged twice (hostname + bare IP) into one card.
+    devices = _collapse_ip_duplicates([dict(d) for d in devices])
 
     totals = conn.execute("""
         SELECT COUNT(*) as total, SUM(blocked) as blocked
@@ -459,7 +489,8 @@ def get_all_known_devices(active_hours=168, include_idle=True):
         ORDER BY counts.total DESC
     """, (win,)).fetchall()
     conn.close()
-    result = [dict(r) for r in rows]
+    # Merge devices AdGuard logged twice (hostname + bare IP) into one entry.
+    result = _collapse_ip_duplicates([dict(r) for r in rows])
     if include_idle:
         seen_ips = {r['client_ip'] for r in result}
         for ip, hostname in _dhcp_devices().items():
