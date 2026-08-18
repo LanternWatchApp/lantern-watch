@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote, unquote
 
-from config import load_config, save_config, label, is_first_run, is_pauseable, is_groupable, VERSION, UPDATE_CHECK_URL, UPDATE_RELEASES_URL, is_newer_version, router_lan_ip, dashboard_url
+from config import load_config, save_config, label, is_first_run, is_pauseable, is_groupable, hash_password, verify_password, is_hashed_password, VERSION, UPDATE_CHECK_URL, UPDATE_RELEASES_URL, is_newer_version, router_lan_ip, dashboard_url
 import recovery
 from adguard import (apply_social_profile, clear_social_blocking, get_adguard_stats,
                      apply_adguard_setup, get_adguard_setup_status, RECOMMENDED_LISTS,
@@ -616,7 +616,7 @@ class Handler(BaseHTTPRequestHandler):
                     html = get_welcome_error_page("Passwords do not match. Please try again.")
                 else:
                     config["lw_username"] = username
-                    config["lw_password"] = password
+                    config["lw_password"] = hash_password(password)
                     config["first_run"]   = False
                     save_config(config)
                     token = make_session_token()
@@ -636,7 +636,12 @@ class Handler(BaseHTTPRequestHandler):
                 stored_u = config.get("lw_username", "admin")
                 stored_p = config.get("lw_password", "")
 
-                if username == stored_u and password == stored_p:
+                if username == stored_u and verify_password(password, stored_p):
+                    # Transparently upgrade a legacy plaintext password to a hash
+                    # the first time an existing install logs in after 0.18.1.
+                    if stored_p and not is_hashed_password(stored_p):
+                        config["lw_password"] = hash_password(password)
+                        save_config(config)
                     if is_first_run(config):
                         self._redirect("/setup/password")
                         return
@@ -890,7 +895,7 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError("Password must be at least 8 characters.")
                     if new_password != confirm:
                         raise ValueError("Passwords do not match.")
-                    config["lw_password"] = new_password
+                    config["lw_password"] = hash_password(new_password)
                     save_config(config)
                     recovery.consume_reset_token(reset_token)
                     self.send_response(200)
@@ -964,7 +969,7 @@ class Handler(BaseHTTPRequestHandler):
                 config["lw_username"]  = params.get("lw_username",  ["admin"])[0].strip() or "admin"
                 new_pw = params.get("lw_password", [""])[0]
                 if new_pw:
-                    config["lw_password"] = new_pw
+                    config["lw_password"] = hash_password(new_pw)
                 config["adguard"] = {
                     "url":      params.get("ag_url",      ["http://127.0.0.1:3000"])[0],
                     "username": params.get("ag_username", [""])[0],

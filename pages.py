@@ -21,6 +21,16 @@ from db import (
 from scheduler import get_paused_devices
 
 
+def esc(s):
+    """HTML-escape a value before it's rendered into the dashboard. Applied to
+    everything a device or the network can control — device hostnames/labels, the
+    domains devices look up, MAC-vendor strings, group names — so a crafted hostname
+    or DNS query can't inject <script> into the admin's page (stored XSS)."""
+    return (str(s if s is not None else "")
+            .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace('"', "&quot;").replace("'", "&#39;"))
+
+
 def _local_ts(ts):
     """Convert a stored UTC timestamp (AdGuard RFC3339 with 'Z', or a naive UTC
     string) to a local 'YYYY-MM-DD HH:MM:SS' string for display. Query filtering
@@ -2320,7 +2330,7 @@ def make_card(d, screen_times, max_queries, config, ip_hostnames=None):
     return (
         f'<div class="device-card" style="{card_style}">'
         f'<div class="device-header"><a href="/device?name={enc}&ip={enc_ip}" style="flex:1">'
-        f'<div class="device-name">{friendly}</div>{ip_sub}'
+        f'<div class="device-name">{esc(friendly)}</div>{ip_sub}'
         f'</a>{badge}</div>'
         f'<div class="bar-wrap"><div class="bar-fill {danger}" style="width:{bar_pct}%"></div></div>'
         f'<div class="device-stats">'
@@ -2342,7 +2352,7 @@ def make_card(d, screen_times, max_queries, config, ip_hostnames=None):
 def make_blocked_link(r, config):
     enc = quote(r["domain"])
     return (f'<a href="/domain?name={enc}"><div class="domain-item" style="cursor:pointer">'
-            f'<span class="domain-name">{r["domain"]}</span>'
+            f'<span class="domain-name">{esc(r["domain"])}</span>'
             f'<span class="domain-count red">{r["hits"]:,} blocked</span></div></a>')
 
 
@@ -2350,7 +2360,7 @@ def make_adult_link(r):
     enc  = quote(r["domain"])
     last = _local_ts(r["last_seen"])[:16] if r["last_seen"] else "-"
     return (f'<a href="/domain?name={enc}"><div class="domain-item" style="cursor:pointer;background:#FFF7F7">'
-            f'<div><div style="color:#DC6B5F;font-weight:600">{r["domain"]}</div>'
+            f'<div><div style="color:#DC6B5F;font-weight:600">{esc(r["domain"])}</div>'
             f'<div style="font-size:0.75em;color:#94a3b8">Last: {last}</div></div>'
             f'<span class="domain-count red">{r["hits"]:,} attempts</span></div></a>')
 
@@ -2463,7 +2473,7 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
     infra_cards   = "".join(make_card(d, screen_times, max_q, config, ip_hostnames) for d in infra)
     blocked_html  = "".join(make_blocked_link(r, config) for r in top_blocked) or '<div class="domain-item"><span class="domain-name">None today</span></div>'
     allowed_html  = "".join(
-        f'<div class="domain-item"><span class="domain-name">{r["domain"]}</span><span class="domain-count">{r["hits"]:,}</span></div>'
+        f'<div class="domain-item"><span class="domain-name">{esc(r["domain"])}</span><span class="domain-count">{r["hits"]:,}</span></div>'
         for r in top_domains
     ) or '<div class="domain-item"><span class="domain-name">No data</span></div>'
 
@@ -2573,8 +2583,8 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
         rdim = "" if g_paused else "opacity:0.4;pointer-events:none;"
         group_rows += (
             '<div style="display:flex;gap:10px;margin-bottom:8px">'
-            + _pause_picker(f"Pause {g} ({g_online})", f"/group/pause?name={_q(g)}", g_online)
-            + f'<a href="/group/unpause?name={_q(g)}" class="btn btn-secondary" style="flex:1;text-align:center;margin:0;{rdim}">&#x25B6; Resume {g}</a>'
+            + _pause_picker(f"Pause {esc(g)} ({g_online})", f"/group/pause?name={_q(g)}", g_online)
+            + f'<a href="/group/unpause?name={_q(g)}" class="btn btn-secondary" style="flex:1;text-align:center;margin:0;{rdim}">&#x25B6; Resume {esc(g)}</a>'
             + '</div>'
         )
     if group_rows:
@@ -2652,7 +2662,7 @@ def build_detail(client_name, config, client_ip_param=""):
     if config.get("demo_mode"):
         _talks = [_demo_domain(x) for x in _talks]
     talks_row = (f'<div style="font-size:0.82em;color:#64748b;margin-top:10px;word-break:break-all">'
-                 f'&#x1F4AC; talks to: {", ".join(_talks)}</div>') if _talks else ""
+                 f'&#x1F4AC; talks to: {esc(", ".join(_talks))}</div>') if _talks else ""
     device_info_html = (
         '<div class="section"><h2>Device Info</h2><div class="form-card">'
         '<div class="detail-stats" style="flex-wrap:wrap;gap:14px">'
@@ -2696,7 +2706,7 @@ def build_detail(client_name, config, client_ip_param=""):
         hour_labels_html += f'<div class="hour-label">{h if h % 4 == 0 else ""}</div>'
 
     sites_html  = "".join(
-        f'<div class="domain-item"><span class="domain-name">{r["domain"]}</span><span class="domain-count">{r["hits"]:,}</span></div>'
+        f'<div class="domain-item"><span class="domain-name">{esc(r["domain"])}</span><span class="domain-count">{r["hits"]:,}</span></div>'
         for r in sites
     ) or '<div class="domain-item"><span class="domain-name">No data</span></div>'
     blocked_html = "".join(make_blocked_link(r, config) for r in blocked_sites) or '<div class="domain-item"><span class="domain-name">Nothing blocked</span></div>'
@@ -2742,12 +2752,12 @@ def build_detail(client_name, config, client_ip_param=""):
     return (
         f'<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg"><meta charset="UTF-8">'
         f'<meta name="viewport" content="width=device-width,initial-scale=1.0">'
-        f'<title>{friendly} - Lantern Watch</title><style>{CSS}</style></head><body>'
+        f'<title>{esc(friendly)} - Lantern Watch</title><style>{CSS}</style></head><body>'
         + build_header(friendly, config=config)
         + '<div class="page-wrap">'
         +''
         + f'<div class="detail-header">'
-        + f'<div class="detail-name">{friendly}</div>'
+        + f'<div class="detail-name">{esc(friendly)}</div>'
         + f'<div style="margin-top:6px;margin-bottom:10px">{peak_tag}{cat_tag}</div>'
         + f'<div class="detail-stats">'
         + f'<div class="detail-stat">Queries today: <span>{total:,}</span></div>'
@@ -2839,7 +2849,7 @@ def build_domain_detail(domain, config, msg="", peek=None):
         timeline_html += (
             f'<div class="domain-item" style="flex-direction:column;align-items:flex-start;gap:4px">'
             f'<div style="display:flex;justify-content:space-between;width:100%">'
-            f'<span style="font-weight:600">{friendly}</span>'
+            f'<span style="font-weight:600">{esc(friendly)}</span>'
             f'<span style="color:#94a3b8;font-size:0.75em">{ts}</span></div>'
             f'<div><span class="badge badge-red">{ls}</span> '
             f'<span style="color:#94a3b8;font-size:0.75em">{elapsed}</span></div></div>'
@@ -2872,8 +2882,8 @@ def build_domain_detail(domain, config, msg="", peek=None):
             peek_box = (
                 '<div style="margin-top:12px;padding:12px;background:#f6f9ff;border:1px solid #c9d9f5;border-radius:10px">'
                 '<div style="font-size:0.72em;text-transform:uppercase;letter-spacing:0.05em;color:#5877b8;font-weight:700;margin-bottom:6px">What is this site?</div>'
-                + (f'<div style="font-weight:700;color:#1e293b;font-size:0.95em">{_t}</div>' if _t else '')
-                + (f'<div style="color:#475569;font-size:0.85em;margin-top:4px">{_d}</div>' if _d else '')
+                + (f'<div style="font-weight:700;color:#1e293b;font-size:0.95em">{esc(_t)}</div>' if _t else '')
+                + (f'<div style="color:#475569;font-size:0.85em;margin-top:4px">{esc(_d)}</div>' if _d else '')
                 + '<div style="color:#94a3b8;font-size:0.72em;margin-top:8px">Fetched privately by your router — shown only to you, nothing was unblocked.</div>'
                 '</div>'
             )
@@ -2896,7 +2906,7 @@ def build_domain_detail(domain, config, msg="", peek=None):
         # Previewing: temporarily allowed, auto-reblocks soon.
         import time as _t
         _mins = max(0, int(round((_prev_exp - _t.time()) / 60)))
-        _open = f'https://{domain}/'
+        _open = f'https://{esc(domain)}/'
         allow_box = (
             '<div style="margin-top:14px;padding:12px;background:#FFFBEB;border:1px solid #F0D890;border-radius:10px">'
             f'<div style="color:#7a5a12;font-weight:700;font-size:0.9em;margin-bottom:4px">&#x1F441;&#xFE0F; You&#39;re previewing this site.</div>'
@@ -2940,13 +2950,13 @@ def build_domain_detail(domain, config, msg="", peek=None):
     return (
         f'<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg"><meta charset="UTF-8">'
         f'<meta name="viewport" content="width=device-width,initial-scale=1.0">'
-        f'<title>{domain} - Lantern Watch</title><style>{CSS}</style></head><body>'
+        f'<title>{esc(domain)} - Lantern Watch</title><style>{CSS}</style></head><body>'
         + build_header("Blocked Site Details", config=config)
         + '<div class="page-wrap">'
         + flash_html
         + f'<div style="margin:0 16px 12px;padding:16px;background:#FFF7F7;border-radius:12px;border:2px solid #FCA5A5">'
         + f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'
-        + f'<div style="font-size:1.1em;font-weight:700;color:#DC6B5F;word-break:break-all">{domain}</div>{cat_badge}</div>'
+        + f'<div style="font-size:1.1em;font-weight:700;color:#DC6B5F;word-break:break-all">{esc(domain)}</div>{cat_badge}</div>'
         + f'<div style="color:#DC6B5F;font-size:0.85em;margin-bottom:12px">{explanation}</div>'
         + f'<div style="display:flex;gap:16px;flex-wrap:wrap">'
         + f'<div style="font-size:0.8em;color:#64748b">Category: <b style="color:#DC6B5F">{category}</b></div>'
@@ -2956,8 +2966,8 @@ def build_domain_detail(domain, config, msg="", peek=None):
         + f'</div>'
         + allow_box
         + f'<form method="POST" action="/domain/clear" style="margin-top:14px" '
-        + f'onsubmit="return confirm(\'Remove all log entries for {domain}? This clears its counts everywhere but keeps the rest of your history.\')">'
-        + f'<input type="hidden" name="domain" value="{domain}">'
+        + f'onsubmit="return confirm(\'Remove all log entries for this site? This clears its counts everywhere but keeps the rest of your history.\')">'
+        + f'<input type="hidden" name="domain" value="{esc(domain)}">'
         + f'<button type="submit" class="btn btn-secondary" style="font-size:0.8em;padding:7px 14px">&#x1F5D1;&#xFE0F; Clear this domain from the log</button>'
         + f'</form>'
         + f'</div>'
@@ -3020,8 +3030,8 @@ def build_schedule_page(client_name, client_ip, config):
     return (
         f'<!DOCTYPE html><html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg">'
         f'<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">'
-        f'<title>Schedule — {friendly}</title><style>{CSS}</style></head><body>'
-        + build_header(f"Schedule — {friendly}", config=config)
+        f'<title>Schedule — {esc(friendly)}</title><style>{CSS}</style></head><body>'
+        + build_header(f"Schedule — {esc(friendly)}", config=config)
         + '<div class="page-wrap">'
         +''
         + f'<div class="section"><form method="POST" action="/device/schedule/save">'
@@ -3034,7 +3044,7 @@ def build_schedule_page(client_name, client_ip, config):
         + f'<div style="font-weight:800;color:#D97706;font-size:1.1em">&#x1F319; Hours of Peace</div>'
         + f'<label style="display:flex;align-items:center;gap:6px;font-size:0.85em;color:#64748b">'
         + f'<input type="checkbox" name="enabled" {enabled}> Enable</label></div>'
-        + f'<div style="color:#64748b;font-size:0.85em;margin-bottom:14px">Internet automatically pauses at bedtime for <b style="color:#D97706">{friendly}</b>.</div>'
+        + f'<div style="color:#64748b;font-size:0.85em;margin-bottom:14px">Internet automatically pauses at bedtime for <b style="color:#D97706">{esc(friendly)}</b>.</div>'
         + f'<div style="background:#FFFBF0;border-radius:12px;padding:16px;border:1px solid #FEF3C7">'
         + f'<div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">'
         + f'<div style="flex:1;min-width:120px"><div class="form-label">Bedtime</div>'
@@ -3055,7 +3065,7 @@ def build_schedule_page(client_name, client_ip, config):
         # Screen Time
         + f'<div style="margin-top:20px">'
         + f'<div style="font-weight:800;color:#0ea5e9;font-size:1.1em;margin-bottom:4px">&#x23F1; Daily Screen Time Limit</div>'
-        + f'<div style="color:#64748b;font-size:0.85em;margin-bottom:12px">Internet automatically pauses for <b style="color:#0ea5e9">{friendly}</b> when their daily limit is reached. You will receive a notification.</div>'
+        + f'<div style="color:#64748b;font-size:0.85em;margin-bottom:12px">Internet automatically pauses for <b style="color:#0ea5e9">{esc(friendly)}</b> when their daily limit is reached. You will receive a notification.</div>'
         + f'<div class="form-card" style="border-color:#BAE6FD">'
         + f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
         + f'<div style="font-weight:700;color:#0ea5e9">&#x23F1; Screen Time</div>'
@@ -3128,7 +3138,7 @@ def build_portal_page(dest, config):
         '<div style="max-width:440px;width:100%;text-align:center">'
         f'<div style="width:180px;margin:0 auto 20px">{_LOGO_SVG}</div>'
         f'<h1 style="font-size:1.2em;font-weight:800;color:#2c2c2a;margin-bottom:16px;line-height:1.4">'
-        f'Welcome to {network_name}.</h1>'
+        f'Welcome to {esc(network_name)}.</h1>'
         '<div style="background:#fffbf0;border:1px solid #e8d080;border-radius:12px;'
         'padding:18px 20px;margin-bottom:20px;text-align:left">'
         '<p style="color:#7a5c00;font-size:0.9em;line-height:1.7;margin:0">'
@@ -3752,7 +3762,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
         group_select   = ""
         if _custom_groups and cur_type in ("person", "smart_device", "work_device"):
             _opts = '<option value="">— none —</option>' + "".join(
-                f'<option value="{g}" {"selected" if _cg == g else ""}>{g}</option>'
+                f'<option value="{esc(g)}" {"selected" if _cg == g else ""}>{esc(g)}</option>'
                 for g in _custom_groups)
             group_select = (
                 f'<div class="grp-field" style="flex:1;min-width:120px"><div class="form-label">Group</div>'
@@ -3806,13 +3816,13 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
         disp  = demo_ident(name, ident, d["client_ip"] or "", config)
         _idb  = []
         if disp["ip"] and disp["ip"] != cur_label and disp["ip"] != name:
-            _idb.append(f'&#x1F310; {disp["ip"]}')
+            _idb.append(f'&#x1F310; {esc(disp["ip"])}')
         if disp["hostname"] and disp["hostname"] != name and disp["hostname"].lower() != (cur_label or "").lower():
-            _idb.append(f'&#x1F4F6; {disp["hostname"]}')
+            _idb.append(f'&#x1F4F6; {esc(disp["hostname"])}')
         if disp["vendor"]:
-            _idb.append(f'&#x1F3F7;&#xFE0F; {disp["vendor"]}')
+            _idb.append(f'&#x1F3F7;&#xFE0F; {esc(disp["vendor"])}')
         if disp["mac"]:
-            _idb.append(f'<span style="color:#cbd5e1">{disp["mac"]}</span>')
+            _idb.append(f'<span style="color:#cbd5e1">{esc(disp["mac"])}</span>')
         id_line = (f'<div style="font-size:0.72em;color:#94a3b8;margin-top:3px">{" &middot; ".join(_idb)}</div>'
                    if _idb else "")
 
@@ -3835,18 +3845,18 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
                 _t = [_demo_domain(x) for x in _t]
             if _t:
                 talks_line = (f'<div style="font-size:0.72em;color:#94a3b8;margin-top:2px">'
-                              f'&#x1F4AC; talks to: {", ".join(_t)}</div>')
+                              f'&#x1F4AC; talks to: {esc(", ".join(_t))}</div>')
 
         rows_html  += f"""<div class="form-card">
   <div style="display:flex;justify-content:space-between;margin-bottom:10px">
-    <div><div style="font-weight:700">{icon} {cur_label}</div>
+    <div><div style="font-weight:700">{icon} {esc(cur_label)}</div>
     {sub_html}<div style="font-size:0.75em;color:#64748b">Last: {last} — {d["total"]:,} queries</div>{kind_line}{id_line}{talks_line}</div>
     <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;color:#64748b">
       <input type="checkbox" name="monitor_{enc}" {mc}> Monitor</label>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <div style="flex:2;min-width:140px"><div class="form-label">Name{name_hint}</div>
-      <input type="text" name="label_{enc}" value="{cur_label}"></div>
+      <input type="text" name="label_{enc}" value="{esc(cur_label)}"></div>
     <div style="flex:1;min-width:120px"><div class="form-label">Role{type_hint}</div>
       <select name="type_{enc}" onchange="lwRoleDesc(this)">
         <option value="person" {sel_person}>👤 Personal</option>
@@ -4263,7 +4273,7 @@ def build_blocked_services_page(all_svcs, blocked_ids, ss_on, config, saved_msg=
         _rows += (
             f'<div style="display:flex;align-items:center;justify-content:space-between;'
             f'padding:8px 0;border-bottom:1px solid #f5f5f5">'
-            f'<span style="font-size:0.9em;color:#2c2c2a">&#x1F6AB; {_d}</span>'
+            f'<span style="font-size:0.9em;color:#2c2c2a">&#x1F6AB; {esc(_d)}</span>'
             f'<form method="POST" action="/blocked-services/custom/remove" style="margin:0">'
             f'<input type="hidden" name="domain" value="{_d}">'
             f'<button type="submit" class="btn btn-secondary" style="font-size:0.75em;padding:4px 12px">Remove</button>'
@@ -4959,7 +4969,7 @@ def build_notifications(config, cleared=False, saved=False,
         + '<div class="form-card">'
         + f'<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer"><input type="checkbox" name="ntfy_enabled" {"checked" if config.get("ntfy_enabled", bool(ntfy_topic)) else ""} style="width:18px;height:18px;accent-color:#e8a000"><span style="font-weight:700;color:var(--ink)">ntfy push notifications</span></label>'
         + '<div class="form-label">ntfy Primary Topic</div>'
-        + f'<input type="text" name="ntfy_topic" value="{ntfy_topic}" placeholder="e.g. my-family-alerts">'
+        + f'<input type="text" name="ntfy_topic" value="{esc(ntfy_topic)}" placeholder="e.g. my-family-alerts">'
         + '<div class="form-label" style="margin-top:12px">Additional Topics (comma-separated)</div>'
         + f'<input type="text" name="extra_topics" value="{config.get("extra_topics", "")}">'
         + '<div style="margin-top:12px"><a href="/notifications/test/ntfy" class="btn btn-secondary" style="font-size:0.82em;padding:8px 14px">Send Test Push</a></div></div>'
@@ -5166,16 +5176,16 @@ def build_querylog_page(entries, devices, total, filters, config, summary=None):
         )
         elapsed_str = f"{elapsed:.0f}" if elapsed else "—"
         dev_url   = f'/querylog?device={quote(dev_name)}&window={window}&blocked={blocked}&q={quote(q)}'
-        ip_line   = f'<span class="ql-dev-ip">{dev_ip}</span>' if dev_ip else ''
-        dev_link  = f'<a class="ql-dev-link" href="{dev_url}">{dev_label}</a>{ip_line}'
+        ip_line   = f'<span class="ql-dev-ip">{esc(dev_ip)}</span>' if dev_ip else ''
+        dev_link  = f'<a class="ql-dev-link" href="{dev_url}">{esc(dev_label)}</a>{ip_line}'
 
         rows_html += (
             f'<tr>'
             f'<td class="ql-col-time"><span class="ql-ts">{ts_time}</span>'
             f'<span class="ql-date">{ts_date}</span></td>'
             f'<td class="ql-col-dev">{dev_link}</td>'
-            f'<td class="ql-col-domain">{domain}</td>'
-            f'<td class="ql-col-type"><span class="ql-qtype">{qtype}</span></td>'
+            f'<td class="ql-col-domain">{esc(domain)}</td>'
+            f'<td class="ql-col-type"><span class="ql-qtype">{esc(qtype)}</span></td>'
             f'<td class="ql-col-status">{status_badge}</td>'
             f'<td class="ql-col-ms">{elapsed_str}</td>'
             f'</tr>'

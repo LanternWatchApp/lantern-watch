@@ -4,14 +4,17 @@ Lantern Watch — config.py
 Load/save config and device helper functions.
 """
 
+import hashlib
 import json
+import os
 import re as _re
+import secrets
 
 # Versioning: Semantic Versioning MAJOR.MINOR.PATCH (see CHANGELOG.md). While
 # pre-1.0 the leading 0. signals it's still maturing: PATCH = fixes, MINOR = new
 # features. A pre-release tag (beta/rc) sorts BELOW the same numbered release.
 # See is_newer_version().
-VERSION          = "0.18.0"
+VERSION          = "0.18.1"
 # Update check reads the public GitHub repo directly — the newest git tag is the
 # single source of truth. No telemetry is sent; the router just asks GitHub for
 # the tag list, anonymously, like any visitor.
@@ -243,6 +246,40 @@ def is_groupable(name, config):
     parent can group TVs/phones/laptops but can never knock out the network's spine.
     'Pause everyone' still only ever hits Personal (is_pauseable) — the safe default."""
     return effective_type(name, config) in ("person", "smart_device", "work_device")
+
+
+# ── Dashboard password hashing ────────────────────────────────────────────────
+# The dashboard password is hashed (PBKDF2-HMAC-SHA256 + random salt), never stored
+# in plain text — so a leaked config file or a backup on a USB stick can't reveal it.
+_PW_ITER = 200_000
+
+
+def hash_password(pw):
+    """Return a self-describing hash: pbkdf2_sha256$<iters>$<salt_hex>$<hash_hex>."""
+    salt = os.urandom(16)
+    dk = hashlib.pbkdf2_hmac("sha256", (pw or "").encode("utf-8"), salt, _PW_ITER)
+    return f"pbkdf2_sha256${_PW_ITER}${salt.hex()}${dk.hex()}"
+
+
+def is_hashed_password(stored):
+    return bool(stored) and str(stored).startswith("pbkdf2_sha256$")
+
+
+def verify_password(pw, stored):
+    """True if `pw` matches `stored`. Handles the hashed format and, for backward
+    compatibility, a legacy plaintext value (pre-0.18.1) — the caller re-hashes on a
+    successful plaintext match so old installs upgrade transparently at next login."""
+    if not stored:
+        return False
+    if is_hashed_password(stored):
+        try:
+            _, iters, salt_hex, hash_hex = str(stored).split("$", 3)
+            dk = hashlib.pbkdf2_hmac("sha256", (pw or "").encode("utf-8"),
+                                     bytes.fromhex(salt_hex), int(iters))
+            return secrets.compare_digest(dk.hex(), hash_hex)
+        except Exception:
+            return False
+    return secrets.compare_digest(pw or "", str(stored))
 
 
 def is_monitored(name, config):

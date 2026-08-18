@@ -19,6 +19,17 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.18.1] — 2026-08-17
+
+### Security
+- **Your dashboard password is now stored as a secure hash, never in plain text.**
+  Existing passwords upgrade automatically the next time you sign in, and the
+  password is no longer readable in a config file or in a backup.
+- **Hardened the dashboard against a cross-site scripting (XSS) trick.** Device
+  names and the websites devices look up are now safely escaped everywhere they
+  appear, so a device on your network can't sneak code into your dashboard with a
+  booby-trapped name or web address.
+
 ## [0.18.0] — 2026-08-17
 
 ### Added
