@@ -70,7 +70,7 @@ Three routers cover almost everyone — pick the one that matches your situation
 |---|---|---|
 | 🏡 **Home & Office** | 🏆 **[Flint 2 (MT6000)](https://amzn.to/4aq79nj)** | Our recommended router for almost everyone. Fast, reliable, lots of room to grow, and fully tested with Lantern Watch. |
 | ✈️ **Travel / Apartment** | **[Beryl 7 (MT3600BE)](https://amzn.to/4wajV1J)** | Compact travel router with excellent performance. Great when portability matters. |
-| 🏢 **Business (existing network)** | **[Brume 3 (MT5000)](https://amzn.to/4was7Pt)** | For businesses that already have commercial Wi-Fi or firewall equipment and want Lantern Watch on a dedicated appliance. |
+| 🏢 **Business (existing network)** | **[Brume 3 (MT5000)](https://amzn.to/4qsQCGa)** | For businesses that already have commercial Wi-Fi or firewall equipment and want Lantern Watch on a dedicated appliance. |
 
 **In 30 seconds:**
 
@@ -85,6 +85,14 @@ Three routers cover almost everyone — pick the one that matches your situation
 - **Brume 3 (GL-MT5000)** — MediaTek quad-core @ **2.0 GHz**, **1 GB DDR4 RAM, 8 GB** eMMC storage, 1x 2.5G + 2x 1G ports, no Wi-Fi. Sits between your modem and your existing Wi-Fi router or firewall — your current network stays exactly as it is, and Lantern Watch protection applies to everything instantly. Fanless, silent, and built for 24/7 always-on use.
 
 All three run OpenWrt with AdGuard Home and are fully supported. Lantern Watch itself is lightweight (Python 3 standard library + SQLite, no external dependencies) — router specs mainly affect AdGuard Home performance under heavy DNS load.
+
+### Community-tested
+
+Routers that **users have installed Lantern Watch on and reported working** — confirmed in the real world, not lab-tested by us:
+
+- **Brume 2 ([GL-MT2500](https://amzn.to/464FlSS))** — 1 GB DDR4 RAM, wired security gateway (no Wi-Fi), 2.5 G WAN. Architecturally a close sibling of the Brume 3, and a user confirmed it runs the full profile smoothly. *(Thanks, Benjamin!)*
+
+**Ran Lantern Watch on a router that isn't listed?** [Open an issue](https://github.com/LanternWatchApp/lantern-watch/issues) or reach out via [lanternwatch.org](https://lanternwatch.org/#contact) — we'll add it here to help the next family find hardware that just works.
 
 > *These are affiliate links. If you purchase through them we earn a small commission at no extra cost to you — it helps keep Lantern Watch free for every family.*
 
