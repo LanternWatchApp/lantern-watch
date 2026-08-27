@@ -310,7 +310,7 @@ def demo_ident(name, ident, ip, config):
 
 # ── Notification helper ───────────────────────────────────────────────────────
 
-def send_ntfy(topic, message, title="Lantern Watch", priority="default", tags="bell", click_url=""):
+def send_ntfy(topic, message, title="Lantern Watch", priority="default", tags="bell"):
     try:
         headers = {
             "Title":        title.encode("utf-8").decode("latin-1", errors="ignore"),
@@ -318,8 +318,6 @@ def send_ntfy(topic, message, title="Lantern Watch", priority="default", tags="b
             "Tags":         tags,
             "Content-Type": "text/plain; charset=utf-8",
         }
-        if click_url:
-            headers["Click"] = click_url
         req = urllib.request.Request(
             f"https://ntfy.sh/{topic}",
             data=message.encode("utf-8"),
@@ -346,7 +344,7 @@ def send_test_ntfy(config):
     try:
         dash_url    = dashboard_url(config)
         body        = f"Lantern Watch is protecting your network!\n\nDashboard: {dash_url}"
-        send_ntfy(topic, body, "Lantern Watch Test", click_url=dash_url)
+        send_ntfy(topic, body, "Lantern Watch Test")
         return True, ""
     except Exception as e:
         return False, str(e)
@@ -1928,7 +1926,7 @@ lw-label{{display:block;font-size:13px;font-weight:500;color:#6b6b6b;margin-bott
     <button type="submit" class="lw-btn" id="loginBtn">Sign In</button>
     </form>
     <button class="lw-btn-ghost" id="forgotBtn">Forgot password?</button>
-    <a href="/findhelp" style="display:block;text-align:center;margin-top:10px;color:#e8a000;font-weight:600;font-size:0.9em;text-decoration:none">Struggling with something? You're not alone — find help &rarr;</a>
+    <a href="/findhelp" style="display:block;text-align:center;margin-top:10px;color:#e8a000;font-weight:600;font-size:0.9em;text-decoration:none">Struggling with something?<br>You're not alone — find help &rarr;</a>
     {first_run_hint}
   </div>
 
@@ -4970,8 +4968,6 @@ def build_notifications(config, cleared=False, saved=False,
         + f'<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer"><input type="checkbox" name="ntfy_enabled" {"checked" if config.get("ntfy_enabled", bool(ntfy_topic)) else ""} style="width:18px;height:18px;accent-color:#e8a000"><span style="font-weight:700;color:var(--ink)">ntfy push notifications</span></label>'
         + '<div class="form-label">ntfy Primary Topic</div>'
         + f'<input type="text" name="ntfy_topic" value="{esc(ntfy_topic)}" placeholder="e.g. my-family-alerts">'
-        + '<div class="form-label" style="margin-top:12px">Additional Topics (comma-separated)</div>'
-        + f'<input type="text" name="extra_topics" value="{config.get("extra_topics", "")}">'
         + '<div style="margin-top:12px"><a href="/notifications/test/ntfy" class="btn btn-secondary" style="font-size:0.82em;padding:8px 14px">Send Test Push</a></div></div>'
         # Telegram
         + '<div class="form-card">'

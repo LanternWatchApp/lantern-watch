@@ -1229,7 +1229,6 @@ class Handler(BaseHTTPRequestHandler):
                 config.setdefault("alerts", {})
                 config.setdefault("summary", {})
                 config["ntfy_topic"]   = params.get("ntfy_topic",   [""])[0]
-                config["extra_topics"] = params.get("extra_topics",  [""])[0]
                 config["ntfy_enabled"] = "ntfy_enabled" in params
                 config["alerts"]["adult_content"]   = "alert_adult"     in params
                 config["alerts"]["new_device"]      = "alert_newdevice" in params

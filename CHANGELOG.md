@@ -19,6 +19,22 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.18.3] — 2026-08-27
+
+### Fixed
+- **ntfy push notifications now open the ntfy app when tapped**, instead of
+  jumping straight to the dashboard's local address — which failed whenever
+  you were away from home on cellular, since that address only exists on
+  your home network. The dashboard link is still right there in the
+  notification text if you want to tap it while on Wi-Fi.
+- Removed the "Additional Topics" field from Notification Settings — it only
+  ever affected the daily/weekly summary, not real-time alerts, which made it
+  confusing rather than useful.
+
+### Changed
+- The "Struggling with something?" link on the sign-in page now wraps onto
+  two lines for better readability.
+
 ## [0.18.2] — 2026-08-17
 
 ### Fixed
