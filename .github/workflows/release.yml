@@ -66,3 +66,20 @@ jobs:
           prerelease: ${{ contains(steps.ver.outputs.VERSION, 'beta') || contains(steps.ver.outputs.VERSION, 'alpha') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The GitHub Release above is a separate distribution point from the
+      # opkg feed at lanternwatch.org/repo/ — that's what the in-app "Update
+      # Now" button and GL.iNet's Manage Sources actually pull from. Without
+      # this step, routers see "update available" (it reads GitHub tags) but
+      # "Update Now" silently reinstalls the OLD version forever, since the
+      # feed never changed. Requires the SITE_DEPLOY_KEY secret — see
+      # scripts/publish_feed.sh for setup.
+      - name: Load site deploy key
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SITE_DEPLOY_KEY }}
+
+      - name: Publish to hosted opkg feed
+        if: startsWith(github.ref, 'refs/tags/')
+        run: bash scripts/publish_feed.sh "${{ steps.ver.outputs.PKG }}" "${{ steps.ver.outputs.VERSION }}"
