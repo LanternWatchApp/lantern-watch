@@ -31,13 +31,29 @@ _PORT = 8444
 def _ensure_cert():
     """Generate a long-lived self-signed cert once (openssl is present on the
     GL.iNet firmware). The cert name never matches the blocked domain — a warning
-    is expected — so the subject is cosmetic."""
+    is expected — so the subject is cosmetic. Needs a subjectAltName even so:
+    browsers since ~2017 ignore a bare Common Name and can refuse to render
+    even the click-through warning UI for a cert with no SAN extension at all.
+
+    Self-heals an existing cert from before the SAN fix: any router updating
+    from an older version already has blockpage.crt/.key on disk, which would
+    otherwise never get regenerated. Checked once per boot, cheap either way."""
     if os.path.exists(_CRT) and os.path.exists(_KEY):
-        return
+        try:
+            r = subprocess.run(
+                ["openssl", "x509", "-in", _CRT, "-noout", "-text"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if "Subject Alternative Name" in (r.stdout or ""):
+                return
+            print("[BlockServer] existing cert has no SAN, regenerating")
+        except Exception:
+            pass  # can't verify it — safest is to regenerate below
     subprocess.run(
         ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
          "-keyout", _KEY, "-out", _CRT, "-days", "3650",
-         "-subj", "/CN=Lantern Watch"],
+         "-subj", "/CN=Lantern Watch",
+         "-addext", "subjectAltName=DNS:lanternwatch.local,DNS:lanternwatch.lan"],
         capture_output=True,
     )
 
@@ -75,8 +91,25 @@ class _QuietHTTPSServer(ThreadingHTTPServer):
     """Blocked HTTPS sites make the browser reject our self-signed cert
     (SSLV3_ALERT_CERTIFICATE_UNKNOWN) or abort the TLS handshake — that's the
     expected block-page flow, not a failure. Swallow those handshake errors
-    instead of dumping a full traceback to the log on every blocked hit."""
+    instead of dumping a full traceback to the log on every blocked hit.
+
+    The TLS handshake happens per-connection in finish_request(), NOT on the
+    listening socket. ThreadingMixIn already runs finish_request() in its own
+    thread per connection, but get_request()'s accept() call always runs on
+    the single main server-loop thread — so wrapping the listening socket
+    itself (the old approach) meant one slow or malformed client's handshake
+    blocked accept() for every other blocked-site hit until it finished or
+    timed out. Wrapping the accepted socket here instead keeps the listening
+    socket plain, so a stuck handshake only ever stalls its own thread."""
     daemon_threads = True
+    ssl_context = None  # set by start_block_server() before serve_forever()
+
+    def finish_request(self, request, client_address):
+        try:
+            request = self.ssl_context.wrap_socket(request, server_side=True)
+        except (ssl.SSLError, OSError):
+            return  # handshake aborted/rejected — same expected flow as before
+        super().finish_request(request, client_address)
 
     def handle_error(self, request, client_address):
         import sys
@@ -94,7 +127,7 @@ def start_block_server():
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(certfile=_CRT, keyfile=_KEY)
         srv = _QuietHTTPSServer(("0.0.0.0", _PORT), _BlockHandler)
-        srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
+        srv.ssl_context = ctx
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         print(f"[BlockServer] HTTPS block page serving on :{_PORT}")
     except Exception as e:

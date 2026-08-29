@@ -137,8 +137,13 @@ class Handler(BaseHTTPRequestHandler):
             self._redirect(f"http://{_lan_ip}:8081/blocked")
             return
 
-        # Auth wall — only login and first-run setup pages are public
-        if parsed.path not in ("/login", "/setup/password", "/setup/adguard", "/blocked", "/findhelp", "/portal") and not check_auth(self):
+        # Auth wall — login, block/portal/help pages, and first-run setup pages
+        # are public. /setup/password and /setup/adguard are only public during
+        # first run — once an admin account exists, they need a real session
+        # like everything else, same reasoning as the do_POST wizard guard below.
+        _public_get = parsed.path in ("/login", "/blocked", "/findhelp", "/portal")
+        _first_run_get = parsed.path in ("/setup/password", "/setup/adguard") and is_first_run(config)
+        if not _public_get and not _first_run_get and not check_auth(self):
             # On a brand-new install, take the user straight to "set your password"
             # instead of the login screen. /setup/password is already public, so
             # this removes any need to find the generated temporary password in the
@@ -593,6 +598,22 @@ class Handler(BaseHTTPRequestHandler):
             body   = self.rfile.read(length).decode()
             params = parse_qs(body)
 
+            # First-run wizard steps have no session yet, so they must work
+            # without one — but ONLY during first run. Once an admin account
+            # exists, every one of these needs a real session like anything else
+            # in /admin; without this, any LAN device could POST here at any
+            # time (reset the admin password, change the filtering profile,
+            # disable alerts, reconfigure AdGuard) with no login at all.
+            _WIZARD_POST_PATHS = {
+                "/setup/password", "/setup/check-adguard", "/setup/profile",
+                "/setup/services", "/setup/network", "/setup/alerts",
+                "/setup/backup", "/setup/notifications", "/setup/adguard",
+            }
+            if (parsed.path in _WIZARD_POST_PATHS
+                    and not is_first_run(config) and not check_auth(self)):
+                self._redirect("/login")
+                return
+
             # ── Captive portal acknowledgment (public endpoint) ──────────────
             if parsed.path == "/portal/ack":
                 from portal import ack_portal_ip
@@ -853,14 +874,14 @@ class Handler(BaseHTTPRequestHandler):
 
             # ── Password recovery — public endpoints ──────────────────────────
             elif parsed.path == "/auth/forgot-password":
-                token, channels = recovery.generate_code(config)
+                token, channels = recovery.generate_code(config, client_ip=self.client_address[0])
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 if token:
                     self.wfile.write(json.dumps({"ok": True, "token": token, "channels": channels}).encode())
                 else:
-                    self.wfile.write(json.dumps({"ok": False, "error": "No notification channels configured. Ask your admin to set up ntfy, Telegram, or email in Settings."}).encode())
+                    self.wfile.write(json.dumps({"ok": False, "error": "Please wait a moment and try again — or ask your admin to set up ntfy, Telegram, or email in Settings if no code arrives."}).encode())
                 return
 
             elif parsed.path == "/auth/verify-code":

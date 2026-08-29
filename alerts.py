@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 from urllib.parse import quote
 
 DB_PATH     = "/root/lantern-watch/lanternwatch.db"
-CONFIG_PATH = "/root/lantern-watch/lanternwatch_config.json"
 CHECK_INTERVAL = 60  # seconds
 
 
@@ -112,29 +111,11 @@ def _friendly(name, config=None):
     return lbl
 
 
-def load_config():
-    try:
-        with open(CONFIG_PATH) as f:
-            return json.load(f)
-    except Exception:
-        default = {
-            "ntfy_topic": "",
-            "alerts": {
-                "adult_content": True,
-                "new_device": True,
-                "high_block_rate": True,
-                "high_block_threshold": 50,
-            },
-            "summary": {"daily": True, "daily_hour": 21, "weekly": True, "weekly_day": 0},
-            "known_devices": [],
-        }
-        save_config(default)
-        return default
-
-
-def save_config(config):
-    with open(CONFIG_PATH, "w") as f:
-        json.dump(config, f, indent=2)
+# load_config/save_config used to be duplicated here with a hand-rolled,
+# partial fallback dict (missing most of config.DEFAULTS) that got saved back
+# to disk as the real config if this ran before config.py's own load_config
+# ever had, silently clobbering the full schema. Import the real ones instead.
+from config import load_config, save_config
 
 
 # ── Notification logging ──────────────────────────────────────────────────────

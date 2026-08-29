@@ -1,5 +1,12 @@
 # Lantern Watch
 
+**Set it once. Rest easy.**
+Simple, private parental controls for your home.
+
+Free. Open source. No cloud. No subscriptions.
+
+Like a light in the window, Lantern Watch quietly watches over your family when you're not thinking about it.
+
 A family network dashboard for GL.iNet routers. Monitor every device on your network, set bedtimes and screen time limits, block social media by profile, and get push notifications when something needs your attention — all from a mobile-friendly web UI.
 
 Built on top of AdGuard Home, which handles the actual DNS blocking. Lantern Watch adds the parental control layer on top.
@@ -68,9 +75,9 @@ Three routers cover almost everyone — pick the one that matches your situation
 
 | Use case | Recommended hardware | Why |
 |---|---|---|
-| 🏡 **Home & Office** | 🏆 **[Flint 2 (MT6000)](https://amzn.to/4aq79nj)** | Our recommended router for almost everyone. Fast, reliable, lots of room to grow, and fully tested with Lantern Watch. |
-| ✈️ **Travel / Apartment** | **[Beryl 7 (MT3600BE)](https://amzn.to/4wajV1J)** | Compact travel router with excellent performance. Great when portability matters. |
-| 🏢 **Business (existing network)** | **[Brume 3 (MT5000)](https://amzn.to/4qsQCGa)** | For businesses that already have commercial Wi-Fi or firewall equipment and want Lantern Watch on a dedicated appliance. |
+| 🏡 **Home & Office** | 🏆 **Flint 2 (MT6000)** — [US](https://amzn.to/4gvZ56I) · [CA](https://link.amazon/B07LSiyHU) | Our recommended router for almost everyone. Fast, reliable, lots of room to grow, and fully tested with Lantern Watch. |
+| ✈️ **Travel / Apartment** | **Beryl 7 (MT3600BE)** — [US](https://amzn.to/4wVLY53) · [CA](https://link.amazon/B01VSvMxZ) | Compact travel router with excellent performance. Great when portability matters. |
+| 🏢 **Business (existing network)** | **[Brume 3 (MT5000)](https://amzn.to/4gmHqzA)** (US only) | For businesses that already have commercial Wi-Fi or firewall equipment and want Lantern Watch on a dedicated appliance. |
 
 **In 30 seconds:**
 

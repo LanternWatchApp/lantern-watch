@@ -14,6 +14,9 @@ from alerts import send_email    as _send_email
 
 _recovery_codes = {}  # {token: {code, expires_at, used, attempts}}
 _reset_tokens   = {}  # {reset_token: {expires_at, used}}
+_last_request   = {}  # {client_ip: datetime} — cooldown so a LAN device can't
+                      # spam the real admin's phone/email with OTP messages
+REQUEST_COOLDOWN_SECONDS = 30
 
 
 def _cleanup():
@@ -22,6 +25,10 @@ def _cleanup():
         for k in list(store):
             if store[k]["expires_at"] < now:
                 del store[k]
+    cutoff = now - timedelta(seconds=REQUEST_COOLDOWN_SECONDS)
+    for ip in list(_last_request):
+        if _last_request[ip] < cutoff:
+            del _last_request[ip]
 
 
 def send_recovery_code(config, code):
@@ -96,9 +103,17 @@ def send_recovery_code(config, code):
     return channels
 
 
-def generate_code(config):
-    """Generate and send a 6-digit OTP. Returns (token, channels) or (None, [])."""
+def generate_code(config, client_ip=None):
+    """Generate and send a 6-digit OTP. Returns (token, channels) or (None, [])
+    — also (None, []) if this IP requested a code within the last
+    REQUEST_COOLDOWN_SECONDS, so an unauthenticated LAN device can't spam the
+    real admin's phone/email with repeated OTP notifications."""
     _cleanup()
+    if client_ip is not None:
+        last = _last_request.get(client_ip)
+        if last is not None and (datetime.now() - last).total_seconds() < REQUEST_COOLDOWN_SECONDS:
+            return None, []
+        _last_request[client_ip] = datetime.now()
     code     = f"{secrets.randbelow(1000000):06d}"
     channels = send_recovery_code(config, code)
     if not channels:

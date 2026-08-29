@@ -800,24 +800,17 @@ log "  Dashboard DNS rewrites: $DNS_REWRITE_RESULT"
 # plain defaults so an install never breaks DNS.
 log "  Setting encrypted upstream DNS (DoH)..."
 UPSTREAM_RESULT=$(python3 - <<PYEOF
-import json, sys, urllib.request
+import json, sys
 sys.path.insert(0, "$INSTALL_DIR")
 try:
-    from adguard import _ag_request, UPSTREAM_DNS, UPSTREAM_BOOTSTRAP
+    from adguard import apply_upstream_dns, upstreams_for
     with open("$CONFIG") as f:
         config = json.load(f)
-    # Cloudflare for Families over DoH — filters adult + malware server-side, so
-    # it costs ~zero local RAM (the same lean default runs on every router).
-    NEW_UP = UPSTREAM_DNS
-    BOOT   = UPSTREAM_BOOTSTRAP
-    tp  = json.dumps({"upstream_dns": NEW_UP, "bootstrap_dns": BOOT, "fallback_dns": []}).encode()
-    res = json.loads(urllib.request.urlopen(_ag_request(config, "/control/test_upstream_dns", tp), timeout=25).read().decode())
-    if res and all(str(v).upper().startswith("OK") for v in res.values()):
-        info = json.loads(urllib.request.urlopen(_ag_request(config, "/control/dns_info"), timeout=10).read().decode())
-        info["upstream_dns"]  = NEW_UP
-        info["bootstrap_dns"] = BOOT
-        urllib.request.urlopen(_ag_request(config, "/control/dns_config", json.dumps(info).encode()), timeout=15)
-        print("upstreams=Cloudflare for Families (filtered DoH)")
+    # Profile-aware: FULL_UPSTREAMS on Full, the Cloudflare-for-Families DoH tier
+    # on Lite. Tested first internally — never breaks DNS if the DoH test fails
+    # too early (dashboard.py's boot-time self-heal retries this regardless).
+    if apply_upstream_dns(config, force=True):
+        print("upstreams=" + ", ".join(upstreams_for(config)))
     else:
         print("upstreams=kept-default (DoH test failed)")
 except Exception as e:

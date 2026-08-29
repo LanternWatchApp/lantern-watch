@@ -19,6 +19,17 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.18.4] — 2026-08-29
+
+### Security
+- **Closed a real vulnerability: any device on your home network could reset your dashboard password, or change your household's filtering settings, without ever logging in.** The first-run setup pages were only meant to work without a login during that very first setup, but they never actually stopped working that way afterward. They now correctly require your login once your account exists, exactly as intended. Updating to 0.18.4 closes this immediately.
+- Added a short cooldown to the "forgot password" recovery code request, so a device on your network can't repeatedly trigger it to spam your phone or email with codes.
+
+### Fixed
+- **The blocked-site HTTPS page could hang instead of showing its warning.** A connection-handling bug meant one stalled visit could freeze the block page for everyone else on the network until it timed out. It now responds instantly.
+- The self-signed certificate behind that page regenerates automatically if it's missing a piece modern browsers require. Happens on its own the next time your router restarts, no action needed.
+- Cleaned up an inconsistency in how two background processes loaded their settings, which in rare cases (a missing or corrupted settings file) could have partially reset your configuration.
+
 ## [0.18.3] — 2026-08-27
 
 ### Fixed

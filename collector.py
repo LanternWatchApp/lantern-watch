@@ -7,7 +7,6 @@ import base64
 from datetime import datetime
 
 DB_PATH = "/root/lantern-watch/lanternwatch.db"
-CONFIG_PATH = "/root/lantern-watch/lanternwatch_config.json"
 POLL_INTERVAL = 30
 
 # AdGuard returns at most PAGE_LIMIT entries per request (newest first). On a
@@ -17,18 +16,10 @@ POLL_INTERVAL = 30
 PAGE_LIMIT = 500
 MAX_PAGES  = 40   # up to PAGE_LIMIT * MAX_PAGES = 20,000 entries per poll
 
-def load_config():
-    try:
-        with open(CONFIG_PATH) as f:
-            return json.load(f)
-    except:
-        return {
-            "adguard": {
-                "url": "http://127.0.0.1:3000",
-                "username": "",
-                "password": ""
-            }
-        }
+# load_config used to be duplicated here with a hand-rolled, partial fallback
+# dict (just the adguard connection info, missing the rest of config.DEFAULTS).
+# Import the real one instead.
+from config import load_config
 
 def get_label(client_ip, client_name, config):
     devices = config.get("devices", {})
