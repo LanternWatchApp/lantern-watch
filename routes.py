@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote, unquote
 
-from config import load_config, save_config, label, is_first_run, is_pauseable, is_groupable, hash_password, verify_password, is_hashed_password, VERSION, UPDATE_CHECK_URL, UPDATE_RELEASES_URL, is_newer_version, router_lan_ip, dashboard_url
+from config import load_config, save_config, label, is_first_run, is_pauseable, is_groupable, label_has_protected_identity, hash_password, verify_password, is_hashed_password, VERSION, UPDATE_CHECK_URL, UPDATE_RELEASES_URL, is_newer_version, router_lan_ip, dashboard_url
 import recovery
 from adguard import (apply_social_profile, clear_social_blocking, get_adguard_stats,
                      apply_adguard_setup, get_adguard_setup_status, RECOMMENDED_LISTS,
@@ -264,7 +264,12 @@ class Handler(BaseHTTPRequestHandler):
                 name          = params.get("name", [""])[0]
                 friendly_name = label(unquote(name), config)
                 until         = _pause_until(params.get("for", ["off"])[0])
-                if ip:
+                # This route (unlike Pause All / group pause) never checked
+                # is_pauseable/is_groupable to begin with — it trusted the UI to
+                # only ever show a Pause button on an appropriate device. Same
+                # protected-identity check as the other two paths, applied
+                # directly here since there's no upstream gate to add it to.
+                if ip and not label_has_protected_identity(unquote(name), config):
                     pause_device(ip, friendly_name, config, until=until)
                 dest = (f"/device?name={quote(unquote(name))}&ip={quote(ip)}"
                         if params.get("ref", [""])[0] == "device" else "/")
@@ -1029,20 +1034,23 @@ class Handler(BaseHTTPRequestHandler):
                     setup_captive_portal(config)
                 elif not new_portal and old_portal:
                     teardown_captive_portal()
+                _doh_error = ""
                 if new_doh != old_doh:
                     # The gentle DNS-level mitigation (Firefox canary + DoH
                     # hostnames) is always on; this toggle only controls the
                     # stricter iptables enforcement (DoT :853 + DoH resolver IPs).
                     from adguard import apply_doh_iptables
                     try:
-                        apply_doh_iptables(new_doh)
+                        if not apply_doh_iptables(new_doh):
+                            _doh_error = "a firewall rule failed to apply"
                     except Exception as _e:
                         print(f"[DoH] toggle error: {_e}")
+                        _doh_error = str(_e)
                 try:
                     import backup as _bk; _bk.auto_backup_usb(config)
                 except Exception:
                     pass
-                html = build_admin(config, saved=True)
+                html = build_admin(config, saved=True, doh_apply_error=_doh_error)
 
             elif parsed.path == "/admin/devices/save":
                 devices = config.get("devices", {})

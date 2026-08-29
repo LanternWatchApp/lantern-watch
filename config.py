@@ -14,7 +14,7 @@ import secrets
 # pre-1.0 the leading 0. signals it's still maturing: PATCH = fixes, MINOR = new
 # features. A pre-release tag (beta/rc) sorts BELOW the same numbered release.
 # See is_newer_version().
-VERSION          = "0.18.5"
+VERSION          = "0.18.6"
 # Update check reads the public GitHub repo directly — the newest git tag is the
 # single source of truth. No telemetry is sent; the router just asks GitHub for
 # the tag list, anonymously, like any visitor.
@@ -230,6 +230,35 @@ def effective_type(name, config, domains=None):
         return "person"
 
 
+def label_has_protected_identity(name, config):
+    """True if `name`'s device record — or ANY OTHER device record sharing its
+    label — is typed Admin or Infrastructure. Checked right before a device gets
+    paused, regardless of which upstream filter selected it: defends against a
+    device tracked under two identities (e.g. by IP and by hostname) that
+    disagree on role, which already let an Admin's own phone get bulk-paused
+    once, when AdGuard's query log happened to report the "wrong" identity that
+    night. See CLAUDE.md for the incident this defends against."""
+    devices = config.get("devices", {})
+    my_label = devices.get(name, {}).get("label", name)
+    for other_name, d in devices.items():
+        if d.get("label", other_name) == my_label and d.get("type") in ("parent", "infrastructure"):
+            return True
+    return False
+
+
+def find_identity_conflicts(config):
+    """Device records that share a label but disagree on role/type — the same
+    root cause label_has_protected_identity() defends against at pause-time,
+    surfaced here so a parent can actually fix the underlying data instead of
+    just being silently protected forever. Returns a list of
+    (label, [(name, type), ...]) for every label with more than one type."""
+    devices = config.get("devices", {})
+    by_label = {}
+    for name, d in devices.items():
+        by_label.setdefault(d.get("label", name), []).append((name, d.get("type", "person")))
+    return [(lbl, entries) for lbl, entries in by_label.items() if len({t for _, t in entries}) > 1]
+
+
 def is_infrastructure(name, config):
     """Return True if the device should be shown in the Infrastructure section."""
     return effective_type(name, config) in ("infrastructure", "smart_device")
@@ -237,7 +266,7 @@ def is_infrastructure(name, config):
 
 def is_pauseable(name, config):
     """Return True if the device should be included in Pause All Personal."""
-    return effective_type(name, config) == "person"
+    return effective_type(name, config) == "person" and not label_has_protected_identity(name, config)
 
 
 def is_groupable(name, config):
@@ -245,7 +274,8 @@ def is_groupable(name, config):
     Everything EXCEPT Admin devices and Infrastructure (routers/NAS/printers), so a
     parent can group TVs/phones/laptops but can never knock out the network's spine.
     'Pause everyone' still only ever hits Personal (is_pauseable) — the safe default."""
-    return effective_type(name, config) in ("person", "smart_device", "work_device")
+    return (effective_type(name, config) in ("person", "smart_device", "work_device")
+            and not label_has_protected_identity(name, config))
 
 
 # ── Dashboard password hashing ────────────────────────────────────────────────

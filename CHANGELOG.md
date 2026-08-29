@@ -19,6 +19,13 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.18.6] — 2026-08-30
+
+### Security
+- **A device tracked under two identities could get bulk-paused even if one of those identities is Admin.** This is what caused the Pixel 7 incident directly: same phone, two device records, one correctly marked Admin, one not, and "Pause everyone" happened to check the wrong one. Pausing now checks every identity sharing a device's name, not just the one currently being evaluated — an Admin or Infrastructure device can no longer be paused under any of its aliases, closing the specific danger everywhere a device can be paused (Pause everyone, group pause, and pausing a single device directly).
+- The Devices page now flags it when two device records share a label but disagree on role, so you can actually fix the underlying mismatch instead of just being silently protected forever.
+- Strict mode now tells you if it failed to apply, instead of the Settings toggle silently not reflecting what's actually happening on the network.
+
 ## [0.18.5] — 2026-08-30
 
 ### Security

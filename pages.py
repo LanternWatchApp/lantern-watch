@@ -10,7 +10,7 @@ import urllib.request
 from datetime import datetime
 from urllib.parse import quote
 
-from config import label, is_infrastructure, is_monitored, is_pauseable, is_groupable, effective_type, VERSION, dashboard_url
+from config import label, is_infrastructure, is_monitored, is_pauseable, is_groupable, effective_type, find_identity_conflicts, VERSION, dashboard_url
 from adguard import get_adguard_stats, PLATFORM_DOMAINS, PROFILE_SAFE_SEARCH, get_ip_hostname_map, pretty_hostname
 from db import (
     get_stats, get_device_detail, get_domain_detail,
@@ -3628,6 +3628,28 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
     rows_html    = ""
     TYPE_ICONS   = {"person": "👤", "parent": "🛡️", "infrastructure": "🖥️", "smart_device": "📡", "work_device": "💼"}
     TYPE_NAMES   = {"person": "Personal", "parent": "Admin", "infrastructure": "Infrastructure", "smart_device": "Smart Device", "work_device": "Work Device"}
+
+    # A device sometimes gets tracked under two identities (e.g. once by IP, once
+    # by hostname) that disagree on role — pausing already refuses to touch an
+    # Admin/Infrastructure device either way (label_has_protected_identity), but
+    # the mismatch itself is still worth a parent's attention to clean up.
+    _conflicts = find_identity_conflicts(config)
+    _conflict_banner = ""
+    if _conflicts:
+        _rows = "".join(
+            f'<li style="margin-top:4px"><b>{esc(lbl)}</b>: ' +
+            ", ".join(f"{TYPE_NAMES.get(t, t)}" for _, t in entries) + '</li>'
+            for lbl, entries in _conflicts
+        )
+        _conflict_banner = (
+            '<div class="alert-box-red" style="margin:12px 16px;text-align:left">'
+            '<b>A couple of devices are being tracked two ways, and disagree on role.</b> '
+            "This can happen when a device shows up under a different name over time. "
+            "Pausing already won't touch whichever entry is Admin or Infrastructure either way, "
+            "but worth giving these a look below so they agree:"
+            f'<ul style="margin:6px 0 0 18px;font-weight:400">{_rows}</ul>'
+            '</div>'
+        )
     from classify import classify_device, device_identity, label_from_domains, is_cryptic_name, device_kind, identify_from_traffic
 
     # Build IP→hostname map once; used for devices whose client_name is a bare IP
@@ -3905,6 +3927,7 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
         + build_header("Device Manager", config=config)
         + '<div class="page-wrap">'
         + f'{saved_msg}'
+        + f'{_conflict_banner}'
         + f'<div class="section"><h2>Manage Devices</h2>'
         + f'<div style="color:#64748b;font-size:0.85em;margin-bottom:12px">'
         + f'Label devices and set their role. <b>All roles get the same AdGuard filtering</b> &mdash; the role only affects grouping, whether <b>Pause everyone</b> applies, reporting, and a few alert behaviors. '
@@ -4557,7 +4580,8 @@ def _usb_backup_panel_html():
 
 def build_admin(config, saved=False, cleared=False, cleared_all=False,
                 confirm_clear=False, confirm_clear_all=False,
-                adguard_applied=False, adguard_apply_error="", refreshed=False):
+                adguard_applied=False, adguard_apply_error="", refreshed=False,
+                doh_apply_error=""):
     ag         = config.get("adguard", {})
     retention_days = int(config.get("retention_days", 60))
     retention_opts = "".join(
@@ -4579,6 +4603,10 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         adguard_msg = f'<div style="margin-bottom:12px;padding:12px 16px;background:#FFF7F7;border:1px solid #FCA5A5;border-radius:10px;color:#DC6B5F;font-weight:600">Could not apply protection settings: {adguard_apply_error}</div>'
     else:
         adguard_msg = ""
+    doh_msg = (
+        f'<div style="margin-bottom:12px;padding:12px 16px;background:#FFF7F7;border:1px solid #FCA5A5;border-radius:10px;color:#DC6B5F;font-weight:600">'
+        f'Strict mode didn&rsquo;t fully apply: {doh_apply_error}. Your other settings saved fine &mdash; try turning it off and back on, and let us know if it keeps happening.</div>'
+    ) if doh_apply_error else ""
     tested_msg = ""
     confirm_msg = ""
     if confirm_clear:
@@ -4609,7 +4637,7 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         + build_header("Settings", config=config)
         + '<div class="page-wrap">'
         +''
-        + f'{saved_msg}{refreshed_msg}{tested_msg}{cleared_msg}{confirm_msg}{adguard_msg}'
+        + f'{saved_msg}{refreshed_msg}{tested_msg}{cleared_msg}{confirm_msg}{adguard_msg}{doh_msg}'
         + f'<div class="section"><h2>Software</h2>'
         + f'<div class="form-card" style="display:flex;align-items:center;gap:12px">'
         + f'<div style="flex:1"><div style="font-weight:700;color:#2c2c2a">Lantern Watch</div>'

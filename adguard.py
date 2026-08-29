@@ -1517,6 +1517,12 @@ def apply_doh_iptables(enabled):
     over QUIC, which is UDP, so TCP-only missed it). Covers both IPv4 and IPv6:
     IPv6 was entirely unblocked before, on both mechanisms. Clears existing
     rules first — safe to call on each save.
+
+    Returns True if enabled=False (removal always "succeeds" — the rules are
+    gone either way), or if enabled=True and every rule actually got inserted.
+    Returns False on any failure, so the caller can tell the parent strict mode
+    didn't actually apply instead of the Settings toggle silently not matching
+    reality.
     """
     v4_v6_ips = [("iptables", ip) for ip in DOH_BLOCK_IPS] + [("ip6tables", ip) for ip in DOH_BLOCK_IPS_V6]
     for cmd, ip in v4_v6_ips:
@@ -1549,8 +1555,11 @@ def apply_doh_iptables(enabled):
                     )
             print("[DoH] iptables/ip6tables rules applied (port 853 tcp+udp, "
                   "known DoH IPs tcp+udp/443, IPv4+IPv6)")
+            return True
         except Exception as e:
             print(f"[DoH] iptables error: {e}")
+            return False
+    return True
 
 
 _lan_if_cache = {"if": None}
