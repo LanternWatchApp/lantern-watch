@@ -19,6 +19,13 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.18.5] — 2026-08-30
+
+### Security
+- **Pausing a device could silently fail.** If the underlying firewall rule didn't apply for any reason, the dashboard still showed the device as paused, even though it might still have full internet access. It's now honest — if the block can't be confirmed, it's not marked as paused, so you can see it and try again instead of trusting a pause that didn't happen.
+- Added `SameSite` protection to the dashboard's session cookie, extra hardening against cross-site request forgery.
+- **Strict mode's DoT/DoQ blocking and known-resolver blocking now also cover IPv6.** Previously only IPv4 was blocked, so a device could bypass strict mode entirely just by using its IPv6 address. Also closed a gap where DNS-over-HTTPS delivered over HTTP/3 (which uses UDP) slipped past the same resolvers' regular block, since only the TCP side was covered.
+
 ## [0.18.4] — 2026-08-29
 
 ### Security

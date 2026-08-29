@@ -146,9 +146,19 @@ def _clear_pause_rules(ip, mac):
 
 
 def _add_pause_rules(ip, mac):
+    """Returns True only if every DROP rule actually got inserted. A device that's
+    shown as "Paused" but isn't really blocked (a failed iptables/ip6tables call
+    that nobody checked) is worse than an honest error — a parent trusting the
+    dashboard shouldn't find out otherwise the hard way."""
     _clear_pause_rules(ip, mac)   # never stack duplicates
+    ok = True
     for cmd, match in _pause_rule_specs(ip, mac):
-        subprocess.run([cmd, "-I", "FORWARD"] + match + ["-j", "DROP"], capture_output=True)
+        result = subprocess.run([cmd, "-I", "FORWARD"] + match + ["-j", "DROP"], capture_output=True)
+        if result.returncode != 0:
+            ok = False
+            print(f"Pause rule failed ({cmd} {' '.join(match)}): "
+                  f"{result.stderr.decode(errors='replace').strip()}")
+    return ok
 
 
 def pause_device(ip, friendly_name, config, scheduled=False, until=None):
@@ -160,7 +170,9 @@ def pause_device(ip, friendly_name, config, scheduled=False, until=None):
     means an open-ended pause that stays until a parent turns it back on."""
     try:
         mac = _mac_for_ip(ip)
-        _add_pause_rules(ip, mac)
+        if not _add_pause_rules(ip, mac):
+            print(f"Pause error: firewall rule(s) failed for {ip} — not marking as paused")
+            return False
         paused = config.get("paused_devices", {})
         paused[ip] = {
             "name":      friendly_name,

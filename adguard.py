@@ -1498,37 +1498,57 @@ DOH_BLOCK_IPS = [
     "94.140.14.14", "94.140.15.15",     # AdGuard DNS
 ]
 
+# Same providers' IPv6 addresses (verified against each provider's own docs) —
+# without these, a device on IPv6 reaches the exact same resolvers unblocked,
+# both for the known-IP block below and for port 853 (DoT/DoQ) further down.
+DOH_BLOCK_IPS_V6 = [
+    "2606:4700:4700::1111", "2606:4700:4700::1001",  # Cloudflare
+    "2001:4860:4860::8888", "2001:4860:4860::8844",  # Google
+    "2620:fe::fe", "2620:fe::9",                      # Quad9
+    "2620:119:35::35", "2620:119:53::53",             # OpenDNS
+    "2a10:50c0::ad1:ff", "2a10:50c0::ad2:ff",         # AdGuard DNS
+]
+
 
 def apply_doh_iptables(enabled):
     """
-    Add or remove FORWARD chain iptables rules for DoT (port 853) and known DoH
-    resolver IPs on port 443. Clears existing rules first — safe to call on each save.
+    Add or remove FORWARD chain iptables/ip6tables rules for DoT/DoQ (port 853,
+    TCP+UDP) and known DoH resolver IPs on port 443 (TCP+UDP — HTTP/3 DoH runs
+    over QUIC, which is UDP, so TCP-only missed it). Covers both IPv4 and IPv6:
+    IPv6 was entirely unblocked before, on both mechanisms. Clears existing
+    rules first — safe to call on each save.
     """
-    for ip in DOH_BLOCK_IPS:
-        while subprocess.run(
-            ["iptables", "-D", "FORWARD", "-p", "tcp", "-d", ip, "--dport", "443", "-j", "REJECT"],
-            capture_output=True,
-        ).returncode == 0:
-            pass
-    for proto in ("tcp", "udp"):
-        while subprocess.run(
-            ["iptables", "-D", "FORWARD", "-p", proto, "--dport", "853", "-j", "REJECT"],
-            capture_output=True,
-        ).returncode == 0:
-            pass
+    v4_v6_ips = [("iptables", ip) for ip in DOH_BLOCK_IPS] + [("ip6tables", ip) for ip in DOH_BLOCK_IPS_V6]
+    for cmd, ip in v4_v6_ips:
+        for proto in ("tcp", "udp"):
+            while subprocess.run(
+                [cmd, "-D", "FORWARD", "-p", proto, "-d", ip, "--dport", "443", "-j", "REJECT"],
+                capture_output=True,
+            ).returncode == 0:
+                pass
+    for cmd in ("iptables", "ip6tables"):
+        for proto in ("tcp", "udp"):
+            while subprocess.run(
+                [cmd, "-D", "FORWARD", "-p", proto, "--dport", "853", "-j", "REJECT"],
+                capture_output=True,
+            ).returncode == 0:
+                pass
     if enabled:
         try:
-            for ip in DOH_BLOCK_IPS:
-                subprocess.run(
-                    ["iptables", "-I", "FORWARD", "-p", "tcp", "-d", ip, "--dport", "443", "-j", "REJECT"],
-                    check=True, capture_output=True,
-                )
-            for proto in ("tcp", "udp"):
-                subprocess.run(
-                    ["iptables", "-I", "FORWARD", "-p", proto, "--dport", "853", "-j", "REJECT"],
-                    check=True, capture_output=True,
-                )
-            print("[DoH] iptables rules applied (port 853 + known DoH IPs on 443)")
+            for cmd, ip in v4_v6_ips:
+                for proto in ("tcp", "udp"):
+                    subprocess.run(
+                        [cmd, "-I", "FORWARD", "-p", proto, "-d", ip, "--dport", "443", "-j", "REJECT"],
+                        check=True, capture_output=True,
+                    )
+            for cmd in ("iptables", "ip6tables"):
+                for proto in ("tcp", "udp"):
+                    subprocess.run(
+                        [cmd, "-I", "FORWARD", "-p", proto, "--dport", "853", "-j", "REJECT"],
+                        check=True, capture_output=True,
+                    )
+            print("[DoH] iptables/ip6tables rules applied (port 853 tcp+udp, "
+                  "known DoH IPs tcp+udp/443, IPv4+IPv6)")
         except Exception as e:
             print(f"[DoH] iptables error: {e}")
 

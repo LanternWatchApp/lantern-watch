@@ -247,7 +247,7 @@ class Handler(BaseHTTPRequestHandler):
                     if part.startswith("lw_session="):
                         SESSIONS.discard(part[11:])
                 self.send_response(302)
-                self.send_header("Set-Cookie", "lw_session=; Max-Age=0; Path=/")
+                self.send_header("Set-Cookie", "lw_session=; Max-Age=0; Path=/; SameSite=Lax")
                 self.send_header("Location", "/login")
                 self.end_headers()
                 return
@@ -643,7 +643,7 @@ class Handler(BaseHTTPRequestHandler):
                     token = make_session_token()
                     SESSIONS.add(token)
                     self.send_response(302)
-                    self.send_header("Set-Cookie", f"lw_session={token}; Path=/; HttpOnly")
+                    self.send_header("Set-Cookie", f"lw_session={token}; Path=/; HttpOnly; SameSite=Lax")
                     self.send_header("Location", "/setup/adguard")
                     self.end_headers()
                     return
@@ -669,7 +669,7 @@ class Handler(BaseHTTPRequestHandler):
                     token = make_session_token()
                     SESSIONS.add(token)
                     self.send_response(302)
-                    self.send_header("Set-Cookie", f"lw_session={token}; Path=/; HttpOnly")
+                    self.send_header("Set-Cookie", f"lw_session={token}; Path=/; HttpOnly; SameSite=Lax")
                     self.send_header("Location", "/")
                     self.end_headers()
                     return
