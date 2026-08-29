@@ -14,7 +14,7 @@ import secrets
 # pre-1.0 the leading 0. signals it's still maturing: PATCH = fixes, MINOR = new
 # features. A pre-release tag (beta/rc) sorts BELOW the same numbered release.
 # See is_newer_version().
-VERSION          = "0.18.6"
+VERSION          = "0.18.7"
 # Update check reads the public GitHub repo directly — the newest git tag is the
 # single source of truth. No telemetry is sent; the router just asks GitHub for
 # the tag list, anonymously, like any visitor.
@@ -230,33 +230,53 @@ def effective_type(name, config, domains=None):
         return "person"
 
 
+def _identity_key(name, config):
+    """Normalized form of a device's display label, used to tell whether two
+    device records describe the same physical device. Goes through label()
+    (strips the .lan/.local suffix, unescapes DHCP's "\\ " spaces) rather than
+    comparing raw stored `label` fields directly, then collapses ALL
+    whitespace runs to single spaces and lowercases — catches "Mom's  Phone"
+    (double space) vs "mom's phone", not just an exact match. `.split()` with
+    no args + rejoin handles leading/trailing AND internal runs; `.strip()`
+    alone would have missed the internal-whitespace case (caught by testing,
+    not by inspection — worth remembering for the next normalization "fix")."""
+    return " ".join(label(name, config).split()).lower()
+
+
 def label_has_protected_identity(name, config):
     """True if `name`'s device record — or ANY OTHER device record sharing its
-    label — is typed Admin or Infrastructure. Checked right before a device gets
-    paused, regardless of which upstream filter selected it: defends against a
-    device tracked under two identities (e.g. by IP and by hostname) that
-    disagree on role, which already let an Admin's own phone get bulk-paused
-    once, when AdGuard's query log happened to report the "wrong" identity that
-    night. See CLAUDE.md for the incident this defends against."""
+    (normalized) label — is typed Admin or Infrastructure. Checked right before
+    a device gets paused, regardless of which upstream filter selected it:
+    defends against a device tracked under two identities (e.g. by IP and by
+    hostname) that disagree on role, which already let an Admin's own phone
+    get bulk-paused once, when AdGuard's query log happened to report the
+    "wrong" identity that night. See CLAUDE.md for the incident this defends
+    against. `name` itself may be unknown/empty (e.g. a crafted request) —
+    that's fine, it just won't match anything, so callers checking a possibly-
+    missing identifier should also check a second one they trust (see
+    /device/pause in routes.py)."""
     devices = config.get("devices", {})
-    my_label = devices.get(name, {}).get("label", name)
+    my_key = _identity_key(name, config)
     for other_name, d in devices.items():
-        if d.get("label", other_name) == my_label and d.get("type") in ("parent", "infrastructure"):
+        if _identity_key(other_name, config) == my_key and d.get("type") in ("parent", "infrastructure"):
             return True
     return False
 
 
 def find_identity_conflicts(config):
-    """Device records that share a label but disagree on role/type — the same
-    root cause label_has_protected_identity() defends against at pause-time,
-    surfaced here so a parent can actually fix the underlying data instead of
-    just being silently protected forever. Returns a list of
-    (label, [(name, type), ...]) for every label with more than one type."""
+    """Device records that share a (normalized) label but disagree on
+    role/type — the same root cause label_has_protected_identity() defends
+    against at pause-time, surfaced here so a parent can actually fix the
+    underlying data instead of just being silently protected forever. Returns
+    a list of (display_label, [(name, type), ...]) for every label with more
+    than one type."""
     devices = config.get("devices", {})
-    by_label = {}
+    by_key = {}
     for name, d in devices.items():
-        by_label.setdefault(d.get("label", name), []).append((name, d.get("type", "person")))
-    return [(lbl, entries) for lbl, entries in by_label.items() if len({t for _, t in entries}) > 1]
+        key = _identity_key(name, config)
+        display, entries = by_key.setdefault(key, (label(name, config), []))
+        entries.append((name, d.get("type", "person")))
+    return [(display, entries) for display, entries in by_key.values() if len({t for _, t in entries}) > 1]
 
 
 def is_infrastructure(name, config):

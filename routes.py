@@ -269,7 +269,12 @@ class Handler(BaseHTTPRequestHandler):
                 # only ever show a Pause button on an appropriate device. Same
                 # protected-identity check as the other two paths, applied
                 # directly here since there's no upstream gate to add it to.
-                if ip and not label_has_protected_identity(unquote(name), config):
+                # Check both `name` and `ip` — a crafted request can omit `name`
+                # entirely, and checking an empty string finds no match (a
+                # false "not protected"), which would have bypassed this whole
+                # check. `ip` is itself a valid devices{} key on its own.
+                if ip and not (label_has_protected_identity(unquote(name), config)
+                               or label_has_protected_identity(ip, config)):
                     pause_device(ip, friendly_name, config, until=until)
                 dest = (f"/device?name={quote(unquote(name))}&ip={quote(ip)}"
                         if params.get("ref", [""])[0] == "device" else "/")

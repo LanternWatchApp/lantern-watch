@@ -19,6 +19,11 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.18.7] — 2026-08-30
+
+### Security
+- Closed two gaps in 0.18.6's pause protection, found by a second independent review. A request that left out a device's name (only its IP) could slip past the new check entirely; and label matching missed devices whose names differed only in case or spacing. Both fixed and verified against a real device pair before shipping.
+
 ## [0.18.6] — 2026-08-30
 
 ### Security
