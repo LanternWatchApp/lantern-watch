@@ -536,6 +536,57 @@ def check_vpn_suspected(config):
     conn.close()
 
 
+def check_identity_conflicts(config):
+    """Auto-clean an UNAMBIGUOUS identity-conflict duplicate: exactly two
+    records sharing a label, one still genuinely in use, the other with no
+    DNS traffic in a long window. Deliberately far more conservative than
+    the 48h "active" cutoff the Devices page uses for display — a device
+    that's merely been off for a few days must never be the one removed.
+    Logged (not pushed — _log_notification only, never notify()) so there's
+    a record on the Notifications page if anyone looks, but nothing to
+    click. Anything less clear-cut (both active, both stale, three or more
+    identities sharing a label) is left for the Devices page banner —
+    guessing wrong there is the real risk, so those stay a human decision.
+    See label_has_protected_identity's docstring for the incident this
+    whole conflict-tracking system exists to prevent a repeat of."""
+    from config import find_identity_conflicts
+    from db import get_all_known_devices
+    conflicts = find_identity_conflicts(config)
+    if not conflicts:
+        return
+    STALE_HOURS = 24 * 30  # 30 days, not 48h — see docstring
+    recent  = {d["client_name"] for d in get_all_known_devices(active_hours=STALE_HOURS, include_idle=False)}
+    devices = config.get("devices", {})
+    changed = False
+    for lbl, entries in conflicts:
+        if len(entries) != 2:
+            continue  # three-plus-way conflict — ambiguous, leave for the banner
+        (n1, _t1), (n2, _t2) = entries
+        n1_seen, n2_seen = n1 in recent, n2 in recent
+        if n1_seen == n2_seen:
+            continue  # both active or both stale — ambiguous, leave for the banner
+        stale_name, keep_name = (n1, n2) if n2_seen else (n2, n1)
+        if stale_name not in devices:
+            continue
+        try:
+            from adguard import restore_client_global
+            restore_client_global(config, stale_name)
+        except Exception:
+            pass
+        del devices[stale_name]
+        config.get("schedules", {}).pop(stale_name, None)
+        changed = True
+        _log_notification(
+            "Device record cleaned up",
+            f'"{lbl}" was being tracked under two names; the one that stopped '
+            f'showing up ({stale_name}) was removed automatically, keeping {keep_name}.',
+            config.get("ntfy_topic", ""),
+        )
+    if changed:
+        config["devices"] = devices
+        save_config(config)
+
+
 # ── Summaries ─────────────────────────────────────────────────────────────────
 
 def _build_daily_narrative(config):
@@ -968,6 +1019,8 @@ def main():
     last_purge     = None
     last_telemetry = None
     last_update    = None
+    last_conflicts = None
+    last_autogroup = None
     # Per-install minute-of-day for the daily stats ping, derived from the stable
     # install ID. Spreads a whole fleet evenly across 24h instead of every router
     # pinging at once just after midnight (no thundering herd on the endpoint).
@@ -1037,6 +1090,23 @@ def main():
                 purge_old_notifications(days=30)
                 print(f"[{now.strftime('%H:%M:%S')}] Purged notifications older than 30 days")
                 last_purge = now
+
+            # Auto-clean unambiguous device-identity conflicts once a day
+            if last_conflicts is None or last_conflicts.date() < now.date():
+                try:
+                    check_identity_conflicts(config)
+                except Exception as e:
+                    print(f"[IdentityConflicts] check failed: {e}")
+                last_conflicts = now
+
+            # Auto-assign newly-classified devices into a default group once a day
+            if last_autogroup is None or last_autogroup.date() < now.date():
+                try:
+                    from pages import auto_assign_device_groups
+                    auto_assign_device_groups(config)
+                except Exception as e:
+                    print(f"[AutoGroup] assign failed: {e}")
+                last_autogroup = now
 
         except Exception as e:
             print(f"Alert loop error: {e}")

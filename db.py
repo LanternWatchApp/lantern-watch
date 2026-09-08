@@ -403,7 +403,50 @@ def get_notable_blocks(explicit_domains, is_notable_service=None, is_family_list
             out.append(r)
             if len(out) >= limit:
                 break
+    if out:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        fixed = []
+        for r in out:
+            pairs = conn.execute(
+                "SELECT client_name, ts FROM querylog WHERE domain=? AND blocked=1 AND ts > ?",
+                (r["domain"], since),
+            ).fetchall()
+            d = dict(r)
+            d["hits"] = _count_real_attempts((p["client_name"], p["ts"]) for p in pairs) or d["hits"]
+            # Which device(s) actually tried this — a parent shouldn't have to
+            # tap into the domain page just to see who, for the common case of
+            # one device it should be right there on the dashboard.
+            d["clients"] = sorted({p["client_name"] for p in pairs if p["client_name"]})
+            fixed.append(d)
+        conn.close()
+        out = fixed
     return out
+
+
+def _count_real_attempts(client_ts_pairs, gap_seconds=5):
+    """Collapse raw DNS query rows into real attempts a person actually made.
+    One page load fires several near-simultaneous queries for the same domain
+    (parallel A/AAAA lookups, a browser retry a few seconds later) — a raw
+    COUNT(*) is technically accurate but reads as far more attempts than
+    anyone actually made (a single visit logging 8 rows two bursts apart,
+    "8 attempts" on screen, easily read as a kid frantically retrying).
+    Collapses within each client separately (two different people hitting
+    the same domain seconds apart are still two real attempts); queries
+    from the same client less than `gap_seconds` apart count as one."""
+    by_client = {}
+    for client, ts in client_ts_pairs:
+        by_client.setdefault(client, []).append(ts)
+    total = 0
+    for client, ts_list in by_client.items():
+        times = sorted(parse_ts(t) for t in ts_list if t)
+        if not times:
+            continue
+        total += 1
+        for prev, cur in zip(times, times[1:]):
+            if (cur - prev).total_seconds() > gap_seconds:
+                total += 1
+    return total
 
 
 # ── Domain detail ─────────────────────────────────────────────────────────────
@@ -420,12 +463,25 @@ def get_domain_detail(domain):
         (domain, since),
     ).fetchall()
 
-    summary = conn.execute(
-        "SELECT client_name, COUNT(*) as attempts, MAX(ts) as last_seen FROM querylog "
-        "WHERE domain=? AND ts > ? "
-        "GROUP BY client_name ORDER BY attempts DESC",
+    # Raw per-row timestamps, not a SQL COUNT(*) — a single visit fires several
+    # near-simultaneous DNS queries (parallel A/AAAA, a browser retry seconds
+    # later), so a raw count reads as far more attempts than anyone actually
+    # made. _count_real_attempts collapses same-client bursts into one.
+    _raw = conn.execute(
+        "SELECT client_name, ts FROM querylog WHERE domain=? AND ts > ?",
         (domain, since),
     ).fetchall()
+    _by_client = {}
+    for r in _raw:
+        _by_client.setdefault(r["client_name"], []).append(r["ts"])
+    summary = sorted(
+        (
+            {"client_name": c, "attempts": _count_real_attempts((c, t) for t in ts_list),
+             "last_seen": max(ts_list)}
+            for c, ts_list in _by_client.items()
+        ),
+        key=lambda row: row["attempts"], reverse=True,
+    )
 
     total = conn.execute(
         "SELECT COUNT(*) as cnt, MIN(ts) as first, MAX(ts) as last FROM querylog "

@@ -19,6 +19,21 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.19.0] — 2026-09-08
+
+### Added
+- **Device auto-categorization.** Newly-seen devices are now silently sorted into a default group (Computers/Phones/TVs/Tablets) as they're detected, without ever overriding a manual choice. Genuine toss-ups (phone vs. tablet, etc.) get a quick "which is it?" prompt on the dashboard and device page instead of a guess. Routers upgrading from an older version get a one-time seed of the four default groups if they don't already have any, so this doesn't silently do nothing until someone adds groups by hand.
+- **Identity-conflict auto-resolve.** A device tracked under two names (its IP, then its resolved hostname) is now cleaned up automatically once a day, but only when it's unambiguous — one record genuinely stale (30+ days with no activity), the other still active. Anything less clear-cut still shows the manual "Keep this one" picker on the Devices page.
+- **Pause safety.** Pausing (a single device, a group, or Pause All) now requires at least one Admin device to exist first, and the device making the pause request is automatically excluded from whatever it triggers — protects whoever's actually holding the phone or laptop at the time, not just devices pre-marked Admin.
+- Dashboard: a category flag on each device card, filter pills (All/Admin/Computers/Phones/TVs/Tablets/Infrastructure), and a one-tap Clear for the Blocked Content list (display-only — the real query log and stats are untouched).
+
+### Fixed
+- Blocked-attempt counts were badly inflated — a burst of near-simultaneous DNS queries from a single page load could show as "8 attempts" instead of 1. Same-client queries within a 5-second window now collapse into one real attempt.
+- A Smart TV's own OS signal (Android) could be overridden by an unrelated ad-tech domain match, misclassifying it as a different device type.
+- The Pause button had no CSS definition at all and rendered as unstyled plain text.
+- Pausing a group silently skipped a device if it was stored under its bare IP (no resolved hostname yet) while also appearing under a resolved hostname elsewhere in the query log.
+- Removing a device from a group on the Devices page didn't stick — the overnight auto-categorization job couldn't tell "explicitly ungrouped" apart from "never grouped" and would quietly put it right back the next day.
+
 ## [0.18.7] — 2026-08-30
 
 ### Security

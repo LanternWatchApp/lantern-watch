@@ -14,7 +14,7 @@ import secrets
 # pre-1.0 the leading 0. signals it's still maturing: PATCH = fixes, MINOR = new
 # features. A pre-release tag (beta/rc) sorts BELOW the same numbered release.
 # See is_newer_version().
-VERSION          = "0.18.7"
+VERSION          = "0.19.0"
 # Update check reads the public GitHub repo directly — the newest git tag is the
 # single source of truth. No telemetry is sent; the router just asks GitHub for
 # the tag list, anonymously, like any visitor.
@@ -55,9 +55,13 @@ DEFAULTS = {
     # Optional custom groups — sub-categories of Personal devices a parent can
     # name on the Devices page (e.g. "Kids", "Teens") to pause a subset together.
     # This is just a list of names; each device's membership is a tag on the device
-    # itself (devices[name]["group"]). Empty by default, so it's invisible until a
-    # parent adds one. Only Personal devices are ever groupable/pauseable.
-    "custom_groups": [],
+    # itself (devices[name]["group"]). Defaults to the four common entertainment
+    # categories so the "Or pause a group" section is populated from day one for
+    # non-technical parents — auto_assign_device_groups() (pages.py) fills them in
+    # silently as devices are detected. A parent can rename/remove any of these
+    # any time via the Devices page; only Personal/Smart/Work devices are ever
+    # groupable/pauseable, never Admin or Infrastructure.
+    "custom_groups": ["Computers", "Phones", "TVs", "Tablets"],
     "adguard": {
         "url": "http://127.0.0.1:3000",
         "username": "",
@@ -284,9 +288,20 @@ def is_infrastructure(name, config):
     return effective_type(name, config) in ("infrastructure", "smart_device")
 
 
+def has_admin_device(config):
+    """True if at least one device is set Admin. Pausing (everyone, a group, or
+    a single device) is gated on this everywhere — with no Admin device, there's
+    no one guaranteed protected from a pause, so a parent could accidentally
+    knock out their own phone/laptop with no easy way back in. Checked against
+    every stored device regardless of current activity — an Admin's phone
+    being briefly offline must never disable this safety net."""
+    return any(d.get("type") == "parent" for d in config.get("devices", {}).values())
+
+
 def is_pauseable(name, config):
     """Return True if the device should be included in Pause All Personal."""
-    return effective_type(name, config) == "person" and not label_has_protected_identity(name, config)
+    return (has_admin_device(config) and effective_type(name, config) == "person"
+            and not label_has_protected_identity(name, config))
 
 
 def is_groupable(name, config):

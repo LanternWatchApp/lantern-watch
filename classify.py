@@ -308,8 +308,13 @@ _OS_DOMAIN = (
 )
 
 # Appliance labels too weak to beat a maker+OS guess: a phone streams YouTube too,
-# and "Apple TV / Apple device" is the same signature an iPhone/iPad/Mac emits.
-_WEAK_LABELS = {"Streaming device / TV", "Google / Android device", "Apple TV / Apple device"}
+# "Apple TV / Apple device" is the same signature an iPhone/iPad/Mac emits, and
+# "Smart TV"'s own signals (conviva, smartclip, html-load.com, tvinteractive) are
+# video-ad/analytics SDKs bundled into ordinary mobile apps and ad-supported games
+# too, not exclusive to an actual television — confirmed on a real TCL Android
+# tablet whose ad-heavy game traffic tripped "Smart TV" and hid its clear Android
+# OS signal (Play Services, Google APIs) behind it.
+_WEAK_LABELS = {"Streaming device / TV", "Google / Android device", "Apple TV / Apple device", "Smart TV"}
 
 
 def _match_first(table, hay):

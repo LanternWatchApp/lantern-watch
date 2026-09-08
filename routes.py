@@ -15,14 +15,14 @@ from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote, unquote
 
-from config import load_config, save_config, label, is_first_run, is_pauseable, is_groupable, label_has_protected_identity, hash_password, verify_password, is_hashed_password, VERSION, UPDATE_CHECK_URL, UPDATE_RELEASES_URL, is_newer_version, router_lan_ip, dashboard_url
+from config import load_config, save_config, label, is_first_run, is_pauseable, is_groupable, label_has_protected_identity, has_admin_device, hash_password, verify_password, is_hashed_password, VERSION, UPDATE_CHECK_URL, UPDATE_RELEASES_URL, is_newer_version, router_lan_ip, dashboard_url
 import recovery
 from adguard import (apply_social_profile, clear_social_blocking, get_adguard_stats,
                      apply_adguard_setup, get_adguard_setup_status, RECOMMENDED_LISTS,
                      reset_adguard_stats, restore_client_global,
                      get_safesearch_status,
                      get_blocked_services, set_blocked_services)
-from db import get_stats, DB_PATH, clear_notifications, get_all_known_devices, get_querylog_entries, get_querylog_devices, get_recent_blocks, get_querylog_summary
+from db import get_stats, DB_PATH, clear_notifications, get_all_known_devices, get_querylog_entries, get_querylog_devices, get_recent_blocks, get_querylog_summary, _BARE_IP
 from scheduler import pause_device, unpause_device
 from pages import (
     get_welcome_page, get_welcome_error_page, get_adguard_wizard_page,
@@ -273,8 +273,13 @@ class Handler(BaseHTTPRequestHandler):
                 # entirely, and checking an empty string finds no match (a
                 # false "not protected"), which would have bypassed this whole
                 # check. `ip` is itself a valid devices{} key on its own.
-                if ip and not (label_has_protected_identity(unquote(name), config)
-                               or label_has_protected_identity(ip, config)):
+                # Never pause the device making the request, even here — a
+                # parent could tap Pause on their own device's card by mistake
+                # (or be browsing from a kid's laptop that isn't Admin-marked),
+                # and that must never be able to lock them out. See /pause_all.
+                if (ip and ip != self.client_address[0] and has_admin_device(config)
+                        and not (label_has_protected_identity(unquote(name), config)
+                                 or label_has_protected_identity(ip, config))):
                     pause_device(ip, friendly_name, config, until=until)
                 dest = (f"/device?name={quote(unquote(name))}&ip={quote(ip)}"
                         if params.get("ref", [""])[0] == "device" else "/")
@@ -532,10 +537,31 @@ class Handler(BaseHTTPRequestHandler):
 
             elif parsed.path == "/pause_all":
                 until = _pause_until(parse_qs(parsed.query).get("for", ["off"])[0])
+                # Never pause the device making this request, admin-marked or
+                # not — whoever is actually tapping the button right now must
+                # always be able to turn things back on. Complements (doesn't
+                # replace) the has_admin_device gate: that one requires *some*
+                # device be protected in general, this one protects whichever
+                # device is in the parent's hand at this exact moment.
+                #
+                # KNOWN LIMITATION: this is a raw IP string compare. If the
+                # requester's browser session and their device's DNS traffic
+                # get logged under different address families (IPv4 here,
+                # IPv6 in the query log, or vice versa — possible on a
+                # dual-stack LAN), this check alone won't recognize them as
+                # the same device. Deliberately not "fixed" via live NDP/MAC
+                # resolution — SLAAC address rotation and NDP table expiry
+                # make that a flakier, harder-to-reason-about failure mode
+                # than the gap it'd close (same tradeoff that ruled out a
+                # MAC-based identity cross-check elsewhere in this file).
+                # has_admin_device + label_has_protected_identity remain the
+                # real backstop: an Admin (or protected-identity) device can
+                # never be paused under any identity, IP mismatch or not.
+                requester_ip = self.client_address[0]
                 for dev in get_all_known_devices():
                     name = dev["client_name"]
                     ip   = dev["client_ip"]
-                    if ip and is_pauseable(name, config):
+                    if ip and ip != requester_ip and is_pauseable(name, config):
                         if ip not in config.get("paused_devices", {}):
                             pause_device(ip, label(name, config), config, until=until)
                             config = load_config()
@@ -563,13 +589,24 @@ class Handler(BaseHTTPRequestHandler):
                 until   = _pause_until(params.get("for", ["off"])[0])
                 # Members = devices tagged into this group. is_groupable allows
                 # Personal/Smart/Work but never Admin or Infrastructure (router/NAS).
-                members = [n for n, d in config.get("devices", {}).items()
-                           if d.get("group") == gname and is_groupable(n, config)]
+                # Pausing (any form) additionally requires a real Admin device to
+                # exist — with none set, no one's guaranteed safe from a pause.
+                members = ([n for n, d in config.get("devices", {}).items()
+                            if d.get("group") == gname and is_groupable(n, config)]
+                           if has_admin_device(config) else [])
                 if members:
+                    requester_ip = self.client_address[0]  # never pause yourself, see /pause_all
                     name_to_ip = {d["client_name"]: d["client_ip"] for d in get_all_known_devices()}
                     for cname in members:
-                        ip = name_to_ip.get(cname, "")
-                        if ip and ip not in config.get("paused_devices", {}):
+                        # A device stored in config under its bare IP (never got a
+                        # resolved hostname) won't show up as its own key in
+                        # name_to_ip if the query log also logged it under a
+                        # hostname — _collapse_ip_duplicates() folds the bare-IP
+                        # row into the named one and drops it. If the lookup misses
+                        # and the member's own name is already IP-shaped, it IS its
+                        # own IP; use it directly instead of silently skipping it.
+                        ip = name_to_ip.get(cname, "") or (cname if _BARE_IP.match(cname) else "")
+                        if ip and ip != requester_ip and ip not in config.get("paused_devices", {}):
                             pause_device(ip, label(cname, config), config, until=until)
                             config = load_config()
                 self._redirect("/")
@@ -579,7 +616,8 @@ class Handler(BaseHTTPRequestHandler):
                 gname   = unquote(parse_qs(parsed.query).get("name", [""])[0])
                 members = {n for n, d in config.get("devices", {}).items() if d.get("group") == gname}
                 name_to_ip = {d["client_name"]: d["client_ip"] for d in get_all_known_devices()}
-                member_ips = {name_to_ip.get(c, "") for c in members}
+                # Same bare-IP fallback as /group/pause above — see its comment.
+                member_ips = {name_to_ip.get(c, "") or (c if _BARE_IP.match(c) else "") for c in members}
                 for ip in list(config.get("paused_devices", {}).keys()):
                     if ip in member_ips:
                         unpause_device(ip, config)
@@ -1081,6 +1119,16 @@ class Handler(BaseHTTPRequestHandler):
                         grp = params.get(f"group_{enc_name}", [""])[0].strip()
                         if grp and grp in valid_groups and devices[name]["type"] in ("person", "smart_device", "work_device"):
                             devices[name]["group"] = grp
+                        elif devices[name].get("group"):
+                            # Had a real group before this save and the dropdown now
+                            # says none — a deliberate removal. Record it as an
+                            # explicit "no group" (None), not just an absent key, so
+                            # the overnight auto-grouper (which only skips devices
+                            # that already HAVE a "group" key at all) never silently
+                            # re-adds it. A device that was never grouped in the
+                            # first place still just has the key popped, leaving it
+                            # eligible for auto-grouping as before.
+                            devices[name]["group"] = None
                         else:
                             devices[name].pop("group", None)
                 config["devices"] = devices
@@ -1097,6 +1145,15 @@ class Handler(BaseHTTPRequestHandler):
                     import backup as _bk; _bk.auto_backup_usb(config)
                 except Exception:
                     pass
+                # Optional next=... lets a caller elsewhere (the dashboard's
+                # flag-picker, e.g.) redirect back to where it actually was
+                # instead of landing on the full Devices Management page —
+                # the real /admin/devices form never sends this, so its own
+                # save-then-show-the-page behavior is unchanged.
+                nxt = params.get("next", [""])[0]
+                if nxt.startswith("/") and not nxt.startswith("//"):
+                    self._redirect(nxt)
+                    return
                 html = build_devices_page(config, saved=True)
 
             elif parsed.path == "/admin/devices/remove":
@@ -1116,6 +1173,50 @@ class Handler(BaseHTTPRequestHandler):
                 self._redirect("/admin/devices")
                 return
 
+            elif parsed.path == "/admin/devices/keep_one":
+                # The identity-conflict banner's "Keep this one" button: forget
+                # every OTHER record sharing this device's label, in one click.
+                # Same cleanup as /admin/devices/remove, just looped — the kept
+                # entry itself is untouched (it already has the right label/type).
+                devices = config.get("devices", {})
+                for enc_name in params.get("also_remove", []):
+                    name = unquote(enc_name)
+                    if name in devices:
+                        try:
+                            restore_client_global(config, name)
+                        except Exception:
+                            pass
+                        del devices[name]
+                        config.get("schedules", {}).pop(name, None)
+                config["devices"] = devices
+                save_config(config)
+                self._redirect("/admin/devices")
+                return
+
+            elif parsed.path == "/device/set_kind":
+                # The "which is it?" quick answer for a genuine phone-vs-tablet
+                # (etc) toss-up, asked on the device-detail page and on the
+                # dashboard alike — sets this device's group directly, same
+                # field the manual dropdown and the background auto-grouper
+                # both use, so it's never re-guessed over once answered.
+                name  = unquote(params.get("name", [""])[0])
+                group = params.get("group", [""])[0]
+                if name and group:
+                    devices = config.get("devices", {})
+                    devices.setdefault(name, {})["group"] = group
+                    config["devices"] = devices
+                    save_config(config)
+                # `next` is only ever a same-origin path this app itself renders
+                # (the form is server-rendered, never user-controlled) — still
+                # required to start with "/" and never "//" (protocol-relative,
+                # an open-redirect trick), so a malformed value can't escape to
+                # an external host.
+                nxt = params.get("next", [""])[0]
+                if not (nxt.startswith("/") and not nxt.startswith("//")):
+                    nxt = f"/device?name={quote(name)}"
+                self._redirect(nxt)
+                return
+
             elif parsed.path == "/admin/clear":
                 # Clear AdGuard's own query log FIRST — otherwise the collector
                 # re-imports the entries we're about to delete within a minute.
@@ -1131,6 +1232,18 @@ class Handler(BaseHTTPRequestHandler):
                 save_config(config)
                 reset_adguard_stats(config)
                 html = build_admin(config, cleared=True)
+
+            elif parsed.path == "/blocked_content/clear":
+                # Dashboard "Blocked Content" one-tap Clear — a display-only
+                # dismissal, NOT the destructive /admin/clear above. The real
+                # query log, stats and reports are untouched; this just records
+                # when the parent cleared it so already-shown attempts stop
+                # showing, and a fresh attempt after this point shows right
+                # back up on its own.
+                config["blocked_content_cleared_at"] = datetime.utcnow().isoformat() + "Z"
+                save_config(config)
+                self._redirect("/")
+                return
 
             elif parsed.path == "/admin/clear_all":
                 from adguard import clear_adguard_querylog

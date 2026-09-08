@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Lantern Watch — pages.py
 All HTML page-builder functions and the shared CSS.
@@ -10,7 +10,7 @@ import urllib.request
 from datetime import datetime
 from urllib.parse import quote
 
-from config import label, is_infrastructure, is_monitored, is_pauseable, is_groupable, effective_type, find_identity_conflicts, VERSION, dashboard_url
+from config import label, is_infrastructure, is_monitored, is_pauseable, is_groupable, effective_type, find_identity_conflicts, has_admin_device, VERSION, dashboard_url
 from adguard import get_adguard_stats, PLATFORM_DOMAINS, PROFILE_SAFE_SEARCH, get_ip_hostname_map, pretty_hostname
 from db import (
     get_stats, get_device_detail, get_domain_detail,
@@ -75,142 +75,184 @@ _FAVICON_SVG = _LANTERN_SVG.replace('viewBox="0 0 1024 1024"', 'viewBox="288 136
 # ── Shared CSS ────────────────────────────────────────────────────────────────
 
 CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 :root{
-  --orange:#e8a000;--orange-dark:#b87d00;
-  --ink:#1a1a1a;--body:#3a3a3a;--muted:#6b6b6b;
-  --line:#e8e6e0;--bg:#ffffff;--bg-soft:#faf8f3;--bg-card:#ffffff;
-  --amber-soft:#fff4dc;--amber-border:#f3e3b8;
-  --radius:14px;
-  --ok:#16a34a;--danger:#dc2626;--warn:#b45309;
-  --shadow:0 1px 3px rgba(26,26,26,.05);--shadow-hover:0 6px 20px rgba(26,26,26,.08);
-  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --orange:#e8a000;--orange-hover:#d49200;
+  --orange-light:#fff4dc;--orange-border:#f3e3b8;--orange-glow:rgba(232,160,0,0.22);
+  --ink:#1a1a1a;--body:#3a3a3a;--muted:#6b6b6b;--slate:#94a3b8;
+  --bg-page:#faf8f3;--bg-card:#ffffff;--bg-subtle:#fbf9f4;
+  --line:#e8e6e0;--line-subtle:#f0eee8;
+  --ok:#1d9e75;--ok-light:#eaf7ef;--ok-border:#bbf7d0;
+  --coral:#dc6b5f;--coral-light:#fee2e2;--danger:#dc2626;
+  --radius-card:16px;--radius-pill:999px;
+  --shadow-sm:0 1px 3px rgba(26,26,26,0.04);--shadow-hover:0 6px 20px rgba(26,26,26,0.06);
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --font-heading:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font);background:var(--bg-soft);color:var(--body);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased}
-.page-wrap{max-width:780px;margin:0 auto;width:100%}
+body{font-family:var(--font);background:var(--bg-page);color:var(--body);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased}
+.page-wrap{max-width:1100px;margin:0 auto;width:100%;padding:16px 16px 60px}
 a{color:inherit;text-decoration:none}
-h1,h2,h3{color:var(--ink);font-weight:700;line-height:1.2;letter-spacing:-0.02em}
-.header{background:var(--bg);border-bottom:1px solid var(--line);padding:0 24px;height:52px;display:flex;align-items:center;position:relative}
-.header-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;flex:1;min-width:0;cursor:pointer;-webkit-tap-highlight-color:rgba(232,160,0,0.15)}.header-brand:active{opacity:0.75}
-.header-brand .header-logo{width:60px;flex-shrink:0}.header-brand .header-logo svg{width:100%;height:auto;display:block}
-.header-brand h1{font-size:1.1em;color:var(--ink);font-weight:800;letter-spacing:-0.01em;white-space:nowrap}
-.header-brand p{font-size:13px;color:var(--muted);font-style:italic;margin:0;white-space:nowrap}
-.header-nav{display:flex;align-items:center;gap:4px;flex-shrink:0}
-.header-actions{flex:1;display:flex;justify-content:flex-end;align-items:center}
-.header-link{color:var(--body);font-size:14px;font-weight:600;transition:color 150ms ease;border-bottom:3px solid transparent;line-height:52px;white-space:nowrap;padding:0}
-.header-link:hover{color:var(--orange)}
-.header-link.active{color:var(--ink);border-bottom:3px solid var(--orange)}
+h1,h2,h3,h4{font-family:var(--font-heading);color:var(--ink);font-weight:700;line-height:1.25;letter-spacing:-0.025em}
+.header{position:sticky;top:0;z-index:100;background:rgba(255,255,255,0.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.header-inner{max-width:1100px;margin:0 auto;padding:0 20px;height:60px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.header-brand{display:flex;align-items:center;gap:12px;text-decoration:none;cursor:pointer;flex-shrink:0}
+.header-brand .header-logo{width:60px;height:60px;flex-shrink:0}
+.header-actions{display:flex;align-items:center;gap:8px}
+.header-brand .header-logo svg{width:100%;height:100%;display:block}
+.header-brand h1{font-size:1.15rem;font-weight:800;letter-spacing:-0.03em;color:var(--ink)}
+.header-brand p{font-size:12.5px;color:var(--muted);font-style:italic;font-weight:400}
+.header-nav{display:flex;align-items:center;gap:4px}
+.nav-link{display:inline-flex;align-items:center;gap:6px;color:var(--body);font-size:13.5px;font-weight:600;padding:7px 12px;border-radius:8px;transition:all 0.15s ease;background:none;border:none;cursor:pointer}
+.nav-link svg{color:var(--muted)}
+.nav-link:hover{background:var(--bg-page);color:var(--ink)}
+.nav-link:hover svg{color:var(--orange)}
+.nav-link.active{color:var(--orange);background:var(--orange-light);font-weight:700}
+.nav-link.active svg{color:var(--orange)}
 .nav-group{position:relative}
-.nav-link{display:inline-flex;align-items:center;gap:7px;color:var(--body);font-size:14px;font-weight:600;background:none;border:none;cursor:pointer;font-family:inherit;padding:8px 11px;border-radius:8px;white-space:nowrap;text-decoration:none;transition:background .12s ease,color .12s ease}
-.nav-link>svg{color:var(--muted);transition:color .12s ease}
-.nav-link:hover{background:var(--bg-soft);color:var(--ink)}
-.nav-link:hover>svg{color:var(--orange-dark)}
-.nav-link .caret{display:inline-flex;color:var(--muted);margin-left:-3px;transition:transform .15s ease}
-.nav-link.active{color:var(--orange);background:rgba(232,160,0,.13)}
-.nav-link.active>svg{color:var(--orange)}
-.nav-group.open>.nav-link{background:var(--bg-soft);color:var(--ink)}
-.nav-group.open .caret{transform:rotate(180deg)}
-.nav-menu{position:absolute;top:calc(100% + 6px);left:0;min-width:212px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(26,26,26,.13);padding:6px;opacity:0;visibility:hidden;transform:translateY(-6px);transition:opacity .13s ease,transform .13s ease;z-index:300}
 .nav-group.open .nav-menu{opacity:1;visibility:visible;transform:translateY(0)}
-.nav-menu a{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:8px;color:var(--body);font-size:13.5px;font-weight:600;white-space:nowrap;text-decoration:none}
-.nav-menu a>svg{color:var(--muted);flex-shrink:0}
-.nav-menu a:hover{background:var(--bg-soft);color:var(--ink)}
-.nav-menu a:hover>svg{color:var(--orange-dark)}
-.nav-menu a .ext{display:inline-flex;margin-left:auto;color:var(--muted);opacity:.65}
-.mob-group{padding:12px 24px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
-.header-link.signout{color:var(--danger)}
-.header-link.signout:hover{color:#b91c1c}
+.nav-menu{position:absolute;top:calc(100% + 6px);right:0;min-width:200px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 30px rgba(26,26,26,0.10);padding:6px;opacity:0;visibility:hidden;transform:translateY(-6px);transition:all 0.15s ease;z-index:300}
+.nav-menu a{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;font-size:13.5px;font-weight:600;color:var(--body)}
+.nav-menu a:hover{background:var(--bg-page);color:var(--ink)}
+.nav-menu a svg{color:var(--muted)}
+.nav-menu a:hover svg{color:var(--orange)}
+.header-link.signout{font-size:13px;font-weight:600;color:var(--muted);padding:7px 10px;border-radius:8px;transition:color 0.15s ease}
+.header-link.signout:hover{color:var(--danger)}
 .hamburger{display:none;background:none;border:none;cursor:pointer;padding:8px;flex-shrink:0;margin-left:4px}
 .hamburger span{display:block;width:20px;height:2px;background:var(--ink);margin:4px 0;border-radius:2px}
-.mobile-nav{display:none;position:absolute;top:52px;left:0;right:0;background:var(--bg);border-bottom:1px solid var(--line);box-shadow:0 4px 16px rgba(0,0,0,0.10);z-index:200;padding:4px 0}
+.mobile-nav{display:none;position:absolute;top:60px;left:0;right:0;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 4px 16px rgba(0,0,0,0.10);z-index:200;padding:6px 0}
 .mobile-nav.open{display:block}
 .mobile-nav a{display:flex;align-items:center;gap:11px;padding:11px 24px;color:var(--body);font-size:15px;font-weight:600}
 .mobile-nav a svg{color:var(--muted);flex-shrink:0}
-.mobile-nav a:last-child{border-bottom:none}
 .mobile-nav a.signout{color:var(--danger)}
 @media(max-width:640px){.header-nav{display:none}.header-actions{display:none}.hamburger{display:block}}
-.back{display:inline-block;padding:8px 16px;background:var(--amber-soft);border-radius:8px;color:var(--orange-dark);margin:12px 16px;font-size:0.9em;border:1px solid var(--amber-border);font-weight:600;transition:background 150ms ease}.back:hover{background:#ffeccb}.back-wrap{max-width:780px;margin:0 auto;padding:0}
-.section{background:var(--bg-card);border-radius:var(--radius);margin:12px 16px;padding:20px;box-shadow:var(--shadow);border:1px solid var(--line)}
-.section h2{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:12px;border-left:3px solid var(--orange);padding-left:10px;letter-spacing:-0.01em}
-.section h2.alert{color:var(--danger)}
-.stats-bar{display:flex;gap:8px;padding:12px 16px;overflow-x:auto;max-width:780px;margin:0 auto}
-.stat-card{background:var(--bg-card);border-radius:12px;padding:12px 16px;min-width:90px;flex:1;text-align:center;border:1px solid var(--line);box-shadow:var(--shadow);transition:box-shadow 200ms ease,transform 200ms ease}
-.stat-card:hover{box-shadow:var(--shadow-hover);transform:translateY(-2px)}
-a.stat-card{text-decoration:none;color:inherit;display:block;cursor:pointer}
-a.stat-card:hover .label{color:var(--orange-dark)}
-.stat-card .num{font-size:clamp(16px,5vw,28px);font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.num.blue{color:var(--ink)}.num.green{color:var(--ok)}.num.red{color:var(--danger)}
-.stat-card .label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-top:4px}
-.device-card{background:var(--bg-card);border-radius:var(--radius);padding:16px;margin-bottom:10px;border:1px solid var(--line);box-shadow:var(--shadow);transition:border-color 150ms ease,box-shadow 150ms ease}
+/* ── Hero Reassurance Card ── */
+.hero-card{background:#ffffff;border:1px solid var(--line);border-radius:var(--radius-card);padding:24px;box-shadow:var(--shadow-sm);margin-bottom:18px}
+.hero-main-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.hero-left{display:flex;align-items:center;gap:14px}
+.hero-flame-icon{width:44px;height:44px;border-radius:12px;background:var(--orange-light);border:1px solid var(--orange-border);display:flex;align-items:center;justify-content:center;color:var(--orange);font-size:22px;flex-shrink:0}
+.hero-titles h2{font-size:1.22rem;font-weight:800;color:var(--ink);margin-bottom:2px}
+.hero-titles p{font-size:13.5px;color:var(--muted)}
+.btn-pause-master{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:var(--orange);border:1.5px solid var(--orange);color:#fff;border-radius:var(--radius-pill);font-family:var(--font-heading);font-weight:700;font-size:14px;cursor:pointer;transition:all 0.15s ease;box-shadow:0 4px 14px var(--orange-glow)}
+.btn-pause-master:hover{background:var(--orange-hover);border-color:var(--orange-hover);transform:translateY(-1px);box-shadow:0 6px 18px var(--orange-glow)}
+/* ── Quick Group Controls (Hover to Pause) ── */
+.group-strip-wrap{margin-top:20px;padding-top:16px;border-top:1px solid var(--line-subtle)}
+.group-strip-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--slate);margin-bottom:12px}
+.group-chips-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.group-card-pmenu{width:100%}
+.group-card-btn{position:relative;background:var(--bg-subtle);border:1px solid var(--line-subtle);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all 0.18s ease;user-select:none;width:100%}
+.group-card-btn:hover{background:var(--orange-light);border-color:var(--orange);transform:translateY(-2px);box-shadow:0 4px 14px var(--orange-glow)}
+.group-card-pmenu[open] .group-card-btn{background:var(--orange-light);border-color:var(--orange)}
+.group-card-btn .group-icon{font-size:20px;flex-shrink:0}
+.group-card-btn .group-content{flex:1;min-width:0;display:flex;flex-direction:column}
+.group-card-btn .group-name{font-family:var(--font-heading);font-size:14px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.group-card-btn .group-status{font-size:11.5px;color:var(--slate);font-weight:500;display:flex;align-items:center;gap:4px}
+.group-card-btn .group-hover-action{font-family:var(--font-heading);font-size:11.5px;font-weight:700;color:var(--orange);display:none}
+.group-card-btn:hover .group-status{display:none}
+.group-card-btn:hover .group-hover-action{display:flex;align-items:center;gap:3px}
+/* ── Stats Bar ── */
+.stats-row{display:flex;gap:10px;overflow-x:auto;margin-bottom:18px}
+.stat-item{background:#ffffff;border:1px solid var(--line);border-radius:12px;padding:12px 16px;min-width:90px;flex:1;text-align:center;box-shadow:var(--shadow-sm);transition:all 0.15s ease}
+.stat-item:hover{border-color:var(--orange-border);transform:translateY(-1px)}
+.stat-item .num{font-family:var(--font-heading);font-size:clamp(17px,4vw,24px);font-weight:800;color:var(--ink);letter-spacing:-0.02em}
+.stat-item .lbl{font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-top:3px}
+/* ── Reassuring Card ── */
+.reassurance-card{background:#ffffff;border:1px solid var(--line);border-radius:var(--radius-card);padding:16px 20px;box-shadow:var(--shadow-sm);margin-bottom:18px;display:flex;align-items:center;gap:14px}
+.reassurance-icon{font-size:20px;color:var(--ok);flex-shrink:0}
+.reassurance-text h4{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:1px}
+.reassurance-text p{font-size:13px;color:var(--muted)}
+/* ── Device Cards ── */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin:22px 0 12px;padding:0 2px}
+.section-header h3{font-size:1rem;font-weight:800;color:var(--ink);letter-spacing:-0.02em}
+.section-header span{font-size:12px;color:var(--slate);font-weight:500}
+.device-card{background:#ffffff;border:1px solid var(--line);border-radius:var(--radius-card);padding:16px 20px;margin-bottom:10px;box-shadow:var(--shadow-sm);transition:all 0.15s ease}
 .device-card:hover{border-color:var(--orange);box-shadow:var(--shadow-hover)}
-.device-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.device-name{font-weight:700;font-size:1em;color:var(--ink)}
-.badge{padding:2px 10px;border-radius:99px;font-size:0.75em;font-weight:700}
-.badge-green{background:#eaf7ef;color:var(--ok)}.badge-yellow{background:var(--amber-soft);color:var(--orange-dark)}.badge-red{background:#fdeaea;color:var(--danger)}
-.bar-wrap{height:6px;background:#ece9e2;border-radius:99px;margin-bottom:8px;overflow:hidden}
-.bar-fill{height:100%;background:var(--orange);border-radius:99px;transition:width 0.3s}.bar-fill.danger{background:var(--danger)}
-.device-stats{display:flex;flex-wrap:wrap;gap:6px 14px}
-.device-stat{font-size:0.78em;color:var(--muted)}.device-stat span{color:var(--ink);font-weight:700}
-.domain-list{border-radius:8px;overflow:hidden}
-.domain-item{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);font-size:0.85em}
+.device-row-main{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.device-name-wrap{display:flex;align-items:center;gap:10px;min-width:0}
+.device-emoji{font-size:18px;flex-shrink:0}
+.device-name{font-family:var(--font-heading);font-weight:700;font-size:15px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.device-sub{font-size:12px;color:var(--slate)}
+.device-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:var(--radius-pill);background:var(--ok-light);color:var(--ok);border:1px solid var(--ok-border);flex-shrink:0}
+.meter-track{height:5px;background:#f0eee8;border-radius:var(--radius-pill);margin:10px 0 8px;overflow:hidden}
+.meter-fill{height:100%;background:var(--orange);border-radius:var(--radius-pill)}
+.device-row-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--slate)}
+.device-metrics{display:flex;align-items:center;gap:12px}
+.device-metrics span strong{color:var(--ink)}
+.device-actions{display:flex;align-items:center;gap:8px}
+.btn-device-sched{color:var(--slate);font-weight:500;font-size:12px;padding:3px 8px;border-radius:6px;transition:all 0.15s ease}
+.btn-device-sched:hover{color:var(--ink);background:var(--bg-page)}
+.btn-device-pause{font-size:12px;font-weight:600;padding:3px 10px;border-radius:var(--radius-pill);background:var(--bg-subtle);color:var(--body);border:1px solid var(--line);cursor:pointer;transition:all 0.15s ease}
+.pchip{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1.5px solid var(--orange-border);color:var(--orange);padding:4px 12px;border-radius:var(--radius-pill);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s ease}
+.pchip:hover{background:var(--orange-light);border-color:var(--orange)}
+.lw-filter-pill{background:#fff;border:1px solid var(--line);border-radius:var(--radius-pill);padding:5px 14px;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s ease}
+.lw-filter-pill:hover{border-color:var(--orange);color:var(--orange)}
+.lw-filter-pill.active{background:var(--orange);border-color:var(--orange);color:#fff}
+.btn-device-pause:hover{background:var(--orange-light);border-color:var(--orange);color:var(--orange)}
+/* ── Popover Duration Picker ── */
+.pmenu{position:relative;display:inline-block}
+.pmenu>summary{list-style:none;cursor:pointer;display:inline-flex}
+.pmenu>summary::-webkit-details-marker{display:none}
+.pmenu-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:60;background:#ffffff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(26,26,26,0.12);padding:6px;min-width:190px;display:flex;flex-direction:column;gap:1px;text-align:left}
+.pmenu-pop .phdr{font-size:10.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--slate);padding:6px 12px 4px;font-weight:700}
+.pmenu-pop a{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--ink)}
+.pmenu-pop a small{color:var(--slate);font-weight:500;font-size:11.5px}
+.pmenu-pop a:hover{background:var(--orange-light);color:var(--orange)}
+/* ── Common Utilities, Cards, Badges & Forms ── */
+.card{background:#ffffff;border:1px solid var(--line-subtle);border-radius:var(--radius-card);padding:20px;box-shadow:var(--shadow-sm);transition:border-color .15s ease,box-shadow .15s ease}
+.card:hover{border-color:var(--orange-border);box-shadow:var(--shadow-hover)}
+.section{background:#ffffff;border:1px solid var(--line);border-radius:var(--radius-card);padding:20px;margin-bottom:14px;box-shadow:var(--shadow-sm)}
+.section h2{font-size:14.5px;font-weight:700;color:var(--ink);margin-bottom:12px;border-left:3px solid var(--orange);padding-left:10px}
+.section h2.alert{color:var(--danger);border-left-color:var(--danger)}
+.badge{padding:3px 11px;border-radius:999px;font-size:0.75em;font-weight:700;display:inline-flex;align-items:center}
+.badge-green{background:var(--ok-light);color:var(--ok);border:1px solid var(--ok-border)}
+.badge-yellow{background:var(--orange-light);color:var(--orange);border:1px solid var(--orange-border)}
+.badge-red{background:#fdeaea;color:var(--danger);border:1px solid #fca5a5}
+.bar-wrap{height:7px;background:#ece9e2;border-radius:999px;margin:8px 0;overflow:hidden}
+.bar-fill{height:100%;background:var(--orange);border-radius:999px;transition:width 0.3s}
+.bar-fill.danger{background:var(--danger)}
+.tag{display:inline-block;padding:3px 11px;border-radius:999px;font-size:0.8em;font-weight:600;margin-right:4px}
+.tag-gold{background:var(--orange-light);color:var(--orange)}
+.tag-red{background:#fdeaea;color:var(--danger)}
+.device-stat{font-size:0.80em;color:var(--muted)}
+.device-stat span{color:var(--ink);font-weight:700}
+.domain-list{border-radius:10px;overflow:hidden}
+.domain-item{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line-subtle);font-size:0.86em}
 .domain-item:last-child{border-bottom:none}
 .domain-name{color:var(--body);font-weight:500;word-break:break-all}
-.domain-count{font-weight:700;color:var(--ink);white-space:nowrap;margin-left:8px}.domain-count.red{color:var(--danger)}
-.infra-section{opacity:0.65}
-.refresh{text-align:center;color:var(--muted);font-size:0.75em;padding:12px;margin-bottom:24px}
-.alert-box-red{background:#fdeaea;border:1px solid #f3c2c2;border-radius:10px;padding:10px 14px;color:var(--danger);font-size:0.85em;font-weight:600}
-.alert-box-green{background:#eaf7ef;border:1px solid #b5e2c5;border-radius:10px;padding:10px 14px;color:var(--ok);font-size:0.85em;font-weight:600}
-.netstats{display:flex;flex-direction:column;gap:0}.netstat-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:0.85em;transition:background 150ms ease}.netstat-item:hover{background:var(--bg-soft);margin:0 -8px;padding:8px 8px}.netstat-item:last-child{border-bottom:none}
-.detail-header{background:var(--bg-card);padding:20px;border-bottom:1px solid var(--line);max-width:780px;margin:0 auto}
-.detail-name{font-size:1.3em;font-weight:800;color:var(--ink)}
+.domain-count{font-family:var(--font-heading);font-weight:700;color:var(--ink);white-space:nowrap;margin-left:8px}
+.domain-count.red{color:var(--danger)}
+.alert-box-red{background:#fdeaea;border:1px solid #fecaca;border-radius:12px;padding:12px 16px;color:var(--danger);font-size:0.88em;font-weight:600}
+.alert-box-green{background:var(--ok-light);border:1px solid var(--ok-border);border-radius:12px;padding:12px 16px;color:var(--ok);font-size:0.88em;font-weight:600}
+.success{margin:0 0 12px;padding:14px;background:var(--ok-light);border:1px solid var(--ok-border);border-radius:14px;color:var(--ok);text-align:center;font-weight:700}
+.netstats{display:flex;flex-direction:column;gap:0}
+.netstat-item{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-subtle);font-size:0.86em}
+.netstat-item:last-child{border-bottom:none}
+.detail-header{background:var(--bg-card);padding:22px;border-bottom:1px solid var(--line);max-width:1100px;margin:0 auto}
+.detail-name{font-family:var(--font-heading);font-size:1.35em;font-weight:800;color:var(--ink);letter-spacing:-0.025em}
 .detail-stats{display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:8px}
-.detail-stat{font-size:0.82em;color:var(--muted)}.detail-stat span{color:var(--ink);font-weight:700}
+.detail-stat{font-size:0.82em;color:var(--muted)}
+.detail-stat span{color:var(--ink);font-weight:700}
 .hour-chart{display:flex;align-items:flex-end;gap:2px;height:48px}
 .hour-bar{flex:1;background:var(--orange);border-radius:2px 2px 0 0;min-width:6px;cursor:default}
 .hour-labels{display:flex;gap:2px;margin-top:2px}
 .hour-label{flex:1;font-size:0.55em;color:var(--muted);text-align:center}
-input[type=text],input[type=password],input[type=number],input[type=time],input[type=email],select,textarea{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:0.95em;color:var(--ink);font-family:var(--font);background:#fff}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(232,160,0,0.12)}
-input[type=checkbox],input[type=radio]{width:18px;height:18px;accent-color:var(--orange)}
-.form-card{background:var(--bg-card);border-radius:var(--radius);border:1px solid var(--line);padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
-.form-label{color:var(--muted);font-size:0.8em;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.08em;font-weight:700}
-.check-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer;color:var(--body)}
+.form-card{background:#ffffff;border-radius:var(--radius-card);border:1px solid var(--line);padding:18px;margin-bottom:12px;box-shadow:var(--shadow-sm)}
+.form-label{color:var(--muted);font-size:0.8em;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.08em;font-weight:700}
+.check-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line-subtle);cursor:pointer;color:var(--body)}
 .check-row:last-child{border-bottom:none}
-.radio-row{display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer;color:var(--body)}
-.btn{width:100%;padding:14px;background:var(--orange);border:none;border-radius:20px;color:white;font-size:1em;font-weight:700;cursor:pointer;display:block;text-align:center;margin-bottom:8px;transition:background 150ms ease,transform 120ms ease,box-shadow 150ms ease;box-shadow:0 4px 14px rgba(232,160,0,.28)}
-.btn:hover{background:var(--orange);transform:translateY(-1px);box-shadow:0 6px 18px rgba(232,160,0,.36)}
-.btn-secondary{background:var(--bg-card);border:1px solid var(--amber-border);color:var(--orange);box-shadow:none}
-.btn-secondary:hover{background:var(--amber-soft);border-color:var(--orange)}
-.btn-danger{background:var(--bg-card);border:1px solid #f0bcbc;color:var(--danger);box-shadow:none}
-.btn-danger:hover{background:#fdeaea}
-/* Pause duration picker (a no-JS <details> popover) */
-.pmenu{position:relative;display:inline-block}
-.pmenu>summary{list-style:none;cursor:pointer;display:inline-flex}
-.pmenu>summary::-webkit-details-marker{display:none}
-.pchip{background:#FEE2E2;color:#DC6B5F;padding:3px 10px;border-radius:99px;font-size:0.75em;font-weight:700;border:1px solid #FCA5A5;white-space:nowrap}
-.pmenu[open]>summary .pchip{background:#DC6B5F;color:#fff;border-color:#DC6B5F}
-.pmenu-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:60;background:var(--bg-card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(26,26,26,.15);padding:6px;min-width:196px;display:flex;flex-direction:column;gap:1px;text-align:left}
-.pmenu-pop .phdr{font-size:0.66em;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:6px 12px 5px;font-weight:700}
-.pmenu-pop a{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 12px;border-radius:8px;font-size:0.84em;font-weight:600;color:var(--ink);text-decoration:none}
-.pmenu-pop a small{color:var(--muted);font-weight:500;font-size:0.82em}
-.pmenu-pop a:hover{background:#FEE2E2;color:var(--danger)}
-.pmenu-pop a:hover small{color:var(--danger)}
-.success{margin:0 0 12px;padding:14px;background:#eaf7ef;border:1px solid #b5e2c5;border-radius:12px;color:var(--ok);text-align:center;font-weight:700}
-.tag{display:inline-block;padding:2px 10px;border-radius:99px;font-size:0.8em;font-weight:600;margin-right:4px}
-.tag-gold{background:var(--amber-soft);color:var(--orange-dark)}
-.tag-gray{background:#f0eee9;color:var(--muted)}
-.tag-red{background:#fdeaea;color:var(--danger)}
-/* ── design-system additions (available for the page-by-page markup rollout) ── */
-.eyebrow{color:var(--orange-dark);font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase}
-.card{background:var(--bg-card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);transition:border-color .15s ease,box-shadow .15s ease}
-.card:hover{border-color:var(--orange);box-shadow:var(--shadow-hover)}
-.badge-pill{display:inline-flex;align-items:center;gap:7px;background:var(--amber-soft);color:var(--orange-dark);font-weight:600;font-size:13px;padding:6px 14px;border-radius:999px;border:1px solid var(--amber-border)}
-.btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:auto;font-weight:600;font-size:15px;padding:13px 22px;border-radius:10px;border:1.5px solid transparent;cursor:pointer;text-decoration:none;background:var(--orange);color:#fff;box-shadow:0 4px 14px rgba(232,160,0,.28);transition:transform .12s ease,box-shadow .12s ease,background .12s ease}
-.btn-primary:hover{background:var(--orange);transform:translateY(-1px);box-shadow:0 6px 18px rgba(232,160,0,.36)}
-.btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:auto;font-weight:600;font-size:15px;padding:13px 22px;border-radius:10px;border:1.5px solid var(--line);cursor:pointer;text-decoration:none;background:#fff;color:var(--ink);transition:transform .12s ease,border-color .12s ease,color .12s ease}
+.btn{width:100%;padding:12px 20px;background:var(--orange);border:none;border-radius:var(--radius-pill);color:#fff;font-family:var(--font-heading);font-size:0.95em;font-weight:700;cursor:pointer;display:block;text-align:center;margin-bottom:8px;box-shadow:var(--shadow-glow);transition:all 0.15s ease}
+.btn:hover{background:var(--orange-hover);transform:translateY(-1px)}
+.btn-secondary{background:#ffffff;border:1.5px solid var(--orange-border);color:var(--orange);box-shadow:none;border-radius:var(--radius-pill)}
+.btn-secondary:hover{background:var(--orange-light);border-color:var(--orange);color:var(--orange)}
+.btn-danger{background:#ffffff;border:1.5px solid #fca5a5;color:var(--danger);box-shadow:none;border-radius:var(--radius-pill)}
+.btn-danger:hover{background:#fdeaea;border-color:#f87171}
+.btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:auto;font-weight:600;font-size:14px;padding:10px 18px;border-radius:var(--radius-pill);border:1.5px solid var(--line);cursor:pointer;text-decoration:none;background:#fff;color:var(--ink);transition:all .15s ease}
 .btn-ghost:hover{border-color:var(--orange);color:var(--orange);transform:translateY(-1px)}
+input[type=text],input[type=password],input[type=number],input[type=time],input[type=email],select,textarea{width:100%;padding:10px 14px;border:1.5px solid var(--line);border-radius:10px;font-size:0.95em;color:var(--ink);font-family:var(--font);background:#fff;transition:border-color 150ms ease,box-shadow 150ms ease}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-glow)}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.refresh{text-align:center;color:var(--slate);font-size:0.75em;padding:20px;margin-bottom:24px}
 """
 
 
@@ -482,6 +524,7 @@ def build_header(subtitle="Light for your home network", config=None):
     caret = f'<span class="caret">{_ic("caret", 14)}</span>'
     return (
         '<div class="header">'
+        '<div class="header-inner">'
         f'<a class="header-brand" href="/">{logo}<div><h1>Lantern Watch</h1><p>{subtitle}</p></div></a>'
         '<nav class="header-nav">'
         f'<a class="nav-link{_a("dashboard")}" href="/">{_ic("home")}Dashboard</a>'
@@ -507,6 +550,7 @@ def build_header(subtitle="Light for your home network", config=None):
         '<div class="header-actions"><a class="header-link signout" href="/logout">Sign Out</a></div>'
         '<button class="hamburger" onclick="document.getElementById(\'mob-nav\').classList.toggle(\'open\')" aria-label="Menu">'
         '<span></span><span></span><span></span></button>'
+        '</div>'
         '</div>'
         '<nav class="mobile-nav" id="mob-nav">'
         f'<a href="/">{_ic("home",16)}Dashboard</a>'
@@ -2310,6 +2354,12 @@ def make_card(d, screen_times, max_queries, config, ip_hostnames=None):
                       f'font-size:0.75em;font-weight:700;border:1px solid #F4B942">'
                       f'&#x23F5; Paused{until_txt} &middot; Resume</span></a>')
         card_style = "background:#FFFBF0;border-color:#F4B942"
+    elif not has_admin_device(config):
+        # Pausing needs an Admin device set first (see has_admin_device) — the
+        # backend refuses it either way, so don't offer a picker that just
+        # silently fails when tapped.
+        pause_btn  = '<span class="pchip" style="opacity:.5;cursor:default" title="Set an Admin device on the Devices page to enable pausing">&#x23F8; Pause</span>'
+        card_style = ""
     else:
         _pbase    = f'/device/pause?ip={quote(client_ip)}&name={enc}'
         pause_btn = (
@@ -2319,28 +2369,40 @@ def make_card(d, screen_times, max_queries, config, ip_hostnames=None):
             '<div class="phdr">Pause this device for&hellip;</div>'
             f'<a href="{_pbase}&for=30">30 minutes</a>'
             f'<a href="{_pbase}&for=60">1 hour</a>'
-            f'<a href="{_pbase}&for=today">Rest of today <small>till morning</small></a>'
+            f'<a href="{_pbase}&for=today">Until 7 AM tomorrow</a>'
             f'<a href="{_pbase}&for=off">Until I turn it back on</a>'
             '</div></details>'
         )
         card_style = ""
 
+    # View-only flag — tapping it just goes to the device page (same target as
+    # "Tap to see details"), same as any other device info here. Changing the
+    # category itself still happens on the Devices page, deliberately not an
+    # inline dashboard editor (an earlier version was, saving there re-checks
+    # every device's AdGuard exemption and takes 20-30s — fine for one
+    # deliberate batch save, tedious per single click).
+    _cat      = _dashboard_category(name, config)
+    _cat_flag = (
+        f' &bull; <a href="/admin/devices" style="font-weight:600;color:inherit;text-decoration:none">'
+        f'{_get_group_icon(_cat)} {esc(_cat)}</a>'
+    )
+
     return (
         f'<div class="device-card" style="{card_style}">'
-        f'<div class="device-header"><a href="/device?name={enc}&ip={enc_ip}" style="flex:1">'
+        f'<div class="device-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+        f'<a href="/device?name={enc}&ip={enc_ip}" style="flex:1;min-width:0">'
         f'<div class="device-name">{esc(friendly)}</div>{ip_sub}'
-        f'</a>{badge}</div>'
-        f'<div class="bar-wrap"><div class="bar-fill {danger}" style="width:{bar_pct}%"></div></div>'
-        f'<div class="device-stats">'
-        f'<div class="device-stat">Queries: <span>{d["total"]:,}</span></div>'
-        f'<div class="device-stat">Blocked: <span>{d["blocked"]:,}</span></div>'
-        f'<div class="device-stat">Time online: <span style="color:#F4B942">{time_str}</span></div>'
-        f'<div class="device-stat">Last seen: <span>{last}</span></div>'
-        f'</div>'
-        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">'
-        f'<a href="/device?name={enc}&ip={enc_ip}" style="font-size:0.7em;color:#D97706;font-weight:600">Tap to see details</a> '
-        f'<a href="/device/schedule?name={enc}&ip={enc_ip}" style="font-size:0.7em;color:#94a3b8;margin-left:8px">&#x23F0; Schedule</a>'
+        f'</a>{badge}'
+        f'<div style="display:flex;align-items:center;gap:12px;flex-shrink:0">'
+        f'<a href="/device?name={enc}&ip={enc_ip}" style="font-size:0.7em;color:#D97706;font-weight:600">Tap to see details</a>'
+        f'<a href="/device/schedule?name={enc}&ip={enc_ip}" style="font-size:0.7em;color:#94a3b8">&#x23F0; Schedule</a>'
         f'{pause_btn}'
+        f'</div>'
+        f'</div>'
+        f'<div class="bar-wrap"><div class="bar-fill {danger}" style="width:{bar_pct}%"></div></div>'
+        f'<div class="device-stats" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 10px">'
+        f'<div class="device-stat">Queries: <span>{d["total"]:,}</span> &bull; Blocked: <span>{d["blocked"]:,}</span>{_cat_flag}</div>'
+        f'<div class="device-stat">Time online: <span style="color:#F4B942">{time_str}</span> &bull; Last seen: <span>{last}</span></div>'
         f'</div>'
         f'{schedule_info}'
         f'</div>'
@@ -2354,12 +2416,25 @@ def make_blocked_link(r, config):
             f'<span class="domain-count red">{r["hits"]:,} blocked</span></div></a>')
 
 
-def make_adult_link(r):
+def make_adult_link(r, config=None, ip_hostnames=None):
     enc  = quote(r["domain"])
     last = _local_ts(r["last_seen"])[:16] if r["last_seen"] else "-"
+    # Who actually tried this — right on the dashboard, not just on the
+    # domain's own detail page, so a parent doesn't have to tap in for the
+    # common one-device case.
+    who_line = ""
+    clients  = r.get("clients") or []
+    if clients and config is not None:
+        names = [device_display_name(c, config, ip_hostnames) for c in clients[:1]]
+        who   = names[0] if names else clients[0]
+        if len(clients) > 1:
+            who += f" & {len(clients) - 1} more"
+        who_line = f'<div style="font-size:0.75em;color:#94a3b8">{esc(who)} &middot; Last: {last}</div>'
+    else:
+        who_line = f'<div style="font-size:0.75em;color:#94a3b8">Last: {last}</div>'
     return (f'<a href="/domain?name={enc}"><div class="domain-item" style="cursor:pointer;background:#FFF7F7">'
             f'<div><div style="color:#DC6B5F;font-weight:600">{esc(r["domain"])}</div>'
-            f'<div style="font-size:0.75em;color:#94a3b8">Last: {last}</div></div>'
+            f'{who_line}</div>'
             f'<span class="domain-count red">{r["hits"]:,} attempts</span></div></a>')
 
 
@@ -2454,6 +2529,37 @@ def _update_banner_html(config):
     )
 
 
+_GROUP_ICONS = {
+    "computers": "💻", "computer": "💻", "laptops": "💻", "laptop": "💻", "pcs": "💻", "pc": "💻",
+    "phones": "☎️", "phone": "☎️", "mobile": "☎️",
+    "tvs": "📺", "tv": "📺", "television": "📺", "smart tv": "📺", "smart tvs": "📺",
+    "tablets": "📱", "tablet": "📱", "ipads": "📱", "ipad": "📱",
+    "kids": "🧒", "children": "🧒",
+    "gaming": "🎮", "games": "🎮", "consoles": "🎮",
+    "guests": "👥", "guest": "👥",
+    "admin": "🛡️", "infrastructure": "🖥️", "other": "🏷",
+}
+def _get_group_icon(name):
+    return _GROUP_ICONS.get(name.lower().strip(), "🏷")
+
+
+def _dashboard_category(name, config):
+    """Which filter-pill bucket a device falls into on the dashboard: its
+    custom group if it has one (Computers/Phones/TVs/Tablets/Games/...),
+    else a role-based fallback (Admin/Infrastructure), else Other. Every
+    device lands in exactly one bucket — and always in "All" — so filtering
+    never makes a device silently disappear from the page."""
+    grp = config.get("devices", {}).get(name, {}).get("group")
+    if grp:
+        return grp
+    et = effective_type(name, config)
+    if et == "parent":
+        return "Admin"
+    if et in ("infrastructure", "smart_device"):
+        return "Infrastructure"
+    return "Other"
+
+
 def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_domains, config):
     total_q    = totals["total"] or 0
     total_b    = totals["blocked"] or 0
@@ -2467,8 +2573,57 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
     except Exception:
         ip_hostnames = {}
 
-    people_cards  = "".join(make_card(d, screen_times, max_q, config, ip_hostnames) for d in people)
-    infra_cards   = "".join(make_card(d, screen_times, max_q, config, ip_hostnames) for d in infra)
+    # Devices whose kind is a genuine toss-up (phone vs tablet, etc) — ask right
+    # on the dashboard, the first thing a parent sees, instead of leaving it
+    # buried on each device's own page. Only ever devices with no group yet;
+    # once answered (here, on the device page, or picked manually), it's never
+    # asked again — same rule the background auto-grouper follows.
+    ask_kind_cards_html = ""
+    try:
+        from classify import device_identity, device_kind as _dkind
+        _devcfg_top       = config.get("devices", {})
+        _kind_domains_map = get_top_domains_map(per_device=150)
+        _ask_cards = []
+        for d in people:
+            nm   = d["client_name"]
+            dcfg = _devcfg_top.get(nm, {})
+            if dcfg.get("group") or effective_type(nm, config) not in ("person", "smart_device", "work_device"):
+                continue
+            k = _dkind(nm, dcfg.get("label", ""), device_identity(nm), _kind_domains_map.get(nm, []))
+            if k in _AMBIGUOUS_KIND_CHOICES:
+                disp = device_display_name(nm, config, ip_hostnames, client_ip=d.get("client_ip"))
+                _ask_cards.append(_ask_kind_card(nm, k, "/", heading=f'{esc(disp)} &mdash; probably {esc(k)}.'))
+        ask_kind_cards_html = "".join(_ask_cards)
+    except Exception:
+        ask_kind_cards_html = ""
+
+    people_cards  = "".join(
+        f'<div data-cat="{esc(_dashboard_category(d["client_name"], config))}">'
+        f'{make_card(d, screen_times, max_q, config, ip_hostnames)}</div>'
+        for d in people
+    )
+    infra_cards   = "".join(
+        f'<div data-cat="{esc(_dashboard_category(d["client_name"], config))}">'
+        f'{make_card(d, screen_times, max_q, config, ip_hostnames)}</div>'
+        for d in infra
+    )
+    # Filter pills above the device list — same continuous list, just a quick
+    # "show me only the phones" view instead of permanently splitting it into
+    # sections (which would add more scrolling and an empty-category problem
+    # for a small household). Only categories actually present get a pill.
+    _cats_present = sorted({_dashboard_category(d["client_name"], config) for d in (people + infra)})
+    if len(_cats_present) > 1:
+        filter_bar_html = (
+            '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 2px">'
+            '<button type="button" class="lw-filter-pill active" data-filter="all" onclick="lwFilterDevices(this)">All</button>'
+            + "".join(
+                f'<button type="button" class="lw-filter-pill" data-filter="{esc(c)}" onclick="lwFilterDevices(this)">{esc(c)}</button>'
+                for c in _cats_present
+            )
+            + '</div>'
+        )
+    else:
+        filter_bar_html = ""
     blocked_html  = "".join(make_blocked_link(r, config) for r in top_blocked) or '<div class="domain-item"><span class="domain-name">None today</span></div>'
     allowed_html  = "".join(
         f'<div class="domain-item"><span class="domain-name">{esc(r["domain"])}</span><span class="domain-count">{r["hits"]:,}</span></div>'
@@ -2489,21 +2644,36 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
     except Exception:
         _explicit, _svc_ok, _fam_ok = set(), None, None
     notable = get_notable_blocks(_explicit, is_notable_service=_svc_ok, is_family_list=_fam_ok)
+    # A one-tap "Clear" dismisses every notable-block row at once (not one at a
+    # time) — records when it was clicked, and anything already showing is
+    # older than that, so it's a pure display filter: the real query log,
+    # stats and reports are completely untouched, a fresh attempt after
+    # clearing shows right back up.
+    _cleared_at = config.get("blocked_content_cleared_at", "")
+    if _cleared_at:
+        notable = [r for r in notable if (r["last_seen"] or "") > _cleared_at]
     if notable:
-        adult_rows    = "".join(make_adult_link(r) for r in notable)
+        adult_rows   = "".join(make_adult_link(r, config, ip_hostnames) for r in notable)
+        clear_btn    = (
+            '<form method="POST" action="/blocked_content/clear" style="display:inline">'
+            '<button type="submit" class="btn-ghost" style="width:auto;padding:5px 14px;font-size:12px;margin:0">Clear</button>'
+            '</form>'
+        )
         adult_section = ('<div class="section"><h2 class="alert">Blocked Content</h2>'
-                         '<div class="alert-box-red">Sites you block that were attempted today. Tap any to see who and when.</div>'
+                         f'<div class="alert-box-red" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'
+                         '<span>Sites you block that were attempted today. Tap any to see who and when.</span>'
+                         f'{clear_btn}</div>'
                          f'<div class="domain-list" style="margin-top:10px">{adult_rows}</div></div>')
     else:
         adult_section = ('<div class="section"><h2 class="alert">Blocked Content</h2>'
                          '<div class="alert-box-green">No attempts on your blocked sites today &mdash; ads &amp; trackers are still being filtered quietly in the background.</div></div>')
 
     # AdGuard stats
+    since_lbl = get_oldest_log_date()
     ag     = get_adguard_stats(config)
     ag_html = ""
     if ag:
         bp        = round((ag["blocked_filtering"] / ag["dns_queries"] * 100) if ag["dns_queries"] > 0 else 0, 2)
-        since_lbl = get_oldest_log_date()
         ag_html = (
             f'<div class="section"><h2>Network Stats (since {since_lbl})</h2><div class="netstats">'
             f'<div class="netstat-item"><span class="domain-name">DNS Queries</span><span class="domain-count">{ag["dns_queries"]:,}</span></div>'
@@ -2531,87 +2701,184 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
     pauseable    = [d for d in people if is_pauseable(d["client_name"], config)]
     kids_paused  = sum(1 for d in pauseable if d["client_ip"] in paused)
     kids_total   = len(pauseable)
-    resume_label = f"Resume everyone ({kids_paused} paused)" if kids_paused else "Resume everyone"
-    resume_dim   = "" if kids_paused else "opacity:0.4;pointer-events:none;"
 
-    def _pause_picker(label_txt, base, online):
-        """A red pause button that opens the 30/60/today/off duration menu, or a
-        dimmed button when there's nobody online to pause. `base` is the pause URL
-        (everyone = /pause_all, a group = /group/pause?name=…)."""
+    def _master_pause_picker(label_txt, online):
         if not online:
-            return (f'<span class="btn btn-danger" style="flex:1;text-align:center;'
-                    f'opacity:0.4;pointer-events:none;margin:0">&#x1F507; {label_txt}</span>')
-        sep = "&" if "?" in base else "?"
+            return f'<span class="btn-pill-pause btn-pill-dim">&#x1F507; {label_txt}</span>'
         return (
-            '<details class="pmenu" style="flex:1">'
-            f'<summary style="display:block"><span class="btn btn-danger" style="width:100%;display:block;text-align:center;margin:0">&#x1F507; {label_txt}</span></summary>'
-            '<div class="pmenu-pop" style="left:0;right:auto;min-width:200px">'
+            '<details class="pmenu">'
+            f'<summary style="display:inline-block"><span class="btn-pill-pause">&#x1F507; {label_txt}</span></summary>'
+            '<div class="pmenu-pop">'
             '<div class="phdr">Pause for&hellip;</div>'
-            f'<a href="{base}{sep}for=30">30 minutes</a>'
-            f'<a href="{base}{sep}for=60">1 hour</a>'
-            f'<a href="{base}{sep}for=today">Rest of today <small>till morning</small></a>'
-            f'<a href="{base}{sep}for=off">Until I turn it back on</a>'
+            '<a href="/pause_all?for=30">30 minutes</a>'
+            '<a href="/pause_all?for=60">1 hour</a>'
+            '<a href="/pause_all?for=today">Until 7 AM tomorrow</a>'
+            '<a href="/pause_all?for=off">Until I turn it back on</a>'
             '</div></details>'
         )
 
+    # Master pause/resume controls (supports partial pause). Pausing (anywhere
+    # in the app — everyone, a group, or one device) requires an Admin device
+    # to exist first, so a parent can never accidentally knock out their own
+    # phone/laptop with no easy way back in — is_pauseable/is_groupable already
+    # refuse without one, this just explains why instead of a blank button.
+    _has_admin = has_admin_device(config)
     everyone_online = kids_total - kids_paused
-    everyone_label  = f"Pause everyone ({everyone_online} online)" if everyone_online else "Everyone paused"
-    pause_bar = (
-        '<div style="display:flex;gap:10px;margin-bottom:10px">'
-        + _pause_picker(everyone_label, "/pause_all", everyone_online)
-        + f'<a href="/unpause_all" class="btn btn-secondary" style="flex:1;text-align:center;margin:0;{resume_dim}">&#x25B6; {resume_label}</a>'
-        + '</div>'
-    )
+    hero_actions = []
+    if not _has_admin:
+        hero_actions.append(
+            '<span style="font-size:12.5px;color:var(--slate)">'
+            'Pausing needs an Admin device set first &mdash; '
+            '<a href="/admin/devices" style="color:var(--orange-dark);font-weight:600">set one on the Devices page</a>.</span>'
+        )
+    elif everyone_online > 0:
+        hero_actions.append(
+            '<details class="pmenu">'
+            '<summary><span class="btn-pause-master">&#x23F8; Pause All</span></summary>'
+            '<div class="pmenu-pop">'
+            '<div class="phdr">Pause family devices for&hellip;</div>'
+            '<a href="/pause_all?for=30">30 minutes</a>'
+            '<a href="/pause_all?for=60">1 hour</a>'
+            '<a href="/pause_all?for=today">Until 7 AM tomorrow</a>'
+            '<a href="/pause_all?for=off">Until I turn it back on</a>'
+            '</div></details>'
+        )
+    if kids_paused > 0:
+        hero_actions.append(
+            f'<a href="/unpause_all" class="btn-pause-master">&#x25B6; Resume All ({kids_paused})</a>'
+        )
+    hero_actions_html = f'<div class="hero-actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">{"".join(hero_actions)}</div>'
 
-    # Per-group Pause + Resume rows. Members come from ALL monitored devices (not
-    # just Personal), gated by is_groupable — so a "TVs" group of Smart devices
-    # still shows a button, while the router/NAS can never appear. Each group gets
-    # a symmetric Pause picker + Resume, mirroring the "everyone" row.
+    # Build group cards (Hover to Pause, with dual Resume/Pause for partial group pauses).
+    # Skipped entirely without an Admin device — the backend route refuses group
+    # pausing the same way, so a card offering it here would just silently fail.
     _devcfg = config.get("devices", {})
     from urllib.parse import quote as _q
-    group_rows = ""
-    for g in config.get("custom_groups", []):
+    group_cards = ""
+    for g in (config.get("custom_groups", []) if _has_admin else []):
         gmembers = [d for d in devices
                     if _devcfg.get(d["client_name"], {}).get("group") == g
                     and is_groupable(d["client_name"], config)]
-        if not gmembers:
-            continue
         g_online = sum(1 for d in gmembers if d["client_ip"] not in paused)
         g_paused = len(gmembers) - g_online
-        rdim = "" if g_paused else "opacity:0.4;pointer-events:none;"
-        group_rows += (
-            '<div style="display:flex;gap:10px;margin-bottom:8px">'
-            + _pause_picker(f"Pause {esc(g)} ({g_online})", f"/group/pause?name={_q(g)}", g_online)
-            + f'<a href="/group/unpause?name={_q(g)}" class="btn btn-secondary" style="flex:1;text-align:center;margin:0;{rdim}">&#x25B6; Resume {esc(g)}</a>'
-            + '</div>'
+        g_icon = _get_group_icon(g)
+
+        if not gmembers:
+            # A default/named group with nobody in it yet — still shown (not
+            # hidden), so a brand-new install's default groups read as "0
+            # devices so far" rather than the whole section looking broken
+            # or missing. No pause action, nothing to act on.
+            group_cards += (
+                '<div class="group-card-btn" style="cursor:default;opacity:.7">'
+                f'<span class="group-icon">{g_icon}</span>'
+                '<div class="group-content">'
+                f'<div class="group-name">{esc(g)}</div>'
+                '<div class="group-status">0 devices so far</div>'
+                '</div>'
+                '</div>'
+            )
+        elif g_online > 0 and g_paused == 0:
+            # Entire group is online -> one-tap pause presets
+            group_cards += (
+                '<details class="pmenu group-card-pmenu">'
+                '<summary class="group-card-btn">'
+                f'<span class="group-icon">{g_icon}</span>'
+                '<div class="group-content">'
+                f'<div class="group-name">{esc(g)}</div>'
+                f'<div class="group-status"><span style="color:var(--ok)">●</span> {g_online} online</div>'
+                '<div class="group-hover-action">&#x23F8; Pause</div>'
+                '</div>'
+                '</summary>'
+                '<div class="pmenu-pop">'
+                f'<div class="phdr">Pause {esc(g)} for&hellip;</div>'
+                f'<a href="/group/pause?name={_q(g)}&for=30">30 minutes</a>'
+                f'<a href="/group/pause?name={_q(g)}&for=60">1 hour</a>'
+                f'<a href="/group/pause?name={_q(g)}&for=today">Until 7 AM tomorrow</a>'
+                f'<a href="/group/pause?name={_q(g)}&for=off">Until I turn on</a>'
+                '</div>'
+                '</details>'
+            )
+        elif g_online > 0 and g_paused > 0:
+            # Partial group pause -> menu offers Resume paused + Pause remaining
+            group_cards += (
+                '<details class="pmenu group-card-pmenu">'
+                '<summary class="group-card-btn" style="border-color:var(--orange-border)">'
+                f'<span class="group-icon">{g_icon}</span>'
+                '<div class="group-content">'
+                f'<div class="group-name">{esc(g)}</div>'
+                f'<div class="group-status"><span style="color:var(--ok)">●</span> {g_online} on &middot; <span style="color:var(--coral)">{g_paused} paused</span></div>'
+                '<div class="group-hover-action">&#x23F8; Actions</div>'
+                '</div>'
+                '</summary>'
+                '<div class="pmenu-pop">'
+                f'<a href="/group/unpause?name={_q(g)}" style="background:var(--orange-light);color:var(--orange);font-weight:700">&#x25B6; Resume {g_paused} paused</a>'
+                f'<div class="phdr">Or pause remaining {g_online} for&hellip;</div>'
+                f'<a href="/group/pause?name={_q(g)}&for=30">30 minutes</a>'
+                f'<a href="/group/pause?name={_q(g)}&for=60">1 hour</a>'
+                f'<a href="/group/pause?name={_q(g)}&for=today">Until 7 AM tomorrow</a>'
+                f'<a href="/group/pause?name={_q(g)}&for=off">Until I turn on</a>'
+                '</div>'
+                '</details>'
+            )
+        else:
+            # Entire group is paused -> direct one-tap Resume
+            group_cards += (
+                f'<a href="/group/unpause?name={_q(g)}" class="group-card-btn" style="background:var(--coral-light);border-color:var(--coral)">'
+                f'<span class="group-icon">{g_icon}</span>'
+                f'<div class="group-content">'
+                f'<div class="group-name">{esc(g)}</div>'
+                f'<div class="group-status" style="color:var(--danger)">&#x23F8; {g_paused} paused &bull; Resume</div>'
+                '</div>'
+                '</a>'
+            )
+
+    groups_section_html = ""
+    if group_cards:
+        groups_section_html = (
+            '<div class="group-strip-wrap">'
+            '<div class="group-strip-title">Or pause a group</div>'
+            f'<div class="group-chips-grid">{group_cards}</div>'
+            '</div>'
         )
-    if group_rows:
-        pause_bar += (
-            '<div style="font-size:0.72em;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;font-weight:700;margin:2px 0 6px">Or just a group</div>'
-            + group_rows + '<div style="margin-bottom:8px"></div>'
-        )
-    else:
-        pause_bar += '<div style="margin-bottom:6px"></div>'
+
+    hero_card = (
+        '<div class="hero-card">'
+        '<div class="hero-main-row">'
+        '<div class="hero-left">'
+        f'<div class="hero-flame-icon">{_ic("shield", 24)}</div>'
+        '<div class="hero-titles">'
+        '<h2>Your family is protected</h2>'
+        f'<p>Watching since {since_lbl} &bull; Ad blocking &amp; Safe Search active</p>'
+        '</div></div>'
+        f'{hero_actions_html}'
+        + ('<div style="font-size:11.5px;color:var(--slate);margin-top:6px">'
+           'Whatever device you&rsquo;re on right now is never paused, so you can always turn things back on.</div>'
+           if _has_admin and everyone_online > 0 else '')
+        + '</div>'
+        f'{groups_section_html}'
+        '</div>'
+    )
 
     stats_bar = (
-        f'<div class="stats-bar">'
-        f'<a href="/querylog" class="stat-card"><div class="num blue">{total_q:,}</div><div class="label">Queries Today &rsaquo;</div></a>'
-        f'<div class="stat-card"><div class="num green">{block_pct}%</div><div class="label">Block Rate</div></div>'
-        f'<div class="stat-card"><div class="num blue">{len(people)}</div><div class="label">Devices</div></div>'
-        f'<div class="stat-card"><div class="num red">{ag_blocked:,}</div><div class="label">Blocked</div>'
-        f'<div style="font-size:0.65em;color:#94a3b8;margin-top:2px">since {get_oldest_log_date()}</div></div>'
-        f'<div class="stat-card"><div class="num green">{bandwidth_str}</div><div class="label">Data Saved</div>'
-        f'<div style="font-size:0.7em;color:#1d9e75;margin-top:2px">~{ag_blocked:,} requests</div></div>'
+        f'<div class="stats-row">'
+        f'<a href="/querylog" class="stat-item"><div class="num">{total_q:,}</div><div class="lbl">Queries Today &rsaquo;</div></a>'
+        f'<div class="stat-item"><div class="num" style="color:var(--ok)">{block_pct}%</div><div class="lbl">Block Rate</div></div>'
+        f'<div class="stat-item"><div class="num">{len(people)}</div><div class="lbl">Devices Safe</div></div>'
+        f'<div class="stat-item"><div class="num" style="color:var(--ok)">{bandwidth_str}</div><div class="lbl">Data Saved</div></div>'
         f'</div>'
     )
     body = (
-        stats_bar
+        ask_kind_cards_html
+        + hero_card
+        + stats_bar
         + adult_section + ag_html
-        + f'<div class="section"><h2>Devices (Last 24h)</h2>{pause_bar}{people_cards}</div>'
-        + f'<div class="section infra-section"><h2>Infrastructure</h2>{infra_cards}</div>'
-        + f'<div class="section"><h2>Top Blocked Domains</h2><div class="domain-list">{blocked_html}</div></div>'
+        + filter_bar_html
+        + f'<div class="section-header"><h3>Family Devices ({len(people)})</h3><span>Active in last 24h</span></div>'
+        + f'{people_cards}'
+        + (f'<div class="section-header" style="margin-top:28px"><h3>Infrastructure ({len(infra)})</h3></div>{infra_cards}' if infra else "")
+        + f'<div class="section" style="margin-top:20px"><h2>Top Blocked Domains</h2><div class="domain-list">{blocked_html}</div></div>'
         + f'<div class="section"><h2>Top Allowed Domains</h2><div class="domain-list">{allowed_html}</div></div>'
-        + f'<div class="refresh">Auto-refreshes every 60s — {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>'
+        + f'<div class="refresh">Auto-refreshes every 60s &bull; {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>'
     )
 
     return (
@@ -2622,7 +2889,51 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
         + build_header(config=config)
         + '<div class="page-wrap">' + _update_banner_html(config) + body + '</div>'
         + '<script>if(!sessionStorage.getItem("lw_uc")){sessionStorage.setItem("lw_uc","1");fetch("/admin/check-update").catch(function(){});}</script>'
+        + '<script>function lwFilterDevices(btn){'
+        + 'document.querySelectorAll(".lw-filter-pill").forEach(function(b){b.classList.remove("active")});'
+        + 'btn.classList.add("active");'
+        + 'var f=btn.getAttribute("data-filter");'
+        + 'document.querySelectorAll("[data-cat]").forEach(function(el){'
+        + 'el.style.display=(f==="all"||el.getAttribute("data-cat")===f)?"":"none";'
+        + '});}</script>'
         + '</body></html>'
+    )
+
+
+# A device kind that's a genuine toss-up (device_kind() found a general-purpose
+# OS but no phone/tablet-specific tell) — asked about rather than guessed wrong.
+# See classify.device_kind's "phone or tablet" / "Fire tablet or TV" returns.
+_AMBIGUOUS_KIND_CHOICES = {
+    "phone or tablet":   [("Phone", "Phones"), ("Tablet", "Tablets")],
+    "Fire tablet or TV": [("Fire Tablet", "Tablets"), ("Fire TV", "TVs")],
+}
+
+
+def _ask_kind_card(name, kind, next_url, heading=None):
+    """A 'which is it?' quick-answer card for an ambiguous device kind. Tapping
+    an answer sets the device's group directly — the same field the manual
+    dropdown and the background auto-grouper both respect — so it's never
+    re-guessed over once answered. Returns '' when `kind` isn't a known
+    toss-up (most devices, most of the time)."""
+    choices = _AMBIGUOUS_KIND_CHOICES.get(kind, [])
+    if not choices:
+        return ""
+    btns = "".join(
+        '<form method="POST" action="/device/set_kind" style="display:inline;margin-right:8px">'
+        f'<input type="hidden" name="name" value="{esc(name)}">'
+        f'<input type="hidden" name="group" value="{esc(grp)}">'
+        f'<input type="hidden" name="next" value="{esc(next_url)}">'
+        f'<button type="submit" class="btn-secondary" style="width:auto;padding:8px 18px;margin:0">{esc(lbl)}</button>'
+        '</form>'
+        for lbl, grp in choices
+    )
+    heading = heading or f"We can&rsquo;t quite tell what this device is &mdash; probably {esc(kind)}."
+    return (
+        '<div style="background:#fffbf0;border:1px solid #f3e3b8;border-radius:12px;'
+        'padding:12px 16px;color:#1a1a1a;font-size:0.88em;margin-bottom:14px">'
+        f'<b>&#x1F914; {heading}</b> Which is it?'
+        f'<div style="margin-top:10px">{btns}</div>'
+        '</div>'
     )
 
 
@@ -2634,8 +2945,21 @@ def build_detail(client_name, config, client_ip_param=""):
     from classify import device_identity, device_kind
     _ident = device_identity(client_name)
     _disp  = demo_ident(client_name, _ident, client_ip_param or ip_address or "", config)
-    _kind  = device_kind(client_name, "" if config.get("demo_mode") else label(client_name, config), _ident, None)
+    # A real (deep) domain list, not None — device_kind can only fall back to the
+    # traffic fingerprint (what tells a TCL tablet apart from a bare "TCL / Alcatel
+    # Android device" hostname) when it actually has domains to look at.
+    try:
+        _kind_domains = get_top_domains_map(per_device=150).get(client_name, [])
+    except Exception:
+        _kind_domains = []
+    _kind  = device_kind(client_name, "" if config.get("demo_mode") else label(client_name, config), _ident, _kind_domains)
     _typ   = effective_type(client_name, config)
+
+    # When the guess is a genuine toss-up ("phone or tablet"), ask instead of
+    # guessing wrong — a parent's one-tap answer is saved as this device's group
+    # and is never re-guessed over (same rule the background auto-grouper follows).
+    _already_grouped = bool(config.get("devices", {}).get(client_name, {}).get("group"))
+    ask_kind_html = "" if _already_grouped else _ask_kind_card(client_name, _kind, f"/device?name={quote(client_name)}")
     _TYPE_NAMES = {"person": "Personal", "parent": "Admin",
                    "work_device": "Work Device", "infrastructure": "Infrastructure",
                    "smart_device": "Smart Device"}
@@ -2733,6 +3057,11 @@ def build_detail(client_name, config, client_ip_param=""):
             f'<span style="background:#FEF3C7;color:#D97706;padding:6px 14px;border-radius:99px;font-size:0.82em;font-weight:700;border:1px solid #F4B942">'
             f'&#x23F5; Paused{_until_tx} &middot; Resume</span></a>'
         )
+    elif not has_admin_device(config):
+        pause_btn = (
+            '<span class="pchip" style="padding:6px 14px;font-size:0.82em;opacity:.5;cursor:default" '
+            'title="Set an Admin device on the Devices page to enable pausing">&#x23F8; Pause</span>'
+        )
     else:
         _dbase    = f'/device/pause?ip={quote(pause_key)}&name={quote(hostname)}&ref=device'
         pause_btn = (
@@ -2742,7 +3071,7 @@ def build_detail(client_name, config, client_ip_param=""):
             '<div class="phdr">Pause this device for&hellip;</div>'
             f'<a href="{_dbase}&for=30">30 minutes</a>'
             f'<a href="{_dbase}&for=60">1 hour</a>'
-            f'<a href="{_dbase}&for=today">Rest of today <small>till morning</small></a>'
+            f'<a href="{_dbase}&for=today">Until 7 AM tomorrow</a>'
             f'<a href="{_dbase}&for=off">Until I turn it back on</a>'
             '</div></details>'
         )
@@ -2753,7 +3082,7 @@ def build_detail(client_name, config, client_ip_param=""):
         f'<title>{esc(friendly)} - Lantern Watch</title><style>{CSS}</style></head><body>'
         + build_header(friendly, config=config)
         + '<div class="page-wrap">'
-        +''
+        + ask_kind_html
         + f'<div class="detail-header">'
         + f'<div class="detail-name">{esc(friendly)}</div>'
         + f'<div style="margin-top:6px;margin-bottom:10px">{peak_tag}{cat_tag}</div>'
@@ -3614,10 +3943,57 @@ def _auto_group_name(name, cfg_label, ident, domains):
     if any(k in hay for k in ("macbook", "chromebook", "laptop", "thinkpad", "imac",
                               "mac mini", "mac-mini", "desktop", "windows", "computer")):
         return "Computers"
-    if any(k in hay for k in ("iphone", "android device", "android phone", "galaxy",
+    if any(k in hay for k in ("iphone", "android phone", "galaxy",
                               "pixel", "oneplus", "sm-g", "sm-a", "sm-n", "sm-s", "mobile")):
         return "Phones"
+    # A bare "<maker> Android device" (no phone- or tablet-specific tell at all) is
+    # a genuine toss-up, not a Phones default — leave it ungrouped rather than
+    # guess wrong; the device-detail page's quick-question card asks instead.
     return None
+
+
+def auto_assign_device_groups(config):
+    """Silently drop a newly-classified device into a matching group
+    (Computers/Phones/TVs/Tablets/Games) as soon as it's detected — unlike
+    the manual Auto-group button on the Devices page, which stays
+    review-first, this one just acts. Lower stakes than identity-conflict
+    cleanup: a group can only ever hold Personal/Smart/Work devices, never
+    Admin or Infrastructure (see is_groupable), so a wrong guess is at
+    worst a phone briefly sitting in the wrong tab, not a safety issue —
+    fixable any time on the Devices page. Never touches a device that
+    already has a group (manually set or previously auto-set), and only
+    assigns into a group name that's still actually in custom_groups, so
+    deleting "TVs" from that list permanently stops new TVs landing there
+    instead of it quietly reappearing."""
+    from config import save_config
+    from classify import device_identity
+    valid_groups = set(config.get("custom_groups", []))
+    if not valid_groups:
+        return
+    devices = config.get("devices", {})
+    try:
+        all_devices     = get_all_known_devices(active_hours=DEVICE_ACTIVE_HOURS, include_idle=False)
+        top_domains_map = get_top_domains_map(per_device=150)
+    except Exception:
+        return
+    changed = False
+    for d in all_devices:
+        nm  = d["client_name"]
+        cfg = devices.get(nm, {})
+        if "group" in cfg:
+            continue  # already grouped, OR explicitly cleared to no group (group=None)
+                      # by /admin/devices/save — either way a decision was already
+                      # made and must never get silently overridden. A never-decided
+                      # device simply has no "group" key at all.
+        if effective_type(nm, config) not in ("person", "smart_device", "work_device"):
+            continue
+        grp = _auto_group_name(nm, cfg.get("label", ""), device_identity(nm), top_domains_map.get(nm, []))
+        if grp and grp in valid_groups:
+            devices.setdefault(nm, {})["group"] = grp
+            changed = True
+    if changed:
+        config["devices"] = devices
+        save_config(config)
 
 
 def build_devices_page(config, saved=False, redetect=False, autoname=False, autogroup=False, sort="name", flt=""):
@@ -3636,17 +4012,56 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
     _conflicts = find_identity_conflicts(config)
     _conflict_banner = ""
     if _conflicts:
-        _rows = "".join(
-            f'<li style="margin-top:4px"><b>{esc(lbl)}</b>: ' +
-            ", ".join(f"{TYPE_NAMES.get(t, t)}" for _, t in entries) + '</li>'
-            for lbl, entries in _conflicts
-        )
+        # A duplicate from a MAC/IP/hostname change leaves the old identity
+        # behind entirely — it stops showing up in real traffic — so "still
+        # connecting" is a reliable signal for which one to keep.
+        _active_names = {d["client_name"] for d in all_devices}
+
+        def _conflict_keep_form(keep_name, keep_type, other_names, active):
+            # "Keep this one" = forget every other record sharing this label.
+            # One click, one outcome — no separate reconcile-without-deleting
+            # option, which just added a second thing to understand.
+            other_inputs = "".join(
+                f'<input type="hidden" name="also_remove" value="{esc(o)}">' for o in other_names
+            )
+            if active:
+                tag, btn_cls, btn_style = (
+                    ' <span style="color:var(--ok);font-weight:700;font-size:10.5px">&middot; still connecting</span>',
+                    "btn", "width:auto;display:inline-flex;padding:6px 14px;font-size:12px;margin:0"
+                )
+            else:
+                tag, btn_cls, btn_style = "", "btn-ghost", "padding:4px 11px;font-size:11.5px"
+            return (
+                '<form method="POST" action="/admin/devices/keep_one" style="display:inline;margin-right:10px">'
+                f'<input type="hidden" name="keep" value="{esc(keep_name)}">'
+                f'{other_inputs}'
+                f'<button type="submit" class="{btn_cls}" style="{btn_style}" '
+                "onclick=\"return confirm('Keep this record and forget the other one? "
+                'The other name/type will be removed, it\\\'ll reappear unnamed if it\\\'s still on the network.\')">'
+                f'Keep this one &mdash; {esc(TYPE_NAMES.get(keep_type, keep_type))}{tag}</button>'
+                '</form>'
+            )
+        def _conflict_row(lbl, entries):
+            # Most-active first, so the obvious choice is the one a parent's
+            # eye lands on first.
+            ordered = sorted(entries, key=lambda e: e[0] not in _active_names)
+            names = [n for n, _ in ordered]
+            buttons = "".join(
+                _conflict_keep_form(n, t, [o for o in names if o != n], n in _active_names)
+                for n, t in ordered
+            )
+            return (
+                '<li style="margin-top:10px">'
+                f'<div><b>{esc(lbl)}</b></div>'
+                f'<div style="margin-top:5px;display:flex;flex-wrap:wrap;align-items:center">{buttons}</div>'
+                '</li>'
+            )
+        _rows = "".join(_conflict_row(lbl, entries) for lbl, entries in _conflicts)
         _conflict_banner = (
             '<div class="alert-box-red" style="margin:12px 16px;text-align:left">'
-            '<b>A couple of devices are being tracked two ways, and disagree on role.</b> '
-            "This can happen when a device shows up under a different name over time. "
-            "Pausing already won't touch whichever entry is Admin or Infrastructure either way, "
-            "but worth giving these a look below so they agree:"
+            '<b>A device showed up under two different names, and they disagree on its role.</b> '
+            "This usually happens after a name or address change on your network. "
+            "Pick which one to keep, the other gets forgotten automatically:"
             f'<ul style="margin:6px 0 0 18px;font-weight:400">{_rows}</ul>'
             '</div>'
         )
@@ -3868,11 +4283,16 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
                               f'&#x1F4AC; talks to: {esc(", ".join(_t))}</div>')
 
         rows_html  += f"""<div class="form-card">
-  <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">
     <div><div style="font-weight:700">{icon} {esc(cur_label)}</div>
     {sub_html}<div style="font-size:0.75em;color:#64748b">Last: {last} — {d["total"]:,} queries</div>{kind_line}{id_line}{talks_line}</div>
-    <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;color:#64748b">
-      <input type="checkbox" name="monitor_{enc}" {mc}> Monitor</label>
+    <div style="display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <a href="/device?name={enc}&ip={enc_ip}" style="font-size:0.75em;color:#D97706;font-weight:600">Tap to see details</a>
+      <a href="/device/schedule?name={enc}&ip={enc_ip}" style="font-size:0.75em;color:#94a3b8">&#x23F0; Schedule</a>
+      <button type="submit" formaction="/admin/devices/remove" name="remove" value="{enc}" formnovalidate onclick="return confirm('Forget this device? Its name and type are removed. If still on the network it will reappear unnamed.')" style="background:none;border:none;color:#cbd5e1;font-size:0.75em;cursor:pointer;padding:0">Forget</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;color:#64748b;white-space:nowrap">
+        <input type="checkbox" name="monitor_{enc}" {mc}> Monitor</label>
+    </div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <div style="flex:2;min-width:140px"><div class="form-label">Name{name_hint}</div>
@@ -3884,16 +4304,8 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
         <option value="work_device" {sel_work}>💼 Work Device</option>
         <option value="infrastructure" {sel_infra}>🖥️ Infrastructure</option>
         <option value="smart_device" {sel_smart}>📡 Smart Device</option>
-      </select>
-      <div class="role-desc" style="font-size:0.72em;color:#94a3b8;margin-top:3px;line-height:1.3"></div></div>
+      </select></div>
     {group_select}
-  </div>
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;padding-top:8px;border-top:1px solid #1e293b">
-    <a href="/device?name={enc}&ip={enc_ip}" style="font-size:0.75em;color:#D97706;font-weight:600">Tap to see details</a>
-    <div style="display:flex;gap:14px;align-items:center">
-      <a href="/device/schedule?name={enc}&ip={enc_ip}" style="font-size:0.75em;color:#94a3b8">&#x23F0; Schedule</a>
-      <button type="submit" formaction="/admin/devices/remove" name="remove" value="{enc}" formnovalidate onclick="return confirm('Forget this device? Its name and type are removed. If still on the network it will reappear unnamed.')" style="background:none;border:none;color:#cbd5e1;font-size:0.75em;cursor:pointer;padding:0">Forget</button>
-    </div>
   </div></div>"""
 
     saved_msg = '<div class="success">Saved!</div>' if saved else ""
@@ -3928,7 +4340,10 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
         + '<div class="page-wrap">'
         + f'{saved_msg}'
         + f'{_conflict_banner}'
-        + f'<div class="section"><h2>Manage Devices</h2>'
+        + sortfilter
+        + f'<form method="POST" action="/admin/devices/save">'
+        + f'{rows_html}'
+        + f'<div class="section" style="margin-top:20px"><h2>Manage Devices</h2>'
         + f'<div style="color:#64748b;font-size:0.85em;margin-bottom:12px">'
         + f'Label devices and set their role. <b>All roles get the same AdGuard filtering</b> &mdash; the role only affects grouping, whether <b>Pause everyone</b> applies, reporting, and a few alert behaviors. '
         + f'<b>Every type is filtered equally</b> &mdash; no type bypasses AdGuard.</div>'
@@ -3949,29 +4364,20 @@ def build_devices_page(config, saved=False, redetect=False, autoname=False, auto
         + _device_type_row("📡 Smart Device",    "Infrastructure", False, "yes", "TVs, cameras, doorbells, thermostats, cars")
         + f'</tbody></table></div>'
         + redetect_controls
-        + sortfilter
-        + f'<form method="POST" action="/admin/devices/save">'
-        + ('<div class="form-card" style="margin-bottom:12px">'
+        + '</div>'
+        + ('<div class="form-card" style="margin-top:14px">'
            '<div class="form-label" style="font-weight:700;color:#1a1a1a;font-size:0.92em">&#x1F465; Custom groups (optional)</div>'
            '<div style="color:#64748b;font-size:0.82em;margin:4px 0 10px;line-height:1.5">'
            'Name a few groups &mdash; like <i>Kids, TVs, Phones</i> &mdash; then tap <b>Save groups</b>. Each groupable device then gets '
-           'a <b>Group</b> menu below, and the dashboard lets you pause a whole group in one tap. To remove a group, delete its '
+           'a <b>Group</b> menu above, and the dashboard lets you pause a whole group in one tap. To remove a group, delete its '
            'name here and save; to take a device out of a group, set its menu back to <i>&mdash; none &mdash;</i>.</div>'
            '<div style="display:flex;gap:10px;align-items:stretch">'
            f'<input type="text" name="custom_groups" value="{", ".join(sorted(_autogroup_names) if autogroup else config.get("custom_groups", []))}" placeholder="e.g. Kids, TVs, Phones" style="flex:1;min-width:0">'
            '<button type="submit" class="btn" style="width:auto;flex:none;margin:0;padding:12px 22px">Save groups</button>'
            '</div></div>')
-        + f'{rows_html}'
-        + f'<button type="submit" class="btn">Save All Devices</button></form></div>'
+        + f'<button type="submit" class="btn" style="margin-top:14px">Save All Devices</button></form></div>'
         + '<script>'
-        + 'var LW_ROLE_DESC={'
-        + '"person":"Phones, tablets and laptops used by family members — included in Pause everyone and schedules.",'
-        + '"parent":"Full protection, but never affected by Pause everyone.",'
-        + '"work_device":"Work laptop or phone — filtered normally, but skipped by the VPN activity-drop alert.",'
-        + '"infrastructure":"Routers, NAS, printers and servers — shown separately and kept out of reports.",'
-        + '"smart_device":"TVs, cameras, speakers, thermostats, vehicles and other connected devices."'
-        + '};'
-        + 'function lwRoleDesc(s){var d=s.nextElementSibling;if(d&&d.className=="role-desc")d.textContent=LW_ROLE_DESC[s.value]||"";'
+        + 'function lwRoleDesc(s){'
         + 'var card=s.closest(".form-card");if(card){var gf=card.querySelector(".grp-field");'
         + 'if(gf){var ok=(s.value=="person"||s.value=="smart_device"||s.value=="work_device");gf.style.display=ok?"":"none";'
         + 'if(!ok){var sel=gf.querySelector("select");if(sel)sel.value="";}}}}'
@@ -4128,7 +4534,7 @@ def _group_pause_picker(gname):
         '<div class="pmenu-pop"><div class="phdr">Pause this group for&hellip;</div>'
         f'<a href="{base}&for=30">30 minutes</a>'
         f'<a href="{base}&for=60">1 hour</a>'
-        f'<a href="{base}&for=today">Rest of today <small>till morning</small></a>'
+        f'<a href="{base}&for=today">Until 7 AM tomorrow</a>'
         f'<a href="{base}&for=off">Until I turn it back on</a>'
         '</div></details>'
     )

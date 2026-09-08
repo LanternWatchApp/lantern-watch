@@ -20,3 +20,4 @@ glinet_files.tar.gz
 docs/internal/
 # Internal operator/AI context — stays local, never published to the public repo
 CLAUDE.md
+.claude/

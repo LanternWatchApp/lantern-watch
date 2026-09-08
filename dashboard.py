@@ -11,7 +11,7 @@ from socketserver import ThreadingMixIn
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
-from config import load_config
+from config import load_config, save_config
 from adguard import apply_social_profile, get_blocked_platforms, apply_doh_iptables, apply_doh_dns_mitigation, setup_block_page
 from portal import restore_captive_portal
 from db import get_or_create_install_id
@@ -23,6 +23,18 @@ PORT = 8081
 if __name__ == "__main__":
     config = load_config()
     get_or_create_install_id()  # Seed anonymous install UUID on first boot
+    # One-time migration: every install before 0.19.0 has "custom_groups": []
+    # (that was the old default, not a deliberate opt-out) — left as-is, that
+    # silently no-ops the new auto-categorization feature and leaves "Or pause
+    # a group" empty forever. Seed the same four defaults a fresh 0.19.0
+    # install gets, exactly once. Gated on a flag, not just an empty-list
+    # check, so a parent who deliberately clears the list afterward keeps it
+    # cleared instead of having it silently reseeded on the next boot.
+    if not config.get("groups_seeded_v19") and not config.get("custom_groups"):
+        config["custom_groups"]     = ["Computers", "Phones", "TVs", "Tablets"]
+        config["groups_seeded_v19"] = True
+        save_config(config)
+        print("[Boot] Seeded default device groups (one-time 0.19.0 migration)")
     restore_paused_on_boot(config)
     # Re-apply social blocking rules lost when /tmp was cleared on reboot
     if get_blocked_platforms(config):
