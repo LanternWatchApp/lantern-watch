@@ -19,6 +19,11 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.19.1] — 2026-09-08
+
+### Improved
+- **Device identification card clues:** The "which is it?" device-kind card on the dashboard and device detail page now displays the detected OS (using traffic fingerprints when MAC addresses are randomized or private), IP address, top 3 visited domains ("Talks to"), and a direct link to view full device details and traffic history.
+
 ## [0.19.0] — 2026-09-08
 
 ### Added

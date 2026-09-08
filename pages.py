@@ -2587,12 +2587,25 @@ def build_main(devices, totals, top_blocked, top_domains, screen_times, adult_do
         for d in people:
             nm   = d["client_name"]
             dcfg = _devcfg_top.get(nm, {})
-            if dcfg.get("group") or effective_type(nm, config) not in ("person", "smart_device", "work_device"):
+            if "group" in dcfg or effective_type(nm, config) not in ("person", "smart_device", "work_device"):
                 continue
-            k = _dkind(nm, dcfg.get("label", ""), device_identity(nm), _kind_domains_map.get(nm, []))
+            _ident = device_identity(nm)
+            _talks = _kind_domains_map.get(nm, [])
+            k = _dkind(nm, dcfg.get("label", ""), _ident, _talks)
             if k in _AMBIGUOUS_KIND_CHOICES:
                 disp = device_display_name(nm, config, ip_hostnames, client_ip=d.get("client_ip"))
-                _ask_cards.append(_ask_kind_card(nm, k, "/", heading=f'{esc(disp)} &mdash; probably {esc(k)}.'))
+                host_lbl = _ident.get("hostname") or ip_hostnames.get(d.get("client_ip"), "")
+                dev_label = disp or host_lbl or nm
+                if config.get("demo_mode"):
+                    _talks = [_demo_domain(x) for x in _talks]
+                _ask_cards.append(_ask_kind_card(
+                    nm, k, "/",
+                    heading=f'{esc(dev_label)} &mdash; probably a {esc(k)}.',
+                    ident=_ident,
+                    talks=_talks,
+                    client_ip=d.get("client_ip"),
+                    show_details_link=True,
+                ))
         ask_kind_cards_html = "".join(_ask_cards)
     except Exception:
         ask_kind_cards_html = ""
@@ -2909,7 +2922,7 @@ _AMBIGUOUS_KIND_CHOICES = {
 }
 
 
-def _ask_kind_card(name, kind, next_url, heading=None):
+def _ask_kind_card(name, kind, next_url, heading=None, ident=None, talks=None, client_ip=None, show_details_link=True):
     """A 'which is it?' quick-answer card for an ambiguous device kind. Tapping
     an answer sets the device's group directly — the same field the manual
     dropdown and the background auto-grouper both respect — so it's never
@@ -2923,16 +2936,58 @@ def _ask_kind_card(name, kind, next_url, heading=None):
         f'<input type="hidden" name="name" value="{esc(name)}">'
         f'<input type="hidden" name="group" value="{esc(grp)}">'
         f'<input type="hidden" name="next" value="{esc(next_url)}">'
-        f'<button type="submit" class="btn-secondary" style="width:auto;padding:8px 18px;margin:0">{esc(lbl)}</button>'
+        f'<button type="submit" class="btn" style="width:auto;display:inline-flex;padding:7px 16px;font-size:13px;margin:0">{esc(lbl)}</button>'
         '</form>'
         for lbl, grp in choices
     )
-    heading = heading or f"We can&rsquo;t quite tell what this device is &mdash; probably {esc(kind)}."
+
+    # Extra context clues so parents recognize their device
+    meta_items = []
+    ident = ident or {}
+    v = _short_vendor(ident.get("vendor", "")) or ident.get("vendor", "")
+    os_name = ident.get("os", "")
+    if not os_name and talks:
+        try:
+            from classify import identify_from_traffic
+            os_name = identify_from_traffic(talks, v)
+        except Exception:
+            pass
+    if v and os_name:
+        if v.lower() in os_name.lower():
+            meta_items.append(f'<span>🏷️ <b>{esc(os_name)}</b></span>')
+        else:
+            meta_items.append(f'<span>🏷️ <b>{esc(v)}</b> ({esc(os_name)})</span>')
+    elif v or os_name:
+        meta_items.append(f'<span>🏷️ <b>{esc(v or os_name)}</b></span>')
+    if client_ip:
+        meta_items.append(f'<span>📍 {esc(client_ip)}</span>')
+
+    meta_html = f'<div style="color:#64748b;font-size:0.84em;margin-top:4px;display:flex;flex-wrap:wrap;gap:12px;align-items:center">{"".join(meta_items)}</div>' if meta_items else ""
+
+    talks_html = ""
+    if talks:
+        top_3 = [t for t in talks if t][:3]
+        if top_3:
+            talks_html = (
+                f'<div style="color:#475569;font-size:0.83em;margin-top:4px;word-break:break-all">'
+                f'💬 Talks to: <b>{esc(", ".join(top_3))}</b></div>'
+            )
+
+    details_btn = ""
+    if show_details_link:
+        details_btn = (
+            f'<a href="/device?name={quote(name)}" style="font-size:12.5px;color:var(--orange-dark);font-weight:600;margin-left:6px;text-decoration:none">'
+            f'View device details &amp; traffic &rsaquo;</a>'
+        )
+
+    heading = heading or f"We can&rsquo;t quite tell what this device is &mdash; probably a {esc(kind)}."
     return (
-        '<div style="background:#fffbf0;border:1px solid #f3e3b8;border-radius:12px;'
-        'padding:12px 16px;color:#1a1a1a;font-size:0.88em;margin-bottom:14px">'
-        f'<b>&#x1F914; {heading}</b> Which is it?'
-        f'<div style="margin-top:10px">{btns}</div>'
+        '<div style="background:#fffbf0;border:1px solid #f3e3b8;border-radius:14px;'
+        'padding:14px 18px;color:#1a1a1a;font-size:0.88em;margin-bottom:16px;box-shadow:0 1px 3px rgba(26,26,26,0.04)">'
+        f'<div style="font-weight:700;font-size:0.95em">&#x1F914; {heading} Which is it?</div>'
+        f'{meta_html}'
+        f'{talks_html}'
+        f'<div style="margin-top:10px;display:flex;align-items:center;flex-wrap:wrap;gap:8px">{btns}{details_btn}</div>'
         '</div>'
     )
 
@@ -2958,8 +3013,13 @@ def build_detail(client_name, config, client_ip_param=""):
     # When the guess is a genuine toss-up ("phone or tablet"), ask instead of
     # guessing wrong — a parent's one-tap answer is saved as this device's group
     # and is never re-guessed over (same rule the background auto-grouper follows).
-    _already_grouped = bool(config.get("devices", {}).get(client_name, {}).get("group"))
-    ask_kind_html = "" if _already_grouped else _ask_kind_card(client_name, _kind, f"/device?name={quote(client_name)}")
+    _already_grouped = "group" in config.get("devices", {}).get(client_name, {})
+    ask_kind_html = "" if _already_grouped else _ask_kind_card(
+        client_name, _kind, f"/device?name={quote(client_name)}",
+        heading=f'{esc(friendly or client_name)} &mdash; probably a {esc(_kind)}.',
+        ident=_ident, talks=_kind_domains, client_ip=client_ip_param or ip_address or "",
+        show_details_link=False,
+    )
     _TYPE_NAMES = {"person": "Personal", "parent": "Admin",
                    "work_device": "Work Device", "infrastructure": "Infrastructure",
                    "smart_device": "Smart Device"}
