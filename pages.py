@@ -1059,7 +1059,13 @@ def get_alerts_wizard_page(config):
     import secrets
     a       = config.get("alerts", {}) or {}
     s       = config.get("summary", {}) or {}
-    topic   = (config.get("ntfy_topic", "") or "").strip() or ("lantern-" + secrets.token_hex(4))
+    # 8 random bytes (64 bits), not 4 (32 bits) — at 32 bits, birthday-paradox
+    # collision odds become real at fleet scale (~1% at 10k installs, ~70% at
+    # 100k). 64 bits keeps that negligible even at millions of installs. Only
+    # ever used as a suggested default for a brand-new, unconfigured install —
+    # never touches anyone who already has a real ntfy_topic saved (see the
+    # `or` above: this only evaluates when that's empty).
+    topic   = (config.get("ntfy_topic", "") or "").strip() or ("lantern-" + secrets.token_hex(8))
     ntfy_on = "checked" if config.get("ntfy_enabled", True) else ""
 
     def ck(key, default):
