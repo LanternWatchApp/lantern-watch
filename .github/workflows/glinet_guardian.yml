@@ -1,0 +1,46 @@
+name: GL.iNet Guardian Watchdog
+
+on:
+  schedule:
+    # Run every 12 hours (at 06:00 and 18:00 UTC)
+    - cron: '0 6,18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  watchdog:
+    name: Compatibility Watchdog & Self-Healing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run Compatibility Test Suite
+        id: test_run
+        run: |
+          python -m unittest tests/test_compatibility.py
+
+      - name: Execute Guardian Watchdog
+        if: always()
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC || 'lanternwatch_alerts' }}
+        run: |
+          python scripts/guardian_agent.py
