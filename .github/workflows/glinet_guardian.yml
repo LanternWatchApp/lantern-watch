@@ -40,6 +40,7 @@ jobs:
       - name: Execute Guardian Watchdog
         if: always()
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC || 'lanternwatch_alerts' }}
         run: |
