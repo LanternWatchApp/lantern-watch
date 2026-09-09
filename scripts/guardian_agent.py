@@ -126,6 +126,21 @@ Respond with ONLY a single JSON object (no prose outside it, no markdown fence n
 Each "content" value must be the full, complete replacement content of that file — not a unified diff, not just the changed lines. Only include files you actually changed, and only from the allowed list above."""
 
 
+def _header_safe(value):
+    """Raw HTTP header values must be Latin-1 encodable — Python's own
+    urllib refuses anything outside that range (this is exactly what broke
+    the 🏮 emoji in the Title/Actions headers: 'latin-1' codec can't encode
+    character '\\U0001f3ee'). ntfy explicitly supports percent-encoded
+    UTF-8 in headers and auto-decodes it server-side for exactly this case
+    (see docs.ntfy.sh/publish/#message-title) — so percent-encode anything
+    that doesn't fit, leave plain ASCII/Latin-1 text untouched."""
+    try:
+        value.encode("latin-1")
+        return value
+    except UnicodeEncodeError:
+        return urllib.parse.quote(value)
+
+
 def notify_guardian(title, message, topic=None, actions=None):
     """Send an actionable notification via ntfy.
 
@@ -143,12 +158,12 @@ def notify_guardian(title, message, topic=None, actions=None):
         return
     ntfy_url = f"https://ntfy.sh/{topic}"
     headers = {
-        "Title": title,
+        "Title": _header_safe(title),
         "Priority": "high",
         "Tags": "lantern,shield",
     }
     if actions:
-        headers["Actions"] = json.dumps(actions)
+        headers["Actions"] = _header_safe(json.dumps(actions))
     try:
         req = urllib.request.Request(ntfy_url, data=message.encode("utf-8"), headers=headers)
         with urllib.request.urlopen(req, timeout=8):
