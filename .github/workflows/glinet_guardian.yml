@@ -42,6 +42,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC || 'lanternwatch_alerts' }}
+          # No hardcoded fallback name — see notify_guardian's docstring in
+          # guardian_agent.py. If the secret is unset, the script skips
+          # sending rather than falling back to a public, guessable topic.
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
           python scripts/guardian_agent.py

@@ -158,5 +158,71 @@ class TestPrivacyAndSecurityGuardrails(unittest.TestCase):
                             )
 
 
+class TestPublicDocsPrivacy(unittest.TestCase):
+    """CHANGELOG.md and README.md are the project's public-facing narrative
+    docs — the ones a real household's specific device details must never
+    leak into (see feedback_public_docs_privacy: never name a specific
+    household/personal device in a commit message, CHANGELOG, README, or
+    issue/PR). Deliberately separate from TestPrivacyAndSecurityGuardrails
+    above, which scans the *whole repo* for credential-shaped secrets —
+    this only scans these two docs for real personal identifiers, since the
+    app's .py source legitimately references generic LAN defaults
+    (192.168.8.1, the block-page virtual IP 192.168.8.2, etc.) throughout;
+    scanning all source for "any private IP" would be constant false
+    positives against intentional, documented code."""
+
+    PUBLIC_DOCS = ["CHANGELOG.md", "README.md"]
+    # Generic, documented example addresses already used in these docs —
+    # not real household IPs. Extend this if a future doc adds another
+    # deliberate illustrative example; anything else private-range is
+    # treated as a possible real leak.
+    ALLOWED_IPS = {
+        "127.0.0.1", "0.0.0.0",
+        "192.168.8.1", "192.168.8.2", "192.168.1.1",
+        "192.168.10.1",   # documented GL.iNet repeater-mode subnet shift example
+        "192.168.8.230",  # generic illustrative IP in a historical bug writeup
+    }
+
+    def _read_docs(self):
+        for fname in self.PUBLIC_DOCS:
+            fpath = os.path.join(REPO_ROOT, fname)
+            if os.path.exists(fpath):
+                with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+                    yield fname, f.read()
+
+    def test_no_unexpected_lan_ips_in_public_docs(self):
+        ip_re = re.compile(
+            r'\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}'
+            r'|192\.168\.\d{1,3}\.\d{1,3}'
+            r'|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b'
+        )
+        for fname, content in self._read_docs():
+            for m in ip_re.finditer(content):
+                self.assertIn(
+                    m.group(0), self.ALLOWED_IPS,
+                    f"Unexpected private IP {m.group(0)!r} in {fname} — looks like a "
+                    f"real household address, not one of this doc's documented "
+                    f"generic examples. If it genuinely is a new generic example, "
+                    f"add it to ALLOWED_IPS with a comment saying why."
+                )
+
+    def test_no_possessive_device_names_in_public_docs(self):
+        """Catches the shape of a real AdGuard-resolved device hostname, e.g.
+        'Timmy-s-iPad' or 'Archie-s-Galaxy' — a capitalized first name, a
+        literal '-s-' (DNS hostnames can't hold an apostrophe, so a real
+        possessive name always resolves to this hyphenated form), then a
+        device model. Deliberately does not hardcode any real name — the
+        point is the *shape* of the pattern, not a fixed blocklist."""
+        possessive_re = re.compile(r'\b[A-Z][a-z]{2,}-s-[A-Za-z0-9]')
+        for fname, content in self._read_docs():
+            m = possessive_re.search(content)
+            if m:
+                self.fail(
+                    f"{fname} contains what looks like a real device hostname "
+                    f"({m.group(0)!r}) — a possessive first name plus a device "
+                    f"model, not a generic example."
+                )
+
+
 if __name__ == '__main__':
     unittest.main()
