@@ -5,6 +5,11 @@ on:
     # Run every 12 hours (at 06:00 and 18:00 UTC)
     - cron: '0 6,18 * * *'
   workflow_dispatch:
+    inputs:
+      test_notify:
+        description: "Send a harmless test ntfy notification and exit (skips the test suite/Gemini/auto-merge entirely) — use this to confirm the real NTFY_TOPIC secret actually reaches your phone."
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -46,5 +51,6 @@ jobs:
           # guardian_agent.py. If the secret is unset, the script skips
           # sending rather than falling back to a public, guessable topic.
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          GUARDIAN_TEST_NOTIFY: ${{ inputs.test_notify }}
         run: |
           python scripts/guardian_agent.py

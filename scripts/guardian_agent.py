@@ -418,6 +418,20 @@ def check_existing_pr_auto_merge():
 
 
 def main():
+    # Manual test path (workflow_dispatch's test_notify input) — sends one
+    # harmless ping via the real NTFY_TOPIC secret and exits immediately,
+    # skipping the test suite, Gemini, and auto-merge entirely. Only way to
+    # confirm the real secret actually reaches a phone without ever typing
+    # or reading the topic name outside this CI run.
+    if os.environ.get("GUARDIAN_TEST_NOTIFY", "").lower() in ("true", "1", "yes"):
+        print("[Guardian] Test-notify mode — sending a single ping, doing nothing else.")
+        notify_guardian(
+            "🏮 Guardian: Test Notification",
+            "This is a test ping from the GL.iNet Guardian Watchdog. If you're seeing "
+            "this, your ntfy topic is correctly configured and reachable.",
+        )
+        return 0
+
     print("[Guardian] Checking upstream ecosystem releases (AdGuard Home, OpenWrt, GL.iNet models)...")
     releases = check_upstream_releases()
     for r in releases:
