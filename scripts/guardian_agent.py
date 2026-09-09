@@ -39,6 +39,7 @@ import tempfile
 import subprocess
 import urllib.request
 import urllib.parse
+from email.header import Header
 from datetime import datetime
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -130,15 +131,18 @@ def _header_safe(value):
     """Raw HTTP header values must be Latin-1 encodable — Python's own
     urllib refuses anything outside that range (this is exactly what broke
     the 🏮 emoji in the Title/Actions headers: 'latin-1' codec can't encode
-    character '\\U0001f3ee'). ntfy explicitly supports percent-encoded
-    UTF-8 in headers and auto-decodes it server-side for exactly this case
-    (see docs.ntfy.sh/publish/#message-title) — so percent-encode anything
-    that doesn't fit, leave plain ASCII/Latin-1 text untouched."""
+    character '\\U0001f3ee'). First attempt at this used percent-encoding,
+    on the assumption ntfy auto-decodes it — WRONG, proven by a real send
+    that showed the raw '%F0%9F%8F%AE...' string, not the emoji. ntfy's
+    docs (docs.ntfy.sh/publish/#e-mail-publishing's Unicode/emoji note)
+    actually call for RFC 2047 encoded-words instead, e.g.
+    '=?UTF-8?B?...?=' — exactly what the stdlib email.header module
+    produces. Leaves plain ASCII/Latin-1 text untouched either way."""
     try:
         value.encode("latin-1")
         return value
     except UnicodeEncodeError:
-        return urllib.parse.quote(value)
+        return Header(value, "utf-8").encode()
 
 
 def notify_guardian(title, message, topic=None, actions=None):
