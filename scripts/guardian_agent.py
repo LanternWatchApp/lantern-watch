@@ -68,17 +68,13 @@ sys.path.insert(0, REPO_ROOT)
 
 # code -> friendly name. GL.iNet's product codes are lowercase (see
 # https://firmware-api.gl-inet.com/cloud-api/products?modelType=ROUTER).
-# This is the list to edit as the supported/tested set changes.
+# Deliberately narrow: only models that real installs are actually phoning
+# home from (via the opt-in stats ping). Lots of routers have tried Lantern
+# Watch, but if nobody on a given model is reporting back, it's not worth
+# watching — add a model here once telemetry shows a real user on it.
 MONITORED_MODELS = {
-    "mt6000":   "Flint 2",      # flagship / reference model
-    "mt3600be": "Beryl 7",
-    "mt5000":   "Brume 3",
-    "mt3000":   "Beryl AX",
-    "mt2500":   "Brume 2",
-    "ax1800":   "Flint",
-    "axt1800":  "Slate AX",
-    "sft1200":  "Opal",
-    "be9300":   "Flint 3",
+    "mt6000": "Flint 2",   # flagship / reference model
+    "mt5000": "Brume 3",
 }
 
 # GL.iNet ships RELEASE (what users actually run), plus BETA/TESTING as
@@ -232,6 +228,11 @@ def check_glinet_firmware():
     if not checked_any:
         print("[Guardian] GL.iNet API unreachable for every model — skipping this cycle.")
         return
+
+    # Drop any model no longer in MONITORED_MODELS so the state file stays in
+    # sync with the list. Silent — the maintainer trimming the list isn't an
+    # upstream event, just a quiet cleanup commit.
+    state = {c: v for c, v in state.items() if c in MONITORED_MODELS}
 
     if first_run:
         lines = []

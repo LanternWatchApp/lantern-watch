@@ -2,8 +2,9 @@ name: GL.iNet Guardian Watchdog
 
 on:
   schedule:
-    # Run every 12 hours (at 06:00 and 18:00 UTC)
-    - cron: '0 6,18 * * *'
+    # 03:00 and 15:00 UTC = 7pm and 7am PST. GitHub cron is UTC-only with no
+    # DST handling, so during PDT (summer) these land at 8pm / 8am Pacific.
+    - cron: '0 3,15 * * *'
   workflow_dispatch:
     inputs:
       test_notify:
