@@ -9,7 +9,9 @@ Like a light in the window, Lantern Watch quietly watches over your family when 
 
 A family network dashboard for GL.iNet routers. Monitor every device on your network, set bedtimes and screen time limits, block social media by profile, and get push notifications when something needs your attention — all from a mobile-friendly web UI.
 
-Built on top of AdGuard Home, which handles the actual DNS blocking. Lantern Watch adds the parental control layer on top.
+Built for homeschooling and faith-centered families, and for anyone who wants family internet safety without a subscription or a company logging their household's browsing.
+
+Built on top of AdGuard Home, which handles the actual DNS blocking. Lantern Watch adds the parental control layer on top. Filtering works at the DNS level, so it covers every device with nothing to install per device and cannot be skipped by changing a device's DNS — but it blocks or allows whole sites and apps rather than inspecting content inside an allowed HTTPS app. A social platform left enabled can still surface material within it; the social profiles, YouTube Restricted Mode, and schedules are the tools for that.
 
 ---
 
