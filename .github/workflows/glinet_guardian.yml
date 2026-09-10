@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       test_notify:
-        description: "Send a harmless test ntfy notification and exit (skips the test suite/Gemini/auto-merge entirely) — use this to confirm the real NTFY_TOPIC secret actually reaches your phone."
+        description: "Send a harmless test ntfy notification and exit (skips firmware detection, the test suite, Gemini, and auto-merge) — use this only to confirm the NTFY_TOPIC secret reaches your phone. Leave unchecked for a normal run (which does the GL.iNet firmware check)."
         type: boolean
         default: false
 
