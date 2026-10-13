@@ -1,4 +1,20 @@
 {
+  "be9300": {
+    "RELEASE": {
+      "release_time": "2026-09-20 18:00:31",
+      "version": "4.10.1"
+    }
+  },
+  "mt2500": {
+    "RELEASE": {
+      "release_time": "2025-03-28 09:52:27",
+      "version": "4.7.4"
+    },
+    "TESTING": {
+      "release_time": "2026-07-04 14:30:04",
+      "version": "4.9.0"
+    }
+  },
   "mt5000": {
     "RELEASE": {
       "release_time": "2026-07-23 09:36:52",
