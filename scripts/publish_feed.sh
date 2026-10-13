@@ -43,6 +43,44 @@ PKGEOF
 gzip -n -k -f -9 -c Packages > Packages.gz   # -n: no embedded mtime, so identical
                                               # input always produces identical output
 
+# Sign the uncompressed Packages file (opkg verifies the plaintext manifest,
+# not the .gz). Uses the local usign private key via Python's Ed25519 — no
+# usign binary or connected router required.
+SIGNING_KEY="${LW_SIGNING_KEY:-$HOME/.ssh/lw_usign.sec}"
+python3 - "$SIGNING_KEY" <<'PYEOF'
+import sys, base64
+from pathlib import Path
+
+key_path = Path(sys.argv[1])
+if not key_path.exists():
+    sys.exit(f"Signing key not found at {key_path}\n"
+             "Expected: ~/.ssh/lw_usign.sec (generated during initial repo setup)")
+
+try:
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+except ImportError:
+    sys.exit("Missing dependency — run: pip install cryptography")
+
+raw = base64.b64decode(Path(key_path).read_text().strip().splitlines()[-1])
+# usign secret key layout (104 bytes):
+#   [0:2]  pkalg ("Ed")  [2:4] kdf ("BK")  [4:8] rounds (0=unencrypted)
+#   [8:24] salt  [24:32] checksum  [32:40] keynum  [40:72] seed  [72:104] pubkey
+pkalg  = raw[0:2]
+keynum = raw[32:40]
+seed   = raw[40:72]    # Ed25519 seed (32 bytes, plaintext when rounds=0)
+
+privkey = Ed25519PrivateKey.from_private_bytes(seed)
+data    = Path("Packages").read_bytes()
+sig     = privkey.sign(data)   # 64-byte raw Ed25519 signature
+
+sig_blob = base64.b64encode(pkalg + keynum + sig).decode()
+key_id   = keynum.hex()
+Path("Packages.sig").write_text(
+    f"untrusted comment: signed by key {key_id}\n{sig_blob}\n"
+)
+print(f"Signed Packages with key {key_id}")
+PYEOF
+
 cd "$WORKDIR"
 git config user.name "Lantern Watch"
 git config user.email "lanternwatchapp@gmail.com"
