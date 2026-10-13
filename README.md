@@ -166,17 +166,46 @@ Full diagram source files: [`docs/architecture/`](docs/architecture/)
 
 ## Install
 
-### Recommended — install from the GL.iNet panel (no SSH, no file downloads)
+### Recommended — install from the GL.iNet panel
 
 Lantern Watch installs from a hosted software source. AdGuard Home is turned on and configured for you automatically — you don't touch any AdGuard settings.
 
-**Before you start:** make sure the router is connected to the internet (it downloads Python and filter lists during setup).
+**Before you begin:**
+- Unbox your GL.iNet router and connect an ethernet cable from your existing modem or router to the **WAN** port.
+- Connect your computer to the GL.iNet router -- either wirelessly (it broadcasts a default Wi-Fi network) or via ethernet from the **LAN 1** port to your PC.
+- Complete GL.iNet's initial setup (the router will prompt you at **192.168.8.1**) and set your admin password -- you'll need that password in Step 1.
+- Make sure the router is connected to the internet (it downloads Python and filter lists during setup).
 
-1. In the GL.iNet admin panel, go to **Applications → Plug-ins → Manage Sources**.
-2. Add a source — **Name:** `lanternwatch`  ·  **URL:** `https://lanternwatch.org/repo` — click the **＋** button, then **Apply**.
-   > The Name must be a single word (no spaces).
-3. Click **Refresh**, type **`lanternwatch`** in the filter box, and click **Install** on the Lantern Watch row. Give it about two minutes on a fresh router.
-4. Open **http://192.168.8.1:8081** — it takes you straight to a **"set your password"** screen. Choose a username and password and you're in.
+#### Step 1 -- Trust the Lantern Watch signing key (one-time, ~30 seconds)
+
+GL.iNet firmware 4.11.0 and later enforce package signature verification. Run this command once to trust the Lantern Watch signing key before installing.
+
+**Windows:** Press the **Windows key**, type **cmd**, press **Enter**.  
+**Mac:** Press **Command + Space**, type **Terminal**, press **Enter**.
+
+Paste this command and press Enter:
+
+```
+ssh root@192.168.8.1 "mkdir -p /etc/opkg/keys && wget -qO /etc/opkg/keys/76d7eadf2f9134cf https://lanternwatch.org/repo/76d7eadf2f9134cf.pub"
+```
+
+> If it asks *"Are you sure you want to continue connecting?"* -- type **yes** and press Enter.  
+> When it asks for a password, enter your **GL.iNet router admin password**. Nothing will appear as you type -- that's normal.
+
+#### Step 2 -- Add the source
+
+In the GL.iNet admin panel, go to **Applications → Plug-ins → Manage Sources**.  
+Add a source -- **Name:** `lanternwatch` · **URL:** `https://lanternwatch.org/repo` -- click the **＋** button, then **Apply**.
+
+> The Name must be a single word (no spaces).
+
+#### Step 3 -- Install it
+
+Click **Refresh**, type **`lanternwatch`** in the filter box, and click **Install** on the Lantern Watch row. Give it about two minutes on a fresh router.
+
+#### Step 4 -- Set your password
+
+Open **http://192.168.8.1:8081** -- it takes you straight to a **"set your password"** screen. Choose a username and password and you're in.
 
 That's the whole thing: the installer enables AdGuard Home, wires up DNS routing, applies recommended protection, and starts everything. No temporary password, no AdGuard toggles.
 
