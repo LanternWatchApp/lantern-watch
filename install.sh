@@ -291,6 +291,17 @@ log "Profile settings — AGH cache: $((AGH_CACHE_BYTES/1024/1024))MB | Retentio
 
 log "[2/9] Pre-flight checks..."
 
+# Trust the Lantern Watch opkg signing key so the plugin feed works on this
+# and any future router. The key fingerprint IS the filename opkg looks for.
+LW_KEY_FINGERPRINT="76d7eadf2f9134cf"
+LW_KEY_URL="https://lanternwatch.org/repo/${LW_KEY_FINGERPRINT}.pub"
+LW_KEY_PATH="/etc/opkg/keys/${LW_KEY_FINGERPRINT}"
+if [ ! -f "$LW_KEY_PATH" ]; then
+    log "Trusting Lantern Watch package signing key..."
+    mkdir -p /etc/opkg/keys
+    wget -qO "$LW_KEY_PATH" "$LW_KEY_URL" || log "Warning: could not fetch signing key — opkg feed may require manual trust"
+fi
+
 # Python 3
 if ! command -v python3 >/dev/null 2>&1; then
     log "Python 3 not found. Installing..."
