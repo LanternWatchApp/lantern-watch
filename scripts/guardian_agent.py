@@ -75,6 +75,8 @@ sys.path.insert(0, REPO_ROOT)
 MONITORED_MODELS = {
     "mt6000": "Flint 2",   # flagship / reference model
     "mt5000": "Brume 3",
+    "mt2500": "Brume 2",   # real installs confirmed in telemetry
+    "be9300": "Flint 3",   # real installs confirmed in telemetry
 }
 
 # GL.iNet ships RELEASE (what users actually run), plus BETA/TESTING as
@@ -93,6 +95,7 @@ LW_RELEVANT_TERMS = (
     "dnssec", "rebind", "iptables", "nftables", "firewall", "dhcp", "resolv",
     "opkg", "ubus", "procd", "port 53", "upstream dns", "dns hijack",
     "captive", "dns rebinding", "safe search", "safesearch",
+    "signature", "check_signature", "signing", "usign",
 )
 
 
