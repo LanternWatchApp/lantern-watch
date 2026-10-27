@@ -1039,10 +1039,20 @@ class Handler(BaseHTTPRequestHandler):
                 new_pw = params.get("lw_password", [""])[0]
                 if new_pw:
                     config["lw_password"] = hash_password(new_pw)
+                # Password field never round-trips its real value into the page
+                # (see pages.py) specifically so it can't get silently blanked by
+                # a browser/password-manager submitting it empty and wiping a
+                # working credential — same "leave blank to keep current" guard
+                # already used for lw_password above. Username gets the same
+                # guard: an empty submission here is never a deliberate choice,
+                # since AdGuard always needs *some* username.
+                _old_ag = config.get("adguard", {})
+                _new_ag_user = params.get("ag_username", [""])[0].strip()
+                _new_ag_pass = params.get("ag_password", [""])[0]
                 config["adguard"] = {
-                    "url":      params.get("ag_url",      ["http://127.0.0.1:3000"])[0],
-                    "username": params.get("ag_username", [""])[0],
-                    "password": params.get("ag_password", [""])[0],
+                    "url":      params.get("ag_url", ["http://127.0.0.1:3000"])[0],
+                    "username": _new_ag_user or _old_ag.get("username", ""),
+                    "password": _new_ag_pass or _old_ag.get("password", ""),
                 }
                 config["retention_days"] = int(params.get("retention_days", [60])[0] or "60")
                 # Notification settings (channels, alert types, summaries) are

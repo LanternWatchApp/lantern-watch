@@ -389,7 +389,10 @@ def lite_dns_tier(config):
 # LITE local lists: only the small, family-specific ones (a few K rules total).
 LITE_RECOMMENDED_IDS = ["dating", "scam", "stalkerware"]
 LITE_OPTIONAL_IDS    = []                      # nothing heavy on 512 MB
-FULL_OPTIONAL_IDS    = ["nsfw", "smart_tv"]    # strong adult list + smart-TV
+FULL_OPTIONAL_IDS    = ["nsfw", "smart_tv", "gambling", "extra_ads"]  # strong adult
+# list + smart-TV + gambling + a small extra ad/tracker list (OISD Small —
+# deliberately the light option, not the large "adguard_dns" list, which
+# stays opt-in even on FULL).
 
 
 def protection_profile(config):

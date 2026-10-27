@@ -24,17 +24,17 @@
     "from_name": "Lantern Watch"
   },
   "alerts": {
-    "adult_content": false,
-    "new_device": false,
+    "adult_content": true,
+    "new_device": true,
     "high_block_rate": false,
     "high_block_threshold": 50,
     "vpn_detection": false,
     "update_available": true
   },
   "summary": {
-    "daily": false,
+    "daily": true,
     "daily_hour": 20,
-    "weekly": false,
+    "weekly": true,
     "weekly_day": 6,
     "weekly_hour": 20
   },

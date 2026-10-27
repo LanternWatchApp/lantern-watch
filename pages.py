@@ -5171,9 +5171,9 @@ def build_admin(config, saved=False, cleared=False, cleared_all=False,
         + f'<div class="form-card"><div class="form-label">AdGuard URL</div>'
         + f'<input type="text" name="ag_url" value="{ag.get("url", "http://127.0.0.1:3000")}">'
         + f'<div class="form-label" style="margin-top:12px">AdGuard Username</div>'
-        + f'<input type="text" name="ag_username" value="{ag.get("username", "")}">'
+        + f'<input type="text" name="ag_username" value="{ag.get("username", "")}" placeholder="Leave blank to keep current username">'
         + f'<div class="form-label" style="margin-top:12px">AdGuard Password</div>'
-        + f'<input type="password" name="ag_password" id="ag_password" value="{ag.get("password", "")}">'
+        + f'<input type="password" name="ag_password" id="ag_password" placeholder="Leave blank to keep current password">'
         + f'<label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;font-size:0.82em;color:#64748b">'
         + f'<input type="checkbox" onchange="togglePwd(\'ag_password\',this)" style="width:16px;height:16px;accent-color:#D97706"> Show password</label>'
         + ('' if config.get('adguard_setup_complete') else
