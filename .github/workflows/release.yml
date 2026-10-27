@@ -80,6 +80,19 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SITE_DEPLOY_KEY }}
 
+      # publish_feed.sh signs Packages with this key (see its own comment for
+      # the on-disk layout). Added 2026-10-13 (075740d) without ever wiring a
+      # secret for CI to read it from — v0.19.2 was the first tag pushed since,
+      # and the publish step failed outright with no file to sign with. Write
+      # the same key the maintainer already has locally into the path the
+      # script expects, same pattern as the deploy key above.
+      - name: Load opkg feed signing key
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          umask 177
+          mkdir -p "$HOME/.ssh"
+          printf '%s' "${{ secrets.LW_USIGN_KEY }}" > "$HOME/.ssh/lw_usign.sec"
+
       - name: Publish to hosted opkg feed
         if: startsWith(github.ref, 'refs/tags/')
         run: bash scripts/publish_feed.sh "${{ steps.ver.outputs.PKG }}" "${{ steps.ver.outputs.VERSION }}"
