@@ -19,6 +19,11 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.19.3] — 2026-10-27
+
+### Fixed
+- **The release pipeline itself was broken, so 0.19.2 never actually reached the install feed.** `publish_feed.sh` has required a signing key on disk since 2026-10-13, but no CI step ever wrote it there, and 0.19.2 was the first release tag pushed since — so it built and tagged fine but silently never published, leaving every router's "Update Now" quietly reinstalling 0.19.1. A release tag's own workflow file is immutable once pushed, so re-running the failed job can never pick up a fix made afterward on `main` — only a new tag can. No app changes beyond 0.19.2; this release exists to get the pipeline (and 0.19.2's real fixes) actually live.
+
 ## [0.19.2] — 2026-10-27
 
 ### Fixed
