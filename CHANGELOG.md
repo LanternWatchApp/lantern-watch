@@ -19,6 +19,11 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.19.4] — 2026-10-27
+
+### Fixed
+- **The release pipeline, take two.** 0.19.3 fixed the missing signing-key file but the publish step still failed — the signing step also imports the `cryptography` package, which nothing in CI ever installed (same root problem as 0.19.3: a code path added 2026-10-13 that no release had actually exercised yet, so its full set of gaps only surfaced one at a time). Added the missing `pip install cryptography` step. No app changes beyond 0.19.2.
+
 ## [0.19.3] — 2026-10-27
 
 ### Fixed

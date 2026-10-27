@@ -93,6 +93,15 @@ jobs:
           mkdir -p "$HOME/.ssh"
           printf '%s' "${{ secrets.LW_USIGN_KEY }}" > "$HOME/.ssh/lw_usign.sec"
 
+      # publish_feed.sh's signing step imports the `cryptography` package —
+      # actions/setup-python only provisions a bare interpreter, nothing from
+      # PyPI. Another part of this same never-before-exercised path that
+      # nothing ever provisioned (v0.19.3's "Load opkg feed signing key" fix
+      # got this run past the missing-file failure, straight into this one).
+      - name: Install signing dependency
+        if: startsWith(github.ref, 'refs/tags/')
+        run: pip install cryptography
+
       - name: Publish to hosted opkg feed
         if: startsWith(github.ref, 'refs/tags/')
         run: bash scripts/publish_feed.sh "${{ steps.ver.outputs.PKG }}" "${{ steps.ver.outputs.VERSION }}"
