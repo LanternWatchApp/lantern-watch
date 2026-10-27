@@ -19,6 +19,16 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.19.2] — 2026-10-27
+
+### Fixed
+- **A blank AdGuard Password field on Settings could silently wipe a working credential.** The field round-tripped the live password into the page with no "keep current if blank" protection, unlike the login password field right above it. Any empty submission — a password manager, a browser quirk, anything — would overwrite it with nothing, breaking background DNS-log collection with no visible symptom until logs went stale. Found after a real install went 5 weeks without collecting any data. Now matches the login password's safe pattern: never exposes or requires retyping, and a blank submission keeps the existing value.
+- **The first-run notification defaults didn't match the app's own documented intent.** The setup template had "Adult content blocked" and "A new device joins" alerts, plus the daily/weekly summary, all explicitly off by default — contradicting the wizard page's own comment that these are meant to default on. Every fresh install has shown them unchecked since. Now default on, as intended (daily/weekly summary at 8pm, weekly on Sunday).
+- The installer's success message (dashboard URL, first-login password) could get lost under the preceding Python dependency install log. Now appears as a short headline the moment that noise ends, and is repeated as the last line the installer prints.
+
+### Changed
+- Full-profile installs now also enable gambling-site blocking and a small extra ad/tracker list (OISD Small) by default, alongside the existing adult-content and smart-TV protections. Install-time only — never retroactively changes an already-configured router.
+
 ## [0.19.1] — 2026-09-08
 
 ### Improved
