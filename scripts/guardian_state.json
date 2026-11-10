@@ -19,6 +19,10 @@
     "RELEASE": {
       "release_time": "2026-07-23 09:36:52",
       "version": "4.9.0"
+    },
+    "TESTING": {
+      "release_time": "2026-11-10 18:49:53",
+      "version": "4.9.0"
     }
   },
   "mt6000": {
