@@ -73,10 +73,13 @@ sys.path.insert(0, REPO_ROOT)
 # Watch, but if nobody on a given model is reporting back, it's not worth
 # watching — add a model here once telemetry shows a real user on it.
 MONITORED_MODELS = {
-    "mt6000": "Flint 2",   # flagship / reference model
+    "mt6000": "Flint 2",     # flagship / reference model
     "mt5000": "Brume 3",
-    "mt2500": "Brume 2",   # real installs confirmed in telemetry
-    "be9300": "Flint 3",   # real installs confirmed in telemetry
+    "mt3000": "Beryl AX",    # real installs confirmed in telemetry
+    "mt3600be": "Beryl 7",   # real installs confirmed in telemetry
+    "mt2500": "Brume 2",     # real installs confirmed in telemetry
+    "be9300": "Flint 3",     # real installs confirmed in telemetry
+    "be10000": "Slate 7 Pro",  # real installs confirmed in telemetry
 }
 
 # GL.iNet ships RELEASE (what users actually run), plus BETA/TESTING as

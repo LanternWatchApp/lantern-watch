@@ -20,16 +20,19 @@ permissions:
 jobs:
   watchdog:
     name: Compatibility Watchdog & Self-Healing
-    runs-on: ubuntu-latest
+    # Pinned to ubuntu-24.04 so CI can keep testing on Python 3.9 (matching
+    # OpenWrt 21.02-SNAPSHOT on live GL.iNet routers). ubuntu-latest moved to
+    # Ubuntu 26.04, which no longer publishes Python 3.9 in actions/python-versions.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up Python 3.9
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.9'
 

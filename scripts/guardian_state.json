@@ -1,4 +1,14 @@
 {
+  "be10000": {
+    "RELEASE": {
+      "release_time": "2026-09-01 14:38:59",
+      "version": "4.8.6"
+    },
+    "TESTING": {
+      "release_time": "2026-11-13 18:29:14",
+      "version": "4.11.1"
+    }
+  },
   "be9300": {
     "RELEASE": {
       "release_time": "2026-09-20 18:00:31",
@@ -13,6 +23,26 @@
     "TESTING": {
       "release_time": "2026-07-04 14:30:04",
       "version": "4.9.0"
+    }
+  },
+  "mt3000": {
+    "RELEASE": {
+      "release_time": "2026-09-28 19:28:14",
+      "version": "4.11.0"
+    },
+    "TESTING": {
+      "release_time": "2026-11-06 18:44:00",
+      "version": "4.11.1"
+    }
+  },
+  "mt3600be": {
+    "RELEASE": {
+      "release_time": "2026-07-07 17:58:20",
+      "version": "4.9.0"
+    },
+    "TESTING": {
+      "release_time": "2026-11-16 09:18:36",
+      "version": "4.11.0"
     }
   },
   "mt5000": {
