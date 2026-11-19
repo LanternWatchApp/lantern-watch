@@ -8,18 +8,18 @@ on:
   workflow_dispatch:
     inputs:
       test_notify:
-        description: "Send a harmless test ntfy notification and exit (skips firmware detection, the test suite, Gemini, and auto-merge) — use this only to confirm the NTFY_TOPIC secret reaches your phone. Leave unchecked for a normal run (which does the GL.iNet firmware check)."
+        description: "Send a harmless test ntfy notification and exit (skips firmware detection and the test suite) — use this only to confirm the NTFY_TOPIC secret reaches your phone. Leave unchecked for a normal run (which does the GL.iNet firmware check)."
         type: boolean
         default: false
 
 permissions:
+  # Only needed so guardian_agent.py can commit updated firmware snapshots to
+  # scripts/guardian_state.json on main. Notify-only — no PRs or auto-merges.
   contents: write
-  pull-requests: write
-  issues: write
 
 jobs:
   watchdog:
-    name: Compatibility Watchdog & Self-Healing
+    name: GL.iNet Firmware & Compatibility Watchdog
     # Pinned to ubuntu-24.04 so CI can keep testing on Python 3.9 (matching
     # OpenWrt 21.02-SNAPSHOT on live GL.iNet routers). ubuntu-latest moved to
     # Ubuntu 26.04, which no longer publishes Python 3.9 in actions/python-versions.
@@ -49,8 +49,6 @@ jobs:
       - name: Execute Guardian Watchdog
         if: always()
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           # No hardcoded fallback name — see notify_guardian's docstring in
           # guardian_agent.py. If the secret is unset, the script skips
           # sending rather than falling back to a public, guessable topic.
