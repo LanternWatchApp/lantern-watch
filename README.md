@@ -251,7 +251,7 @@ In the spirit of no surprises, here's exactly what the installer does — and wh
 - **Points dnsmasq (port 53) at AdGuard (port 3053)** — this is what preserves *per-device* visibility, so each device shows up individually instead of everything appearing as the router.
 - **Requires a manual confirm before firmware upgrades** (stable channel), so an unattended over-the-air update can't silently wipe the install. Skip this with `--keep-auto-update`, or re-enable automatic updates anytime in the GL.iNet panel.
 - **Leaves your Wi-Fi on.** Install on your Wi-Fi router and your SSID keeps working. Only pass `--wired-passthrough` if you run the box wired behind a downstream AP/mesh and want its radios off.
-- **Registers an auto-start service** and adds Lantern Watch's paths to `/etc/sysupgrade.conf` so a "Keep Settings" firmware upgrade preserves it.
+- **Registers an auto-start service** and adds Lantern Watch's config and init script to `/etc/sysupgrade.conf` so a "Keep Settings" firmware upgrade preserves your settings.
 
 **One-time blip:** AdGuard and dnsmasq restart during install, so DNS pauses for a few seconds. Nothing leaves your network — no cloud, no account, no remote access.
 
@@ -537,9 +537,11 @@ See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 ## GL.iNet firmware upgrades
 
-The installer disables GL.iNet auto-upgrade (so a silent OTA update can't wipe the router unattended) and registers the Lantern Watch paths in `/etc/sysupgrade.conf`. As a result, a **"Keep Settings" firmware upgrade now preserves** the app files, `lanternwatch_config.json`, and the SQLite history automatically. You may still need to re-enable autostart afterward (`/etc/init.d/lanternwatch enable`) and reinstall Python 3 if the upgrade removed it.
+The installer disables GL.iNet auto-upgrade (so a silent OTA update can't wipe the router unattended) and registers `lanternwatch_config.json` and `/etc/init.d/lanternwatch` in `/etc/sysupgrade.conf`.
 
-A **full reset / "don't keep settings" upgrade** still wipes everything in `/root/` — including the Lantern Watch app files, `lanternwatch_config.json`, and the Python 3 installation, and clears the init.d service registration. AdGuard Home survives (it's managed by GL.iNet separately), but in that case Lantern Watch needs to be fully reinstalled using the steps below.
+**Keep Settings upgrades**: your config (settings, devices, notifications, install ID) survives. The query-log database does **not** — it is intentionally excluded from the firmware archive to prevent corruption and avoid a ~500 MB RAM spike during the flash. After reinstalling `lanternwatch` (or `python3`) and restarting, Lantern Watch rebuilds your history from AdGuard's 14-day query log automatically on the next startup.
+
+A **full reset / "don't keep settings" upgrade** still wipes everything in `/root/` — including `lanternwatch_config.json` and the Python 3 installation, and clears the init.d service registration. AdGuard Home survives (it's managed by GL.iNet separately), but in that case Lantern Watch needs to be fully reinstalled using the steps below.
 
 **Before upgrading GL.iNet firmware, back up these two files from the router:**
 

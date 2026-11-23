@@ -19,6 +19,13 @@ leave existing routers unable to update.
 
 Bump `VERSION` in `config.py`, add an entry here, then commit and tag `v<version>`.
 
+## [0.19.5] — 2026-11-23
+
+### Fixed
+- **SQLite database corruption after GL.iNet "Keep Settings" firmware upgrades.** Previously `/etc/sysupgrade.conf` included `/root/lantern-watch/` and `/root/lantern-watch/lanternwatch.db`, causing OpenWrt `sysupgrade` to archive the live SQLite file while `collector.py` was actively writing to it (truncating pages and risking RAM exhaustion on 512 MB routers during `/tmp/sysupgrade.tgz` creation). `install.sh` now preserves only `lanternwatch_config.json` and `/etc/init.d/lanternwatch` and scrubs the old DB entries from existing `/etc/sysupgrade.conf` files; `install_id` is now mirrored into `lanternwatch_config.json` so it survives upgrades without needing the DB archived.
+- **Automatic recovery from a corrupted database on startup.** Both `collector.py` and `dashboard.py` now run `PRAGMA quick_check(1)` via `db.check_and_recover_db()` before opening the DB. If a firmware upgrade or power loss ever leaves `lanternwatch.db` malformed, the corrupt file is moved aside (`lanternwatch.db.corrupt.<timestamp>`), `install_id` is restored from `lanternwatch_config.json`, a clean DB is recreated, and `collector.py` automatically backfills recent history from AdGuard Home's 14-day query log.
+- **Unbounded `lanternwatch.db` growth across reboots.** `collector.py`'s daily trim previously relied on an in-memory poll counter (which reset to 0 on every restart) and deleted rows without reclaiming freed pages. Trim scheduling is now persisted in the DB's `meta` table (`last_trim_ts`, 24-hour interval, reboot-safe), runs `VACUUM` to reclaim disk space, and triggers an immediate 7-day emergency trim + `VACUUM` if the DB exceeds 200 MB.
+
 ## [0.19.4] — 2026-10-27
 
 ### Fixed

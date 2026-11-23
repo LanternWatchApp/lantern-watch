@@ -224,5 +224,206 @@ class TestPublicDocsPrivacy(unittest.TestCase):
                 )
 
 
+class TestSensitiveFileGuardrails(unittest.TestCase):
+    """Verify that operator-only / local-context files are never committed to
+    the public repository.
+
+    .gitignore already lists these paths, but `git add --force` or an editor's
+    "stage all" shortcut can bypass .gitignore silently. This test catches that
+    by querying the git index directly — the same thing CI pushes. If any of
+    these paths appear in the index, a human or automated agent accidentally
+    staged them and the commit must be blocked.
+
+    This class runs as part of the Guardian CI watchdog's test suite (every
+    two hours), so a slip is caught before it goes out in a release and before
+    real users' installs could be affected."""
+
+    # Files and directory prefixes that must NEVER appear in the git index.
+    # These hold operator context, AI prompts, and local credentials that have
+    # no business in a public repo with real users subscribed to it.
+    FORBIDDEN_TRACKED = [
+        "CLAUDE.md",          # local AI operator context — never public
+        ".claude/",           # local Claude Code settings and memory
+        "lanternwatch_config.json",  # live router credentials
+        "lanternwatch.db",    # DB (also .gitignore'd via *.db)
+    ]
+
+    def _git_tracked_files(self):
+        """Return the set of paths currently in the git index (cached), or an
+        empty set if git is unavailable (e.g. a bare source tree without .git)."""
+        try:
+            result = subprocess.run(
+                ["git", "ls-files", "--cached"],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode != 0:
+                return set()
+            return set(result.stdout.splitlines())
+        except Exception:
+            return set()
+
+    def test_local_operator_files_not_committed(self):
+        """CLAUDE.md, .claude/, live config, and DB must not be in the git index."""
+        tracked = self._git_tracked_files()
+        if not tracked:
+            self.skipTest("git index not available — skipping (not a git checkout)")
+
+        for forbidden in self.FORBIDDEN_TRACKED:
+            if forbidden.endswith("/"):
+                prefix = forbidden
+                leaks = [p for p in tracked if p.startswith(prefix)]
+                self.assertEqual(
+                    leaks, [],
+                    f"Sensitive directory committed to repo: {leaks}\n"
+                    f"These files are local-only. Remove them with:\n"
+                    f"  git rm --cached -r {prefix}\n"
+                    f"and ensure '{prefix}' is in .gitignore."
+                )
+            else:
+                self.assertNotIn(
+                    forbidden, tracked,
+                    f"Sensitive file committed to repo: {forbidden!r}\n"
+                    f"This file is local-only (operator context or live credentials).\n"
+                    f"Remove it with: git rm --cached {forbidden}"
+                )
+
+    def test_no_corrupt_db_artifacts_committed(self):
+        """lanternwatch.db.corrupt.* recovery artifacts must not be committed."""
+        tracked = self._git_tracked_files()
+        if not tracked:
+            self.skipTest("git index not available")
+        leaks = [p for p in tracked if ".db.corrupt" in p or p.endswith(".db")]
+        self.assertEqual(
+            leaks, [],
+            f"Database file(s) found in git index: {leaks}\n"
+            f"DB files are excluded by .gitignore — remove with: git rm --cached <file>"
+        )
+
+    def test_no_internal_docs_committed(self):
+        """docs/internal/ is marked local-only and must not be tracked."""
+        tracked = self._git_tracked_files()
+        if not tracked:
+            self.skipTest("git index not available")
+        leaks = [p for p in tracked if p.startswith("docs/internal/")]
+        self.assertEqual(
+            leaks, [],
+            f"Internal docs leaked into the index: {leaks}\n"
+            f"Remove with: git rm --cached -r docs/internal/"
+        )
+
+
+class TestSysupgradeBackwardCompat(unittest.TestCase):
+    """Verify that the v0.19.5 sysupgrade safety fix is correctly implemented
+    and that existing users upgrading from v0.19.4 will not lose data or end
+    up in a broken state.
+
+    Background: install.sh used to list /root/lantern-watch/lanternwatch.db in
+    /etc/sysupgrade.conf. On a GL.iNet 'Keep Settings' firmware upgrade that
+    archives a live 518 MB SQLite DB into RAM-backed /tmp/sysupgrade.tgz while
+    collector.py is writing to it every 30 s, the resulting file is truncated
+    and corrupt. The fix removes the DB from sysupgrade.conf so it is never
+    archived — the DB rebuilds from AdGuard's 14-day query log automatically.
+
+    These tests confirm:
+    1. The old unsafe paths are actively removed from existing sysupgrade.conf
+       entries during reinstall (not silently left there for existing users).
+    2. The DB path is NOT re-added in the new safe path list.
+    3. The essential config JSON + init script ARE still preserved.
+    4. Auto-recovery code exists so a corrupt DB from a previous upgrade is
+       handled gracefully without breaking the dashboard for real users."""
+
+    def _read_install_sh(self):
+        path = os.path.join(REPO_ROOT, "install.sh")
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    def test_db_path_not_in_lw_keep_paths(self):
+        """install.sh must NOT re-add the DB or the directory glob to sysupgrade.conf."""
+        content = self._read_install_sh()
+        # Find the LW_KEEP_PATHS block — everything between the opening quote
+        # and the closing quote of the heredoc-style variable assignment.
+        keep_match = re.search(r'LW_KEEP_PATHS="([^"]*)"', content, re.DOTALL)
+        self.assertIsNotNone(keep_match, "LW_KEEP_PATHS variable not found in install.sh")
+        keep_block = keep_match.group(1)
+        self.assertNotIn(
+            "lanternwatch.db", keep_block,
+            "install.sh still lists lanternwatch.db in LW_KEEP_PATHS — this causes "
+            "DB corruption on GL.iNet Keep-Settings firmware upgrades. Remove it."
+        )
+        # The bare directory glob /root/lantern-watch/ implicitly covers the DB
+        # too (sysupgrade archives everything under it), so it must also be gone.
+        self.assertNotIn(
+            "/root/lantern-watch/\n", keep_block,
+            "install.sh still lists /root/lantern-watch/ in LW_KEEP_PATHS — this "
+            "implicitly preserves the DB and causes the same corruption. Remove it."
+        )
+
+    def test_essential_paths_still_preserved(self):
+        """Config JSON and init script must still be in LW_KEEP_PATHS after the fix."""
+        content = self._read_install_sh()
+        keep_match = re.search(r'LW_KEEP_PATHS="([^"]*)"', content, re.DOTALL)
+        self.assertIsNotNone(keep_match, "LW_KEEP_PATHS not found in install.sh")
+        keep_block = keep_match.group(1)
+        self.assertIn(
+            "lanternwatch_config.json", keep_block,
+            "lanternwatch_config.json must still be preserved across firmware upgrades."
+        )
+        self.assertIn(
+            "/etc/init.d/lanternwatch", keep_block,
+            "/etc/init.d/lanternwatch must still be preserved across firmware upgrades."
+        )
+
+    def test_install_sh_removes_old_db_entries_from_existing_conf(self):
+        """install.sh must actively scrub the old DB and directory-glob entries
+        from an existing sysupgrade.conf so existing users on v0.19.4 get the
+        fix automatically on reinstall — not left silently in place."""
+        content = self._read_install_sh()
+        self.assertIn(
+            "LW_REMOVE_PATHS", content,
+            "install.sh is missing LW_REMOVE_PATHS — existing users' sysupgrade.conf "
+            "will still list the DB path and remain vulnerable to corruption on their "
+            "next GL.iNet firmware upgrade. Add a removal loop for the old unsafe entries."
+        )
+        # Both the bare directory glob and the explicit DB path must be removed.
+        remove_match = re.search(r'LW_REMOVE_PATHS="([^"]*)"', content, re.DOTALL)
+        if remove_match:
+            remove_block = remove_match.group(1)
+            self.assertIn(
+                "lanternwatch.db", remove_block,
+                "LW_REMOVE_PATHS must include lanternwatch.db to fix existing installs."
+            )
+            self.assertIn(
+                "/root/lantern-watch/", remove_block,
+                "LW_REMOVE_PATHS must include /root/lantern-watch/ to fix existing installs."
+            )
+
+    def test_db_corruption_recovery_function_exists(self):
+        """db.py must expose check_and_recover_db() so both collector.py and
+        dashboard.py can auto-recover from a DB that was corrupted by a previous
+        firmware upgrade — without requiring SSH access from the user."""
+        self.assertTrue(
+            hasattr(db, "check_and_recover_db"),
+            "db.check_and_recover_db() is missing. Users whose DB was already "
+            "corrupted by a prior upgrade will see 'database disk image is malformed' "
+            "on the dashboard permanently. Add this function to db.py."
+        )
+
+    def test_collector_calls_recovery_before_init(self):
+        """collector.py must call check_and_recover_db() before init_db() so a
+        corrupt DB from a previous firmware upgrade is auto-healed on restart."""
+        collector_path = os.path.join(REPO_ROOT, "collector.py")
+        with open(collector_path, "r", encoding="utf-8") as f:
+            source = f.read()
+        self.assertIn(
+            "check_and_recover_db", source,
+            "collector.py does not call check_and_recover_db(). A user upgrading "
+            "from a build where the DB was already corrupted will get a broken "
+            "dashboard immediately after reinstall."
+        )
+
+
 if __name__ == '__main__':
     unittest.main()

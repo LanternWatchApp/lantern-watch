@@ -8,6 +8,8 @@ from datetime import datetime
 
 DB_PATH = "/root/lantern-watch/lanternwatch.db"
 POLL_INTERVAL = 30
+TRIM_INTERVAL_SECS = 86400   # trim at most once every 24h (persisted across reboots)
+DB_EMERGENCY_TRIM_MB = 200   # force immediate 7-day trim + VACUUM above this size
 
 # AdGuard returns at most PAGE_LIMIT entries per request (newest first). On a
 # busy network more than that can accumulate between polls, so we page backward
@@ -30,7 +32,8 @@ def get_label(client_ip, client_name, config):
     return client_name or client_ip
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
     conn.execute("""
     CREATE TABLE IF NOT EXISTS querylog (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,11 +162,38 @@ def get_storage_info():
 
     return round(used), round(free), round(total), usb_path
 
+def should_trim_querylog():
+    """Return True if the DB needs trimming — either immediately because it
+    exceeded DB_EMERGENCY_TRIM_MB, or because last_trim_ts in meta is absent
+    or older than TRIM_INTERVAL_SECS (24h). Reboot-safe."""
+    import os
+    if os.path.exists(DB_PATH):
+        try:
+            if os.path.getsize(DB_PATH) / 1024 / 1024 > DB_EMERGENCY_TRIM_MB:
+                return True
+        except Exception:
+            pass
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=10)
+        try:
+            conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+            row = conn.execute("SELECT value FROM meta WHERE key='last_trim_ts'").fetchone()
+        finally:
+            conn.close()
+        if not row or not row[0]:
+            return True
+        last_ts = datetime.fromisoformat(row[0])
+        return (datetime.utcnow() - last_ts).total_seconds() >= TRIM_INTERVAL_SECS
+    except Exception:
+        return True
+
+
 def trim_querylog(config):
-    """Delete querylog rows older than the configured retention window."""
+    """Delete querylog rows older than the configured retention window,
+    record last_trim_ts in meta, and VACUUM to reclaim freed disk space."""
     import os
     used, free, total, usb_path = get_storage_info()
-    db_size = os.path.getsize(DB_PATH) / 1024 / 1024
+    db_size = os.path.getsize(DB_PATH) / 1024 / 1024 if os.path.exists(DB_PATH) else 0.0
     pct_used = round(used / total * 100) if total > 0 else 0
 
     print(f"[{time.strftime('%H:%M:%S')}] Storage: {free}MB free of {total}MB ({pct_used}%) | DB: {db_size:.1f}MB | USB: {usb_path or 'none'}")
@@ -173,14 +203,31 @@ def trim_querylog(config):
     if pct_used > 80:
         days = min(days, 7)
         print(f"[{time.strftime('%H:%M:%S')}] Storage >80% — overriding retention to 7 days")
+    # Size-based emergency override: >200 MB DB → force 7-day window + VACUUM immediately
+    if db_size > DB_EMERGENCY_TRIM_MB:
+        days = min(days, 7)
+        print(f"[{time.strftime('%H:%M:%S')}] DB {db_size:.1f}MB > {DB_EMERGENCY_TRIM_MB}MB — emergency trim to 7 days")
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("DELETE FROM querylog WHERE ts < datetime('now', ?)", (f"-{days} days",))
-    deleted = conn.execute("SELECT changes()").fetchone()[0]
-    conn.commit()
-    conn.close()
-    if deleted:
-        print(f"[{time.strftime('%H:%M:%S')}] Trimmed {deleted:,} records older than {days} days")
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+        conn.execute("DELETE FROM querylog WHERE ts < replace(datetime('now', ?), ' ', 'T')", (f"-{days} days",))
+        deleted = conn.execute("SELECT changes()").fetchone()[0]
+        conn.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('last_trim_ts', ?)",
+            (datetime.utcnow().isoformat(),),
+        )
+        conn.commit()
+        if deleted:
+            print(f"[{time.strftime('%H:%M:%S')}] Trimmed {deleted:,} records older than {days} days")
+        try:
+            conn.execute("VACUUM")
+            new_size = os.path.getsize(DB_PATH) / 1024 / 1024 if os.path.exists(DB_PATH) else 0.0
+            print(f"[{time.strftime('%H:%M:%S')}] VACUUM complete (DB: {db_size:.1f}MB -> {new_size:.1f}MB)")
+        except Exception as ve:
+            print(f"[{time.strftime('%H:%M:%S')}] VACUUM skipped/error: {ve}")
+    finally:
+        conn.close()
 
 def collect_once(config):
     """Fetch the query log, paging backward from newest until we reach data we
@@ -226,10 +273,13 @@ def collect_once(config):
 
 
 def main():
+    from db import check_and_recover_db, get_or_create_install_id
+    recovered = not check_and_recover_db()
     init_db()
+    if recovered:
+        get_or_create_install_id()  # Re-seed preserved install_id from config.json
     print("Lantern Watch collector started")
     config = load_config()
-    storage_counter = 0
 
     while True:
         try:
@@ -242,11 +292,13 @@ def main():
 
         except Exception as e:
             print(f"Poll error: {e}")
-        # Trim querylog once per day (2880 polls × 30s = 24h)
-        storage_counter += 1
-        if storage_counter >= 2880:
-            trim_querylog(config)
-            storage_counter = 0
+        # Reboot-safe time-based trim (every 24h via meta.last_trim_ts) or
+        # immediate emergency trim if DB grows past DB_EMERGENCY_TRIM_MB.
+        try:
+            if should_trim_querylog():
+                trim_querylog(config)
+        except Exception as e:
+            print(f"Trim error: {e}")
 
         time.sleep(POLL_INTERVAL)
 

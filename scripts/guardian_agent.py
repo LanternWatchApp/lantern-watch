@@ -127,6 +127,42 @@ def _save_guardian_state(state):
         f.write("\n")
 
 
+_FORBIDDEN_COMMIT_PATHS = (
+    # Local-only files that must never enter the public repo. The repo is public
+    # and has real users — a slip here leaks operator context or live credentials
+    # to everyone. This list mirrors .gitignore; listing it here too means a
+    # future change to .gitignore can't silently remove the protection.
+    "CLAUDE.md",
+    ".claude/",
+    "lanternwatch_config.json",
+    "lanternwatch.db",
+    "docs/internal/",
+)
+
+
+def _pre_commit_safety_check(staged_files):
+    """Return a list of error strings for any staged file that must never be
+    committed. An empty list means the commit is safe to proceed.
+
+    Called before every commit Guardian makes so an accidental `git add --force`
+    on a sensitive file is caught and blocked rather than published. This is a
+    last-resort catch — .gitignore and TestSensitiveFileGuardrails are the
+    primary controls; this one runs in the moment, inside the commit flow."""
+    errors = []
+    for path in staged_files:
+        for forbidden in _FORBIDDEN_COMMIT_PATHS:
+            if forbidden.endswith("/"):
+                if path.startswith(forbidden):
+                    errors.append(
+                        f"BLOCKED: '{path}' is under {forbidden} — local-only, never public"
+                    )
+            elif path == forbidden or path.endswith("/" + forbidden):
+                errors.append(
+                    f"BLOCKED: '{path}' is a local-only file — never commit it to the public repo"
+                )
+    return errors
+
+
 def _commit_state_file():
     """Persist scripts/guardian_state.json to main so the next run knows what
     was already seen. CI only — a local run just writes the file. Any failure
@@ -143,6 +179,23 @@ def _commit_state_file():
         _run(["git", "config", "user.email", "lanternwatchapp@gmail.com"], check=True)
         _run(["git", "config", "user.name", "Lantern Watch Guardian"], check=True)
         _run(["git", "add", "scripts/guardian_state.json"], check=True)
+
+        # Safety check: verify only the state file is staged and nothing sensitive
+        # crept in (e.g. via a git add --force in a previous step).
+        diff = _run(["git", "diff", "--cached", "--name-only"])
+        staged = [l.strip() for l in diff.stdout.splitlines() if l.strip()]
+        errors = _pre_commit_safety_check(staged)
+        if errors:
+            for err in errors:
+                print(f"[Guardian] {err}")
+            print("[Guardian] Pre-commit safety check FAILED — aborting commit to protect public repo.")
+            notify_guardian(
+                "Guardian: BLOCKED sensitive-file commit",
+                "A pre-commit safety check blocked a Guardian commit because sensitive "
+                "files were staged:\n\n" + "\n".join(errors) + "\n\n"
+                "The state file was NOT pushed. Manual investigation required.",
+            )
+            return
         c = _run(["git", "commit", "-m", "guardian: record GL.iNet firmware snapshot"])
         if c.returncode != 0:
             print(f"[Guardian] Nothing to commit (or commit failed): {c.stdout}{c.stderr}".strip())

@@ -4,8 +4,11 @@ Lantern Watch — db.py
 SQLite query helpers and data-access functions.
 """
 
+import os
 import re
+import shutil
 import sqlite3
+import time as _time
 from datetime import datetime
 
 _BARE_IP = re.compile(r'^\d{1,3}(\.\d{1,3}){3}$')
@@ -39,9 +42,88 @@ DB_PATH     = "/root/lantern-watch/lanternwatch.db"
 SESSION_GAP = 300  # seconds of silence before a new "session" starts
 
 
+def _read_config_install_id():
+    """Read mirrored install_id from lanternwatch_config.json if present."""
+    try:
+        import config as _cfg
+        if os.path.exists(_cfg.CONFIG_PATH):
+            val = (_cfg.load_config().get("install_id") or "").strip()
+            if val:
+                return val
+    except Exception:
+        pass
+    return ""
+
+
+def _mirror_install_id_to_config(install_id):
+    """Mirror install_id into lanternwatch_config.json so it survives firmware
+    upgrades and DB rebuilds without needing lanternwatch.db in sysupgrade.conf."""
+    if not install_id:
+        return
+    try:
+        import config as _cfg
+        if not os.path.exists(_cfg.CONFIG_PATH):
+            return
+        data = _cfg.load_config()
+        if data.get("install_id") != install_id:
+            data["install_id"] = install_id
+            _cfg.save_config(data)
+    except Exception:
+        pass
+
+
+def check_and_recover_db():
+    """Return True if DB is healthy (or didn't exist). On corruption: salvage
+    install_id to config.json if readable, move the corrupt DB aside, and return
+    False so the caller can rebuild a clean schema and backfill from AdGuard."""
+    if not os.path.exists(DB_PATH):
+        return True
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=10)
+        try:
+            result = conn.execute("PRAGMA quick_check(1)").fetchone()
+            if result and result[0] == "ok":
+                return True
+        finally:
+            conn.close()
+    except sqlite3.OperationalError as e:
+        msg = str(e).lower()
+        # Transient lock while a sibling daemon starts/writes is not corruption.
+        if "locked" in msg or "busy" in msg:
+            return True
+    except Exception:
+        pass
+
+    # Best-effort salvage of install_id from the still-readable meta table
+    # before moving the corrupt DB aside (covers pre-0.19.5 installs).
+    if not _read_config_install_id():
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=5)
+            try:
+                row = conn.execute("SELECT value FROM meta WHERE key='install_id'").fetchone()
+                if row and row[0]:
+                    _mirror_install_id_to_config(str(row[0]).strip())
+            finally:
+                conn.close()
+        except Exception:
+            pass
+
+    corrupt_path = f"{DB_PATH}.corrupt.{int(_time.time())}"
+    try:
+        shutil.move(DB_PATH, corrupt_path)
+        print(f"[DB] Corrupt database moved to {corrupt_path} — rebuilding")
+    except FileNotFoundError:
+        # Sibling process already moved the corrupt DB aside.
+        return False
+    except Exception as e:
+        print(f"[DB] Could not move corrupt DB: {e}")
+    return False
+
+
 def get_or_create_install_id():
-    """Return a random, anonymous per-install ID — generated once and stored
-    locally in the app's own database.
+    """Return a random, anonymous per-install ID — stored in the DB's meta table
+    and mirrored into lanternwatch_config.json so it survives Keep-Settings
+    firmware upgrades and DB rebuilds.
 
     It is deliberately NOT derived from the MAC address or any hardware
     identifier. A random, resettable ID is the privacy-respecting approach the
@@ -50,15 +132,31 @@ def get_or_create_install_id():
     fingerprint. A factory reset simply mints a new ID and counts as a fresh
     install — which is the honest thing anyway."""
     import uuid
-    conn = sqlite3.connect(DB_PATH)
+    cfg_id = _read_config_install_id()
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
     row = conn.execute("SELECT value FROM meta WHERE key='install_id'").fetchone()
-    if row:
-        install_id = row[0]
+    db_id = (row[0] or "").strip() if row else ""
+
+    if cfg_id:
+        install_id = cfg_id
+        if db_id != cfg_id:
+            conn.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES ('install_id', ?)",
+                (install_id,),
+            )
+            conn.commit()
+    elif db_id:
+        install_id = db_id
+        _mirror_install_id_to_config(install_id)
     else:
         install_id = str(uuid.uuid4())
-        conn.execute("INSERT INTO meta (key, value) VALUES ('install_id', ?)", (install_id,))
+        conn.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('install_id', ?)",
+            (install_id,),
+        )
         conn.commit()
+        _mirror_install_id_to_config(install_id)
     conn.close()
     return install_id
 

@@ -890,13 +890,17 @@ log "  AdGuard safebrowsing + parental set to $SBP_VAL via config.yaml (profile=
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 11 — PERSIST ACROSS "KEEP SETTINGS" FIRMWARE UPGRADES
 # OpenWrt's sysupgrade restores every path listed in /etc/sysupgrade.conf after
-# flashing new firmware. Without this, a deliberate "Keep Settings" upgrade
-# wipes /root/lantern-watch (app, config, and the SQLite history) and reverts
-# AdGuard to users: [], silently breaking the collector.
+# flashing new firmware. We preserve the config JSON (settings, devices,
+# notifications, install_id) and the init script, while intentionally excluding
+# lanternwatch.db (and the /root/lantern-watch/ directory glob that would pull
+# it in): archiving a live SQLite DB into RAM-backed /tmp/sysupgrade.tgz while
+# collector.py is writing to it can corrupt the DB and risk OOM on 512 MB
+# routers. The query-log DB rebuilds automatically from AdGuard's 14-day log
+# after upgrade.
 #
 # This COMPLEMENTS — does not replace — the auto-upgrade lockout in STEP 4:
 #   - STEP 4 stops *silent/automatic* OTA wipes (the failure mode that hit us).
-#   - This step lets a *deliberate* Keep-Settings upgrade carry our files over.
+#   - This step lets a *deliberate* Keep-Settings upgrade carry config over.
 # A full reset / "don't keep settings" upgrade still wipes everything; recover
 # by re-running install.sh (config is also backed up to /etc/lanternwatch.bak.*).
 # ══════════════════════════════════════════════════════════════════════════════
@@ -906,13 +910,22 @@ log "  Registering Lantern Watch paths in /etc/sysupgrade.conf..."
 SYSUPGRADE_CONF="/etc/sysupgrade.conf"
 touch "$SYSUPGRADE_CONF"
 
-# /root/lantern-watch/ already covers the config JSON and the DB, but the
-# config and DB are listed explicitly too so the intent is obvious and a future
-# relocation of either file is caught.
-LW_KEEP_PATHS="
+# Scrub old entries that used to archive the live SQLite DB (or the whole
+# directory containing it) during firmware upgrades.
+LW_REMOVE_PATHS="
 /root/lantern-watch/
-/root/lantern-watch/lanternwatch_config.json
 /root/lantern-watch/lanternwatch.db
+"
+for p in $LW_REMOVE_PATHS; do
+    if grep -qxF "$p" "$SYSUPGRADE_CONF" 2>/dev/null; then
+        grep -vxF "$p" "$SYSUPGRADE_CONF" > "${SYSUPGRADE_CONF}.tmp" || true
+        mv "${SYSUPGRADE_CONF}.tmp" "$SYSUPGRADE_CONF"
+        log "    - $p (removed — DB rebuilds from AdGuard after upgrade)"
+    fi
+done
+
+LW_KEEP_PATHS="
+/root/lantern-watch/lanternwatch_config.json
 /etc/init.d/lanternwatch
 "
 for p in $LW_KEEP_PATHS; do
@@ -923,8 +936,8 @@ for p in $LW_KEEP_PATHS; do
         log "    + $p"
     fi
 done
-log "  sysupgrade.conf updated — app, config, DB, and init script will survive a Keep-Settings upgrade."
-log "  (Note: autostart may need 're-enable' after such an upgrade: /etc/init.d/lanternwatch enable)"
+log "  sysupgrade.conf updated — config and init script will survive a Keep-Settings upgrade (DB is intentionally excluded and rebuilds from AdGuard's log)."
+log "  (Note: after a firmware flash, reinstall lanternwatch from Plug-ins / opkg to restore python3 and app files — your saved config will be preserved.)"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SUMMARY

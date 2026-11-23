@@ -14,7 +14,7 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
 from config import load_config, save_config
 from adguard import apply_social_profile, get_blocked_platforms, apply_doh_iptables, apply_doh_dns_mitigation, setup_block_page
 from portal import restore_captive_portal
-from db import get_or_create_install_id
+from db import check_and_recover_db, get_or_create_install_id
 from scheduler import restore_paused_on_boot, start_scheduler
 from routes import Handler
 
@@ -22,7 +22,8 @@ PORT = 8081
 
 if __name__ == "__main__":
     config = load_config()
-    get_or_create_install_id()  # Seed anonymous install UUID on first boot
+    check_and_recover_db()      # Auto-recover from a corrupt DB before any reads
+    get_or_create_install_id()  # Seed (or re-seed from config.json) anonymous install UUID
     # One-time migration: every install before 0.19.0 has "custom_groups": []
     # (that was the old default, not a deliberate opt-out) — left as-is, that
     # silently no-ops the new auto-categorization feature and leaves "Or pause
